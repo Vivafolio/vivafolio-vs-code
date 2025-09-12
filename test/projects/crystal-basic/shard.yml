@@ -1,0 +1,6 @@
+name: crystal-basic
+version: 0.1.0
+description: Basic Crystal project for LSP connectivity
+
+dependencies:
+  # No dependencies needed for basic connectivity test

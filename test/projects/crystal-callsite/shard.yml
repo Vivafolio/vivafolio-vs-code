@@ -1,0 +1,9 @@
+name: crystal-callsite
+version: 0.1.0
+
+targets:
+  crystal-callsite:
+    main: src/use_bad.cr
+
+
+

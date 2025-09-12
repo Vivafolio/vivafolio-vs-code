@@ -1,0 +1,13 @@
+# Nim basic connectivity project
+# Provides a minimal layout that nimlangserver can analyze
+# Using .nimble format as recommended in status document
+
+version = "0.1.0"
+author = "vivafolio"
+description = "Basic Nim project for LSP connectivity"
+license = "MIT"
+
+requires "nim >= 1.6.0"
+
+srcDir = "src"
+bin = @["main"]

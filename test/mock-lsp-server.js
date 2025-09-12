@@ -1,0 +1,306 @@
+// Mock LSP server that simulates a custom language implementing Vivafolio spec
+// Sends BlockSync notifications as LSP Hint diagnostics for vivafolio_block!() calls
+
+const rpc = require('vscode-jsonrpc/node')
+
+const connection = rpc.createMessageConnection(
+  new rpc.StreamMessageReader(process.stdin),
+  new rpc.StreamMessageWriter(process.stdout)
+)
+
+let initialized = false
+const uriState = new Map() // uri -> { color: string }
+
+connection.onRequest('initialize', (params) => {
+  console.error('LSP initialize: received initialize request')
+  console.error('LSP initialize: params =', JSON.stringify(params, null, 2))
+  initialized = true
+  console.error('LSP initialize: server initialized =', initialized)
+  return {
+    capabilities: {
+      textDocumentSync: 1 // Full sync
+    },
+    serverInfo: { name: 'vivafolio-mock-language', version: '0.1' }
+  }
+})
+
+connection.onNotification('initialized', () => {
+  try {
+    console.error('LSP initialized: received initialized notification')
+  } catch {}
+})
+
+function createBlockSyncPayload(blockId, entityId) {
+  return {
+    blockId: blockId,
+    blockType: "https://blockprotocol.org/@blockprotocol/types/block-type/test-block/",
+    displayMode: "multi-line",
+    entityId: entityId,
+    initialGraph: {
+      entities: [{
+        entityId: entityId,
+        properties: {
+          testValue: "Hello from Vivafolio E2E test",
+          timestamp: new Date().toISOString()
+        }
+      }],
+      links: []
+    },
+    supportsHotReload: false,
+    initialHeight: 200,
+    resources: [{
+      logicalName: "index.html",
+      physicalPath: `file://${__dirname}/resources/index.html`,
+      cachingTag: "test-etag-" + Date.now()
+    }]
+  }
+}
+
+function parseGuiStateFromText(text) {
+  try {
+    const lines = text.split('\n')
+    for (const line of lines) {
+      if (/vivafolio_picker!\s*\(\s*\)/.test(line)) {
+        const m = /gui_state!\s*r#"\s*(\{[\s\S]*?\})\s*"#/.exec(line)
+        if (!m) return { present: false }
+        try {
+          const obj = JSON.parse(m[1])
+          const c = (obj && typeof obj === 'object') ? (obj.color || obj?.properties?.color) : undefined
+          if (typeof c === 'string' && /^#[0-9A-Fa-f]{6}$/.test(c)) return { present: true, color: c }
+          return { present: true, error: 'missing_or_invalid_color' }
+        } catch (e) {
+          const msg = (e && e.message) ? String(e.message) : 'Invalid JSON'
+          return { present: true, error: msg }
+        }
+      }
+    }
+    return { present: false }
+  } catch { return { present: false } }
+}
+
+function extractVivafolioBlocks(text) {
+  const blocks = []
+  const lines = text.split('\n')
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    // Look for vivafolio_block!(entity_id) pattern
+    const match = line.match(/vivafolio_block!\(\s*["']([^"']+)["']\s*\)/)
+    if (match) {
+      const entityId = match[1]
+      const blockId = `block-${entityId}-${i}`
+      blocks.push({
+        line: i,
+        blockId: blockId,
+        entityId: entityId
+      })
+    }
+    // Color picker and square markers
+    if (/vivafolio_picker!\s*\(\s*\)/.test(line)) {
+      blocks.push({ line: i, blockId: `picker-${i}`, entityId: 'color-picker', kind: 'picker' })
+    }
+    if (/vivafolio_square!\s*\(\s*\)/.test(line)) {
+      blocks.push({ line: i, blockId: `square-${i}`, entityId: 'color-square', kind: 'square' })
+    }
+  }
+
+  return blocks
+}
+
+connection.onNotification('textDocument/didOpen', (p) => {
+  try {
+    console.error('LSP didOpen uri=', p?.textDocument?.uri)
+    console.error('LSP didOpen: initialized =', initialized)
+  } catch {}
+
+  // LSP requires COMPLETE state semantics - send ALL diagnostics for the document
+  if (!initialized) {
+    console.error('LSP didOpen: not initialized, skipping')
+    return
+  }
+
+  try {
+    const doc = p?.textDocument
+    if (!doc?.uri || !doc.text) {
+      console.error('LSP didOpen: missing uri or text')
+      return
+    }
+
+    console.error('LSP didOpen: processing document with', doc.text.length, 'characters')
+    console.error('LSP didOpen: document content preview:', doc.text.substring(0, 200))
+
+    const gs = parseGuiStateFromText(doc.text)
+    console.error('LSP didOpen: gui_state parsed =', JSON.stringify(gs))
+    if (gs.color) uriState.set(doc.uri, { color: gs.color })
+
+    const blocks = extractVivafolioBlocks(doc.text)
+    console.error('LSP didOpen: found', blocks.length, 'blocks:', JSON.stringify(blocks))
+
+    if (blocks.length > 0) {
+      const diagnostics = blocks.map(block => {
+        let payload
+        if (block.kind === 'picker') {
+          payload = createBlockSyncPayload(block.blockId, block.entityId)
+          payload.resources[0].physicalPath = `file://${__dirname}/resources/blocks/color-picker.html`
+          const gsHere = parseGuiStateFromText(doc.text)
+          if (gsHere.present && gsHere.error) {
+            payload.initialGraph = null
+            payload.error = { kind: 'gui_state_syntax_error', message: gsHere.error }
+            console.error('LSP didOpen: picker block', block.blockId, 'syntax error:', gsHere.error)
+          } else {
+            // Use parsed color if present; otherwise a benign default for initial display
+            const currentColor = gsHere.color || '#ff0000'
+            payload.initialGraph.entities[0].properties = { color: currentColor }
+            console.error('LSP didOpen: picker block', block.blockId, 'initialized with color', currentColor)
+          }
+        } else if (block.kind === 'square') {
+          payload = createBlockSyncPayload(block.blockId, block.entityId)
+          payload.resources[0].physicalPath = `file://${__dirname}/resources/blocks/color-square.html`
+          const gsHere = parseGuiStateFromText(doc.text)
+          if (gsHere.present && gsHere.error) {
+            payload.initialGraph = null
+            payload.error = { kind: 'gui_state_syntax_error', message: gsHere.error }
+            console.error('LSP didOpen: square block', block.blockId, 'syntax error:', gsHere.error)
+          } else {
+            const currentColor = gsHere.color || '#ff0000'
+            payload.initialGraph.entities[0].properties = { color: currentColor }
+            console.error('LSP didOpen: square block', block.blockId, 'initialized with color', currentColor)
+          }
+        } else {
+          payload = createBlockSyncPayload(block.blockId, block.entityId)
+        }
+        return {
+          range: {
+            start: { line: block.line, character: 0 },
+            end: { line: block.line, character: 1 }
+          },
+          severity: 4, // Hint
+          source: 'vivafolio-mock-language',
+          message: 'vivafolio: ' + JSON.stringify(payload)
+        }
+      })
+
+      try {
+        console.error('LSP didOpen: publishing', diagnostics.length, 'diagnostics')
+        console.error('LSP didOpen: first diagnostic message preview:', diagnostics[0]?.message?.substring(0, 200))
+      } catch {}
+
+      const diagnosticParams = {
+        uri: doc.uri,
+        version: doc.version || 1,
+        diagnostics: diagnostics
+      }
+      console.error('LSP didOpen: sending publishDiagnostics with params:', JSON.stringify(diagnosticParams, null, 2))
+
+      connection.sendNotification('textDocument/publishDiagnostics', diagnosticParams)
+    }
+  } catch (err) {
+    console.error('Mock LSP server error:', err)
+  }
+})
+
+connection.onNotification('textDocument/didChange', (p) => {
+  try {
+    console.error('LSP didChange uri=', p?.textDocument?.uri, 'version=', p?.textDocument?.version)
+  } catch {}
+
+  // Re-analyze on changes - LSP requires COMPLETE state semantics (not incremental)
+  if (!initialized || !p?.textDocument?.uri) return
+
+  try {
+    const doc = p?.contentChanges?.[0]?.text
+    if (!doc) {
+      console.error('LSP didChange: no content in change notification')
+      return
+    }
+
+    console.error('LSP didChange: processing document with', doc.length, 'characters')
+
+    const gs = parseGuiStateFromText(doc)
+    console.error('LSP didChange: parsed gui_state:', JSON.stringify(gs))
+    if (gs.color) {
+      uriState.set(p.textDocument.uri, { color: gs.color })
+      console.error('LSP didChange: updated uriState for', p.textDocument.uri.toString(), 'with color', gs.color)
+    }
+
+    const blocks = extractVivafolioBlocks(doc)
+    console.error('LSP didChange: found', blocks.length, 'vivafolio blocks')
+
+    if (blocks.length > 0) {
+      const diagnostics = blocks.map(block => {
+        console.error('LSP didChange: processing block', block.blockId, 'kind:', block.kind || 'generic')
+        let payload
+        if (block.kind === 'picker') {
+          payload = createBlockSyncPayload(block.blockId, block.entityId)
+          payload.resources[0].physicalPath = `file://${__dirname}/resources/blocks/color-picker.html`
+          const gsHere = parseGuiStateFromText(doc)
+          if (gsHere.present && gsHere.error) {
+            payload.initialGraph = null
+            payload.error = { kind: 'gui_state_syntax_error', message: gsHere.error }
+            console.error('LSP didChange: picker block', block.blockId, 'syntax error:', gsHere.error)
+          } else {
+            const currentColor = gsHere.color || '#ff0000'
+            payload.initialGraph.entities[0].properties = { color: currentColor }
+            console.error('LSP didChange: picker block', block.blockId, 'updated with color', currentColor)
+          }
+        } else if (block.kind === 'square') {
+          payload = createBlockSyncPayload(block.blockId, block.entityId)
+          payload.resources[0].physicalPath = `file://${__dirname}/resources/blocks/color-square.html`
+          const gsHere = parseGuiStateFromText(doc)
+          if (gsHere.present && gsHere.error) {
+            payload.initialGraph = null
+            payload.error = { kind: 'gui_state_syntax_error', message: gsHere.error }
+            console.error('LSP didChange: square block', block.blockId, 'syntax error:', gsHere.error)
+          } else {
+            const currentColor = gsHere.color || '#ff0000'
+            payload.initialGraph.entities[0].properties = { color: currentColor }
+            console.error('LSP didChange: square block', block.blockId, 'updated with color', currentColor)
+          }
+        } else {
+          payload = createBlockSyncPayload(block.blockId, block.entityId)
+        }
+        return {
+          range: {
+            start: { line: block.line, character: 0 },
+            end: { line: block.line, character: 1 }
+          },
+          severity: 4, // Hint
+          source: 'vivafolio-mock-language',
+          message: 'vivafolio: ' + JSON.stringify(payload)
+        }
+      })
+
+      console.error('LSP didChange: publishing', diagnostics.length, 'diagnostics')
+      connection.sendNotification('textDocument/publishDiagnostics', {
+        uri: p.textDocument.uri,
+        version: p.textDocument.version || 1,
+        diagnostics: diagnostics
+      })
+    } else {
+      console.error('LSP didChange: no blocks found, clearing diagnostics')
+      // Clear diagnostics if no blocks found
+      connection.sendNotification('textDocument/publishDiagnostics', {
+        uri: p.textDocument.uri,
+        version: p.textDocument.version || 1,
+        diagnostics: []
+      })
+    }
+  } catch (err) {
+    console.error('Mock LSP server error on change:', err)
+  }
+})
+
+connection.onNotification('textDocument/didSave', (p) => {
+  // Re-analyze on save (the test calls doc.save())
+  if (!initialized || !p?.textDocument?.uri) return
+
+  try {
+    // For didSave, we don't get the text content, so we can't re-analyze
+    // The test should trigger a didChange instead
+    // For now, just ignore didSave
+  } catch (err) {
+    console.error('Mock LSP server error on save:', err)
+  }
+})
+
+connection.listen()

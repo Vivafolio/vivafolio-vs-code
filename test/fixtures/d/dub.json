@@ -1,0 +1,15 @@
+{
+  "name": "vivafolio-fixture",
+  "description": "Vivafolio D fixture",
+  "authors": ["test"],
+  "license": "MIT",
+  "targetType": "executable",
+  "targetPath": "bin",
+  "sourcePaths": ["source"]
+}
+
+
+
+
+
+

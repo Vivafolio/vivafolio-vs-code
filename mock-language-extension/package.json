@@ -1,0 +1,43 @@
+{
+  "name": "vivafolio-mock-language",
+  "displayName": "Vivafolio Mock Language (Test Only)",
+  "description": "Mock language extension that starts a simple LSP server to emit Vivafolio BlockSync diagnostics for E2E tests.",
+  "version": "0.0.1",
+  "publisher": "local",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:vivafolio-mock"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "vivafolio-mock",
+        "aliases": [
+          "Vivafolio Mock"
+        ],
+        "extensions": [
+          ".viv"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "watch": "tsc -w -p ."
+  },
+  "dependencies": {
+    "vscode-languageclient": "^8.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "22",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.4.0"
+  }
+}

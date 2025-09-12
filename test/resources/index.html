@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vivafolio Test Block</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 16px;
+            background: #f8f9fa;
+            color: #212529;
+        }
+
+        .block-container {
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .block-header {
+            font-size: 14px;
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 12px;
+            border-bottom: 1px solid #e9ecef;
+            padding-bottom: 8px;
+        }
+
+        .block-content {
+            font-size: 16px;
+            line-height: 1.5;
+        }
+
+        .test-value {
+            background: #e7f3ff;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            border: 1px solid #b8daff;
+            margin: 8px 0;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #28a745;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .interaction-area {
+            margin-top: 16px;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+        }
+
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 8px;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        .log-area {
+            margin-top: 12px;
+            padding: 8px;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="block-container">
+        <div class="block-header">
+            <span class="status-indicator"></span>
+            Vivafolio Test Block
+        </div>
+
+        <div class="block-content">
+            <p>This is a test block rendered by the Vivafolio E2E test system.</p>
+
+            <div class="test-value" id="test-value">
+                Loading test data...
+            </div>
+
+            <div class="interaction-area">
+                <button onclick="updateValue()">Update Value</button>
+                <button onclick="sendMessage()">Send Message</button>
+                <button onclick="clearLog()">Clear Log</button>
+            </div>
+
+            <div class="log-area" id="log-area">
+                Block initialized at: <span id="init-time"></span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let blockData = null;
+        let messageCount = 0;
+
+        // Initialize the block
+        document.getElementById('init-time').textContent = new Date().toLocaleString();
+
+        // Listen for messages from the host extension
+        window.addEventListener('message', event => {
+            const message = event.data;
+
+            if (message.type === 'graph:update' && message.payload) {
+                handleGraphUpdate(message.payload);
+            }
+        });
+
+        function handleGraphUpdate(payload) {
+            if (payload.entities && payload.entities.length > 0) {
+                const entity = payload.entities[0];
+                if (entity.properties) {
+                    blockData = entity.properties;
+                    updateDisplay();
+                    logEvent(`Received graph update: ${JSON.stringify(entity.properties)}`);
+                }
+            }
+        }
+
+        function updateDisplay() {
+            if (blockData) {
+                const testValueElement = document.getElementById('test-value');
+                testValueElement.textContent = JSON.stringify(blockData, null, 2);
+            }
+        }
+
+        function updateValue() {
+            if (blockData) {
+                blockData.testValue = `Updated at ${new Date().toLocaleTimeString()}`;
+                blockData.updateCount = (blockData.updateCount || 0) + 1;
+                updateDisplay();
+
+                // Send update back to host
+                sendToHost({
+                    type: 'graph:update',
+                    payload: {
+                        entities: [{
+                            entityId: 'entity-test-123',
+                            properties: blockData
+                        }],
+                        links: []
+                    }
+                });
+
+                logEvent('Sent update to host');
+            }
+        }
+
+        function sendMessage() {
+            messageCount++;
+            const message = {
+                type: 'block:message',
+                content: `Test message ${messageCount} from block`,
+                timestamp: new Date().toISOString()
+            };
+
+            sendToHost(message);
+            logEvent(`Sent message: ${message.content}`);
+        }
+
+        function sendToHost(message) {
+            if (window.parent) {
+                window.parent.postMessage(message, '*');
+            }
+        }
+
+        function logEvent(message) {
+            const logArea = document.getElementById('log-area');
+            const timestamp = new Date().toLocaleTimeString();
+            logArea.innerHTML += `\n[${timestamp}] ${message}`;
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('log-area').innerHTML = 'Log cleared at: ' + new Date().toLocaleString();
+        }
+
+        // Notify host that block is ready
+        sendToHost({ type: 'ready' });
+        logEvent('Block ready - sent ready message to host');
+
+        // Request initial graph from host by waiting, the host should send graph:update upon ready
+    </script>
+</body>
+</html>

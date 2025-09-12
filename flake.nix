@@ -1,0 +1,104 @@
+{
+  description = "Vivafolio VS Code extension dev shell";
+
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    flake-utils.url = "github:numtide/flake-utils";
+    # Alternative Nim LSP and toolchain overlay (nimlangserver via metacraft-labs)
+    nix-nim-dev.url = "github:metacraft-labs/nix-nim-development";
+    # TODO: Consider pinning additional Nim versions and nimlangserver variants for matrix testing,
+    # to mitigate nimsuggest/langserver version mismatches.
+  };
+
+  outputs = { self, nixpkgs, flake-utils, nix-nim-dev }:
+    flake-utils.lib.eachDefaultSystem (system: let
+      pkgs = import nixpkgs {
+        inherit system;
+        config.allowUnfree = true;
+        overlays = [ nix-nim-dev.overlays.default ];
+      };
+      lib = pkgs.lib;
+      # Explicit Insiders derivation on Linux; keep upstream override on macOS where it works.
+      vscodeInsiders = if pkgs.stdenv.isDarwin then
+        pkgs.vscode.override { isInsiders = true; }
+      else
+        (pkgs.vscode.override { isInsiders = true; }).overrideAttrs (old: rec {
+          version = "latest";
+          # Linux only: choose arm64/x64 and pin hash for x86_64-linux.
+          src = let
+            isAarch64 = pkgs.stdenv.hostPlatform.isAarch64 or (pkgs.system == "aarch64-linux");
+            osParam = if isAarch64 then "linux-arm64" else "linux-x64";
+            name = "vscode-insiders-${osParam}.tar.gz";
+            url = "https://code.visualstudio.com/sha/download?build=insider&os=${osParam}";
+          in pkgs.fetchurl ({ inherit url name; } //
+               (if pkgs.stdenv.hostPlatform.system == "x86_64-linux" then {
+                 sha256 = "sha256-0SYP+ZcTI+Bq6NjBUGEJw2uPgR1sX9p01DzHyWgOBKk=";
+               } else if pkgs.stdenv.hostPlatform.system == "aarch64-linux" then {
+                 sha256 = "sha256-pryuJPBxDvxS+pkrDWioiFghs+QNqge+iQvcwCUB0dg=";
+               } else {
+                 sha256 = lib.fakeSha256;
+               }));
+          pname = "vscode-insiders";
+          name = "${pname}-${version}";
+        });
+    in {
+      devShells.default = pkgs.mkShell {
+        packages = with pkgs; [
+          nodejs_22
+          typescript
+          bashInteractive
+          gdb
+          # Lean toolchain (lake, lean4) to run lean connectivity
+          lean4
+          # Nim runtime and tools (nim/nimsuggest). We may need multiple Nim versions in CI.
+          nim
+          nimble
+          nimlsp
+          # Nim language server from overlay
+          pkgs.metacraft-labs.langserver
+        ] ++ [
+          # D toolchain + serve-d
+          ldc
+          dub
+          serve-d
+          # Rust
+          rust-analyzer
+          cargo
+          rustc
+          # Zig
+          zig
+          zls
+          # Crystal
+          crystal
+          crystalline
+          # Python for runtime path testing
+          python3
+          python3Packages.pip
+          # Ruby for runtime path testing
+          ruby
+          bundler
+          # Julia for runtime path testing
+          julia-bin
+          # R for runtime path testing
+          R
+          rPackages.devtools
+          # JavaScript/Node.js for runtime path testing (already have nodejs_22 above)
+          # WebdriverIO testing dependencies
+          chromedriver
+          selenium-server-standalone
+          xorg.xorgserver # provides Xvfb for headless VS Code on Linux
+          # Virtual framebuffer for headless GUI testing in CI (Linux only)
+          # xvfb-run  # Not available on macOS
+          # VS Code Insiders is used only for manual testing
+          # @vscode/test-electron downloads VS Code for the automated tests.
+          vscodeInsiders
+        ];
+        shellHook = ''
+          echo "Vivafolio dev shell: Node $(node -v)"
+          # Agents note: This shell is intentionally minimal and self-contained for Vivafolio tests.
+          # In CI we may instantiate multiple shells to test different Nim versions and LSP variants.
+          export DC=ldc2
+        '';
+      };
+    });
+}

@@ -1,0 +1,4 @@
+// Vivafolio two blocks synchronization demo
+// This file demonstrates complete bidirectional state synchronization
+vivafolio_picker!() gui_state! r#"{"properties":{"color":"#33ff00"}}"#
+vivafolio_square!()

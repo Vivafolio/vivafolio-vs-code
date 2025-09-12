@@ -1,0 +1,9 @@
+{
+  "name": "d-basic",
+  "description": "Basic D project for LSP connectivity",
+  "authors": ["vivafolio"],
+  "license": "MIT",
+  "targetType": "executable",
+  "targetPath": "bin",
+  "sourcePaths": ["source"]
+}

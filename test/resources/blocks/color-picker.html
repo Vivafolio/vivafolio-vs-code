@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>body{font-family:sans-serif;margin:8px}</style></head>
+<body>
+  <label>Pick color: <input id="picker" type="color"><span id="err" title="Syntax error" style="display:none;margin-left:6px;color:#c00;">⚠️</span></label>
+  <script>
+    const picker = document.getElementById('picker');
+    let entityId = 'color-picker'; // Match LSP server entityId
+    let vscodeApi = null; // Store VS Code API instance
+
+    function log(message) {
+      console.log('[COLOR-PICKER] ' + message);
+    }
+
+    function send(msg){
+      log('Sending message: ' + JSON.stringify(msg));
+      try {
+        // Acquire VS Code API only once
+        if (!vscodeApi && typeof acquireVsCodeApi === 'function') {
+          vscodeApi = acquireVsCodeApi();
+        }
+        (vscodeApi || parent).postMessage(msg);
+      } catch(e) {
+        log('Error sending message: ' + e.message);
+      }
+    }
+
+    // Do not override the initial color; wait for initial graph:update from the host
+    log('Color picker initialized with entityId: ' + entityId + ', initial value: ' + picker.value);
+
+    let isInitialized = false; // Track if we've received initial state
+
+    window.addEventListener('message', (e)=>{
+      const m = e.data;
+      log('Received message: ' + JSON.stringify(m));
+
+      if(m && m.type === 'ready') {
+        // This is the ready message from the extension with initial state
+        log('Received ready message, ignoring as we handle this differently');
+      } else if(m && m.type === 'graph:update'){
+        const entity = m.payload?.entities?.[0];
+        log('Processing graph:update with entity: ' + JSON.stringify(entity));
+
+        if(entity && entity.properties?.color) {
+          const oldValue = picker.value;
+          picker.value = entity.properties.color;
+          const oldEntityId = entityId;
+          entityId = entity.entityId || entityId; // Store the entityId for future messages, keep existing if not provided
+
+          log('Updated picker value from ' + oldValue + ' to ' + picker.value + ', entityId from ' + oldEntityId + ' to ' + entityId);
+
+          // If this is the first update (initialization), don't send a response to avoid infinite loop
+          if (!isInitialized) {
+            isInitialized = true;
+            log('Initial state set, not sending update response');
+            try { document.getElementById('err').style.display = 'none'; } catch {}
+          } else if (oldValue !== picker.value) {
+            // Only send update if this is a user-initiated change after initialization
+            log('User changed color, sending update to extension');
+            // Send the complete component state - color-picker uses {"properties":{"color":"..."}} format for persistence
+            const response = { type: 'graph:update', payload: { entities: [{ entityId: entityId, properties: { color: picker.value } }], links: [] } };
+            send(response);
+          }
+        } else {
+          log('Invalid entity or missing color property in: ' + JSON.stringify(entity));
+        }
+      } else if (m && m.type === 'graph:error') {
+        try { document.getElementById('err').style.display = 'inline'; } catch {}
+        log('Graph error received: ' + JSON.stringify(m.error));
+        // Do not change picker value on error
+      } else if(m && m.type === 'log') {
+        // Ignore log messages
+      } else {
+        log('Ignoring message of type: ' + (m ? m.type : 'undefined'));
+      }
+    });
+
+    picker.addEventListener('input', ()=>{
+      log('User changed picker value to: ' + picker.value);
+      const msg = { type: 'graph:update', payload: { entities: [{ entityId: entityId, properties: { color: picker.value } }], links: [] } };
+      send(msg);
+    });
+
+    log('Sending initial ready message');
+    send({ type: 'ready' });
+  </script>
+</body></html>
+
+

@@ -1,0 +1,12 @@
+[submodule "third_party/nimlangserver"]
+	path = third_party/nimlangserver
+	url = https://github.com/nim-lang/langserver
+[submodule "third_party/zls"]
+	path = third_party/zls
+	url = https://github.com/zigtools/zls
+[submodule "third_party/crystalline"]
+	path = third_party/crystalline
+	url = https://github.com/elbywan/crystalline
+[submodule "third_party/nix-nim-development"]
+	path = third_party/nix-nim-development
+	url = https://github.com/metacraft-labs/nix-nim-development

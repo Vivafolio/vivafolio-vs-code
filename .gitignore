@@ -1,0 +1,18 @@
+.direnv/
+
+# Build artifacts
+out/
+*.vsix
+
+# Dependencies
+node_modules/
+
+# Editor
+.vscode/
+.DS_Store
+.vscode-test/
+
+.wdio-vscode-service/
+test-results/
+playwright-report/
+test-results.json

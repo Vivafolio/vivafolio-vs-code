@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+  #sq{width:120px;height:120px;background:#000;border:2px solid #333}
+  body{font-family:sans-serif;margin:8px}
+</style></head>
+<body>
+  <div id="sq"></div><span id="err" title="Syntax error" style="display:none;margin-left:6px;color:#c00;">⚠️</span>
+  <script>
+    const sq = document.getElementById('sq');
+
+    function log(message) {
+      console.log('[COLOR-SQUARE] ' + message);
+    }
+
+    function set(color){
+      const oldColor = sq.style.background;
+      sq.style.background = color;
+      log('Updated square color from ' + oldColor + ' to ' + color);
+    }
+
+    let vscodeApi = null; // Store VS Code API instance
+
+    function send(msg){
+      log('Sending message: ' + JSON.stringify(msg));
+      try {
+        // Acquire VS Code API only once
+        if (!vscodeApi && typeof acquireVsCodeApi === 'function') {
+          vscodeApi = acquireVsCodeApi();
+        }
+        (vscodeApi || parent).postMessage(msg);
+      } catch(e) {
+        log('Error sending message: ' + e.message);
+      }
+    }
+
+    log('Color square initialized with background: ' + sq.style.background);
+
+    window.addEventListener('message', (e)=>{
+      const m = e.data;
+      log('Received message: ' + JSON.stringify(m));
+
+      if(m && m.type === 'graph:update'){
+        const entity = m.payload?.entities?.[0];
+        log('Processing graph:update with entity: ' + JSON.stringify(entity));
+
+        const color = entity?.properties?.color;
+        if(color) {
+          set(color);
+          try { document.getElementById('err').style.display = 'none'; } catch {}
+        } else {
+          log('Invalid entity or missing color property');
+        }
+      } else if (m && m.type === 'graph:error') {
+        try { document.getElementById('err').style.display = 'inline'; } catch {}
+        log('Graph error received: ' + JSON.stringify(m.error));
+      } else if(m && m.type === 'log') {
+        // Ignore log messages
+      } else {
+        log('Ignoring message of type: ' + (m ? m.type : 'undefined'));
+      }
+    });
+
+    log('Sending initial ready message');
+    send({ type: 'ready' });
+  </script>
+</body></html>
+
+
