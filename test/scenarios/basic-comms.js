@@ -9,6 +9,7 @@ const path = require('path')
 const { pathToFileURL } = require('url')
 const fs = require('fs')
 
+// Synchronously checks if an executable with the given name exists in any directory on the user's PATH.
 function commandExists(cmd) {
   try {
     const pathSep = process.platform === 'win32' ? ';' : ':'
@@ -25,6 +26,7 @@ function commandExists(cmd) {
   return false
 }
 
+// Throws an error (and logs a hint) if the given command is not found in PATH; used to ensure required binaries are present before running tests.
 function assertCommandExists(repoRoot, label, cmd) {
   if (!commandExists(cmd)) {
     const { logPath, log } = createLogger(repoRoot, `${label}-missing-${cmd}`)
@@ -36,15 +38,18 @@ function assertCommandExists(repoRoot, label, cmd) {
   }
 }
 
+// Returns the absolute path to a command using 'command -v', or the raw name if lookup fails.
 function resolveBinary(cmd) {
   try { return execSync(`command -v ${cmd}`, { encoding: 'utf8' }).trim() } catch { return cmd }
 }
 
+// Ensures the test/logs directory exists and returns its absolute path.
 function ensureLogsDir(repoRoot) {
   const dir = path.resolve(repoRoot, 'test', 'logs')
   try { fs.mkdirSync(dir, { recursive: true }) } catch {}
   return dir
 }
+// Creates a timestamped log file and returns an object with logPath, log (function), and stream.
 function createLogger(repoRoot, label) {
   const dir = ensureLogsDir(repoRoot)
   const ts = new Date().toISOString().replace(/[:.]/g, '-')
@@ -53,6 +58,7 @@ function createLogger(repoRoot, label) {
   const log = (msg) => { try { stream.write(`[${new Date().toISOString()}] ${msg}\n`) } catch {} }
   return { logPath, log, stream }
 }
+// Wraps a spawned process with a JSON-RPC connection and logs stderr, exit, trace, and errors to a file.
 function makeConnectionWithLogging(proc, label, repoRoot) {
   const { logPath, log } = createLogger(repoRoot, label)
   log(`[spawn] ${label} pid=${proc.pid}`)
@@ -75,8 +81,10 @@ function makeConnectionWithLogging(proc, label, repoRoot) {
   return { conn, logPath }
 }
 
+// Returns a Promise that resolves after the given number of milliseconds (sleep helper).
 function wait(ms) { return new Promise(r => setTimeout(r, ms)) }
 
+// Resolves when the process emits any stdout/stderr data, or rejects on error/exit/timeout; used as a crude 'ready' signal.
 async function waitForProcReady(proc, timeoutMs = 1200) {
   return await new Promise((resolve, reject) => {
     let settled = false
@@ -96,7 +104,9 @@ async function waitForProcReady(proc, timeoutMs = 1200) {
 }
 
 // ---------- Lean ----------
+// Returns the name of the Lean build tool binary ('lake').
 function findLakeBinary(_repoRoot) { return 'lake' }
+// Starts the Lean 'lake serve' process in the lean-basic project, asserts presence, and returns its connection and log info.
 function startLeanLakeServe(repoRoot) {
   const cwd = path.resolve(repoRoot, 'test', 'projects', 'lean-basic')
   assertCommandExists(repoRoot, 'basic-lean', 'lake')
@@ -107,6 +117,7 @@ function startLeanLakeServe(repoRoot) {
   const { conn, logPath } = makeConnectionWithLogging(proc, 'basic-lean', repoRoot)
   return { conn, proc, cwd, logPath }
 }
+// Runs a Lean LSP session: initializes, opens Basic.lean, and waits for at least one diagnostic.
 async function testLean(repoRoot) {
   const started = startLeanLakeServe(repoRoot)
   if (started.skipped) {
@@ -141,6 +152,7 @@ async function testLean(repoRoot) {
 }
 
 // ---------- Nim ----------
+// Starts the Nim language server (nimlsp or nimlangserver) in the given directory, returns connection and log info.
 function startNimLangServer(cwd, repoRoot, serverCmd) {
   const overrideBin = process.env.VIVAFOLIO_NIMLANGSERVER_BIN && serverCmd === 'nimlangserver' ? process.env.VIVAFOLIO_NIMLANGSERVER_BIN : undefined
   const cmd = overrideBin || serverCmd || process.env.VIVAFOLIO_NIM_LSP || process.env.NIM_LSP || 'nimlsp'
@@ -156,6 +168,7 @@ function startNimLangServer(cwd, repoRoot, serverCmd) {
   } catch {}
   return { conn, proc, logPath }
 }
+// Runs a Nim LSP session: initializes, configures, opens a bad file, and waits for diagnostics.
 async function testNim(repoRoot, serverCmd) {
   const fixtureDir = path.resolve(repoRoot, 'test', 'projects', 'nim-basic')
   const filePath = path.join(fixtureDir, 'src', 'bad.nim')
@@ -203,6 +216,7 @@ async function testNim(repoRoot, serverCmd) {
 }
 
 // ---------- D ----------
+// Starts the D language server (serve-d) in the given directory, asserts presence, and returns connection and log info.
 function startServeD(cwd, repoRoot) {
   assertCommandExists(repoRoot, 'basic-d', 'serve-d')
   const proc = spawn(resolveBinary('serve-d'), [], { cwd, stdio: 'pipe', env: process.env, shell: resolveBinary('bash') })
@@ -214,6 +228,7 @@ function startServeD(cwd, repoRoot) {
   })
   return { conn, proc, logPath }
 }
+// Runs a D LSP session: initializes, configures, opens a bad file, and waits for diagnostics.
 async function testD(repoRoot) {
   const fixtureDir = path.resolve(repoRoot, 'test', 'projects', 'd-basic')
   const filePath = path.join(fixtureDir, 'source', 'bad.d')
@@ -254,12 +269,14 @@ async function testD(repoRoot) {
 }
 
 // ---------- Rust ----------
+// Starts the Rust language server (rust-analyzer) in the given directory, asserts presence, and returns connection and log info.
 function startRustAnalyzer(cwd, repoRoot) {
   assertCommandExists(repoRoot, 'basic-rust', 'rust-analyzer')
   const proc = spawn(resolveBinary('rust-analyzer'), [], { cwd, stdio: 'pipe', env: process.env, shell: resolveBinary('bash') })
   const { conn, logPath } = makeConnectionWithLogging(proc, 'basic-rust', repoRoot)
   return { conn, proc, logPath }
 }
+// Runs a Rust LSP session: initializes, opens/edits a bad file, and waits for diagnostics.
 async function testRust(repoRoot) {
   const fixtureDir = path.resolve(repoRoot, 'test', 'projects', 'rust-basic')
   const filePath = path.join(fixtureDir, 'src', 'bad.rs')
@@ -293,6 +310,7 @@ async function testRust(repoRoot) {
 }
 
 // ---------- Zig ----------
+// Starts the Zig language server (zls) in the given directory, asserts presence, and returns connection and log info.
 function startZls(cwd, repoRoot) {
   const zlsBin = process.env.VIVAFOLIO_ZLS_BIN || 'zls'
   assertCommandExists(repoRoot, 'basic-zig', zlsBin)
@@ -301,6 +319,7 @@ function startZls(cwd, repoRoot) {
   const { conn, logPath } = makeConnectionWithLogging(proc, 'basic-zig', repoRoot)
   return { conn, proc, logPath }
 }
+// Runs a Zig LSP session: initializes, opens/changes/saves a file, and waits for diagnostics.
 async function testZig(repoRoot) {
   const fixtureDir = path.resolve(repoRoot, 'test', 'projects', 'zig-basic')
   const filePath = path.join(fixtureDir, 'src', 'main.zig')
@@ -346,6 +365,7 @@ async function testZig(repoRoot) {
 }
 
 // ---------- Crystal ----------
+// Starts the Crystal language server (crystalline) in the given directory, asserts presence, and returns connection and log info.
 function startCrystalline(cwd, repoRoot) {
   const crystalBin = process.env.VIVAFOLIO_CRYSTALLINE_BIN || 'crystalline'
   assertCommandExists(repoRoot, 'basic-crystal', crystalBin)
@@ -353,6 +373,7 @@ function startCrystalline(cwd, repoRoot) {
   const { conn, logPath } = makeConnectionWithLogging(proc, 'basic-crystal', repoRoot)
   return { conn, proc, logPath }
 }
+// Runs a Crystal LSP session: initializes, opens/changes/saves a bad file, and waits for diagnostics.
 async function testCrystal(repoRoot) {
   const fixtureDir = path.resolve(repoRoot, 'test', 'projects', 'crystal-basic')
   const filePath = path.join(fixtureDir, 'src', 'bad.cr')
@@ -391,6 +412,7 @@ async function testCrystal(repoRoot) {
   }
 }
 
+// Orchestrates all per-language tests, collects results, prints summary, and sets exit code.
 async function run() {
   const repoRoot = path.resolve(__dirname, '..', '..')
   const results = []

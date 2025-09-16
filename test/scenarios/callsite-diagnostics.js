@@ -8,12 +8,36 @@ const { spawn } = require('child_process')
 const path = require('path')
 const { pathToFileURL } = require('url')
 const fs = require('fs')
+const { execSync } = require('child_process')
 
+// --- Utility: command existence + assertion (mirrors basic-comms for consistency) ---
+function commandExists(cmd) {
+  try {
+    const pathSep = process.platform === 'win32' ? ';' : ':'
+    const exts = process.platform === 'win32' ? (process.env.PATHEXT || '').toLowerCase().split(';') : ['']
+    const entries = String(process.env.PATH || '').split(pathSep)
+    for (const dir of entries) {
+      const base = path.join(dir, cmd)
+      for (const ext of exts) {
+        const p = base + ext
+        try { const st = fs.statSync(p); if (st.isFile()) return true } catch {}
+      }
+    }
+  } catch {}
+  return false
+}
+function assertCommandExists(label, cmd) {
+  if (!commandExists(cmd)) throw new Error(`[${label}] missing required binary: ${cmd}`)
+}
+function resolveBinary(cmd) { try { return execSync(`command -v ${cmd}`, { encoding: 'utf8' }).trim() } catch { return cmd } }
+
+// Ensures the test/logs directory exists under the repository root and returns its absolute path.
 function ensureLogsDir(repoRoot) {
-  const dir = path.resolve(repoRoot, 'vivafolio', 'test', 'logs')
+  const dir = path.resolve(repoRoot, 'test', 'logs')
   try { fs.mkdirSync(dir, { recursive: true }) } catch {}
   return dir
 }
+// Creates a timestamped log file in the logs directory and returns an object with logPath, log (function), and stream.
 function createLogger(repoRoot, label) {
   const dir = ensureLogsDir(repoRoot)
   const ts = new Date().toISOString().replace(/[:.]/g, '-')
@@ -22,6 +46,7 @@ function createLogger(repoRoot, label) {
   const log = (msg) => { try { stream.write(`[${new Date().toISOString()}] ${msg}\n`) } catch {} }
   return { logPath, log, stream }
 }
+// Wraps a spawned process with a JSON-RPC connection and logs stderr, errors, and trace output to a file.
 function makeConnectionWithLogging(proc, label, repoRoot) {
   const { logPath, log } = createLogger(repoRoot, label)
   log(`[spawn] ${label} pid=${proc.pid}`)
@@ -44,12 +69,17 @@ function makeConnectionWithLogging(proc, label, repoRoot) {
   return { conn, logPath }
 }
 
+// Returns a Promise that resolves after the given number of milliseconds (sleep helper).
 function wait(ms) { return new Promise(r => setTimeout(r, ms)) }
 
 // ---------- Lean ----------
+// Returns the name of the Lean build tool binary ('lake').
 function findLakeBinary(_repoRoot) { return 'lake' }
+// Starts the Lean 'lake serve' process in the lean-basic project, asserts presence, and returns its connection and log info.
 function startLeanLakeServe(repoRoot) {
-  const cwd = path.resolve(repoRoot, 'vivafolio', 'test', 'projects', 'lean-callsite')
+  assertCommandExists('callsite-lean', 'lake')
+  // NOTE: Paths previously included an extra 'vivafolio' segment causing nonexistent cwd and early server exit.
+  const cwd = path.resolve(repoRoot, 'test', 'projects', 'lean-callsite')
   const lakeBin = findLakeBinary(repoRoot)
   const binDir = path.dirname(lakeBin)
   const env = { ...process.env, PATH: `${binDir}:${process.env.PATH || ''}` }
@@ -85,28 +115,33 @@ async function testLean(repoRoot) {
 }
 
 // ---------- Nim ----------
+// Launches a Nim language server process and sets up logging and communication for it.
+// cwd - server working directory
+// repoRoot - repository root for log file placement
+// serverCmd - command to launch the Nim language server (e.g., 'nimlsp' or 'nimlangserver')
 function startNimLangServer(cwd, repoRoot, serverCmd) {
   const cmd = serverCmd || process.env.VIVAFOLIO_NIM_LSP || process.env.NIM_LSP || 'nimlsp'
+  assertCommandExists(`callsite-nim-${cmd}`, cmd)
   const proc = spawn(cmd, [], { cwd, stdio: 'pipe', env: process.env })
   const { conn, logPath } = makeConnectionWithLogging(proc, `callsite-nim-${cmd}`, repoRoot)
   return { conn, proc, logPath }
 }
 async function testNim(repoRoot, serverCmd) {
-  const fixtureDir = path.resolve(repoRoot, 'vivafolio', 'test', 'projects', 'nim-callsite')
+  const fixtureDir = path.resolve(repoRoot, 'test', 'projects', 'nim-callsite')
   const filePath = path.join(fixtureDir, 'src', 'use_bad.nim')
   const fileUri = String(pathToFileURL(filePath))
   const { conn, proc, logPath } = startNimLangServer(fixtureDir, repoRoot, serverCmd)
   try {
     await conn.sendRequest('initialize', { processId: null, capabilities: { workspace: { configuration: true } }, rootUri: String(pathToFileURL(fixtureDir)), workspaceFolders: null })
     await conn.sendNotification('initialized', {})
-    if ((serverCmd || 'nimlsp') === 'nimlsp') {
+  if ((serverCmd || 'nimlsp') === 'nimlsp') {
       try {
         await conn.sendNotification('workspace/didChangeConfiguration', {
           settings: { nim: { projectMapping: [{ projectFile: 'nim-callsite.nimble', fileRegex: '.*' }] } }
         })
       } catch {}
     }
-    await wait(200)
+  await wait(400) // give language server (and nimsuggest processes) more time to spin up
     const text = fs.readFileSync(filePath, 'utf8')
     await conn.sendNotification('textDocument/didOpen', { textDocument: { uri: fileUri, languageId: 'nim', version: 1, text } })
     await conn.sendNotification('textDocument/didChange', { textDocument: { uri: fileUri, version: 2 }, contentChanges: [{ text }] })
@@ -130,6 +165,7 @@ async function testNim(repoRoot, serverCmd) {
 
 // ---------- D ----------
 function startServeD(cwd, repoRoot) {
+  assertCommandExists('callsite-d', 'serve-d')
   const proc = spawn('serve-d', [], { cwd, stdio: 'pipe', env: process.env })
   const { conn, logPath } = makeConnectionWithLogging(proc, 'callsite-d', repoRoot)
   conn.onRequest('workspace/configuration', (params) => {
@@ -146,7 +182,7 @@ function startServeD(cwd, repoRoot) {
   return { conn, proc, logPath }
 }
 async function testD(repoRoot) {
-  const fixtureDir = path.resolve(repoRoot, 'vivafolio', 'test', 'projects', 'd-callsite')
+  const fixtureDir = path.resolve(repoRoot, 'test', 'projects', 'd-callsite')
   const filePath = path.join(fixtureDir, 'source', 'use_bad.d')
   const fileUri = String(pathToFileURL(filePath))
   const projectUri = String(pathToFileURL(fixtureDir))
@@ -186,12 +222,13 @@ async function testD(repoRoot) {
 
 // ---------- Rust ----------
 function startRustAnalyzer(cwd, repoRoot) {
+  assertCommandExists('callsite-rust', 'rust-analyzer')
   const proc = spawn('rust-analyzer', [], { cwd, stdio: 'pipe', env: process.env })
   const { conn, logPath } = makeConnectionWithLogging(proc, 'callsite-rust', repoRoot)
   return { conn, proc, logPath }
 }
 async function testRust(repoRoot) {
-  const fixtureDir = path.resolve(repoRoot, 'vivafolio', 'test', 'projects', 'rust-callsite')
+  const fixtureDir = path.resolve(repoRoot, 'test', 'projects', 'rust-callsite')
   const filePath = path.join(fixtureDir, 'src', 'use_bad.rs')
   const fileUri = String(pathToFileURL(filePath))
   const { conn, proc, logPath } = startRustAnalyzer(fixtureDir, repoRoot)
@@ -222,24 +259,26 @@ async function testRust(repoRoot) {
 // ---------- Zig ----------
 function startZls(cwd, repoRoot) {
   const env = { ...process.env }
+  assertCommandExists('callsite-zig', 'zls')
   const proc = spawn('zls', ['--enable-stderr-logs', '--log-level', 'debug'], { cwd, stdio: 'pipe', env })
   const { conn, logPath } = makeConnectionWithLogging(proc, 'callsite-zig', repoRoot)
   return { conn, proc, logPath }
 }
 async function testZig(repoRoot) {
-  const fixtureDir = path.resolve(repoRoot, 'vivafolio', 'test', 'projects', 'zig-callsite')
+  const fixtureDir = path.resolve(repoRoot, 'test', 'projects', 'zig-callsite')
   const filePath = path.join(fixtureDir, 'src', 'use_bad.zig')
   const fileUri = String(pathToFileURL(filePath))
   const { conn, proc, logPath } = startZls(fixtureDir, repoRoot)
   try {
-    await conn.sendRequest('initialize', {
+  const absZig = resolveBinary('zig')
+  await conn.sendRequest('initialize', {
       processId: null,
       capabilities: {},
       rootUri: String(pathToFileURL(fixtureDir)),
       workspaceFolders: [{ uri: String(pathToFileURL(fixtureDir)), name: 'zig-callsite' }],
       initializationOptions: {
         enable_build_on_save: false,
-        zig_exe_path: 'zig'
+    zig_exe_path: absZig
       }
     })
     await conn.sendNotification('initialized', {})
@@ -265,12 +304,13 @@ async function testZig(repoRoot) {
 
 // ---------- Crystal ----------
 function startCrystalline(cwd, repoRoot) {
+  assertCommandExists('callsite-crystal', 'crystalline')
   const proc = spawn('crystalline', [], { cwd, stdio: 'pipe', env: process.env })
   const { conn, logPath } = makeConnectionWithLogging(proc, 'callsite-crystal', repoRoot)
   return { conn, proc, logPath }
 }
 async function testCrystal(repoRoot) {
-  const fixtureDir = path.resolve(repoRoot, 'vivafolio', 'test', 'projects', 'crystal-callsite')
+  const fixtureDir = path.resolve(repoRoot, 'test', 'projects', 'crystal-callsite')
   const filePath = path.join(fixtureDir, 'src', 'use_bad.cr')
   const fileUri = String(pathToFileURL(filePath))
   const { conn, proc, logPath } = startCrystalline(fixtureDir, repoRoot)
@@ -305,7 +345,8 @@ async function testCrystal(repoRoot) {
 }
 
 async function run() {
-  const repoRoot = path.resolve(__dirname, '..', '..', '..')
+  // repoRoot previously pointed one directory too high relative to scenario location; adjust to project root.
+  const repoRoot = path.resolve(__dirname, '..', '..')
   const results = []
   results.push({ name: 'Lean (callsite)', ...(await testLean(repoRoot)) })
   results.push({ name: 'Nim (callsite, nimlsp)', ...(await testNim(repoRoot, 'nimlsp')) })
