@@ -6,7 +6,7 @@ const path = require('path')
 const fs = require('fs')
 
 // Test file paths
-const testProjectDir = path.join(__dirname, 'projects', 'blocksync-test')
+const testProjectDir = path.join(__dirname, 'projects', 'vivafolioblock-test')
 const mainFile = path.join(testProjectDir, 'main.viv')
 const twoBlocksFile = path.join(testProjectDir, 'two_blocks.viv')
 

@@ -2,11 +2,11 @@
 set -euo pipefail
 
 # Launch VS Code Insiders with both the mock language extension and the Vivafolio extension
-# Opens the blocksync test workspace and the two_blocks.viv file to trigger diagnostics/insets
+# Opens the vivafolioblock test workspace and the two_blocks.viv file to trigger diagnostics/insets
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 VIV="${SCRIPT_DIR%/scripts}"
-WS="$VIV/test/projects/blocksync-test"
+WS="$VIV/test/projects/vivafolioblock-test"
 EXT1="$VIV/mock-language-extension"
 EXT2="$VIV"
 FILE="$WS/two_blocks.viv"

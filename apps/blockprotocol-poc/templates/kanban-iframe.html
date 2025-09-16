@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Kanban Board (Iframe)</title>
+    <style>
+      :root {
+        font-family: 'Inter', system-ui, sans-serif;
+        color-scheme: light dark;
+      }
+      body {
+        margin: 0;
+        padding: 1rem;
+        background: transparent;
+        color: rgba(15, 23, 42, 0.92);
+      }
+      .board {
+        display: grid;
+        gap: 0.75rem;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      }
+      .column {
+        border-radius: 8px;
+        padding: 0.75rem;
+        background: rgba(16, 185, 129, 0.15);
+        border: 1px solid rgba(20, 184, 166, 0.35);
+      }
+      .column h3 {
+        margin: 0 0 0.5rem 0;
+        font-size: 0.95rem;
+      }
+      ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      li {
+        border-radius: 6px;
+        padding: 0.5rem;
+        background: rgba(125, 211, 252, 0.18);
+        border: 1px solid rgba(14, 165, 233, 0.35);
+        font-size: 0.85rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h2 id="board-title">Loading…</h2>
+    <div id="board" class="board"></div>
+    <script>
+      const blockId = new URLSearchParams(location.search).get('blockId') || ''
+      let graph = null
+
+      function render() {
+        if (!graph) return
+        const boardEntity = graph.entities.find((entity) => entity.entityId === 'kanban-board-1')
+        if (!boardEntity) return
+
+        document.getElementById('board-title').textContent = String(
+          (boardEntity.properties && boardEntity.properties.title) || 'Untitled Board'
+        )
+
+        const columnContainer = document.getElementById('board')
+        columnContainer.innerHTML = ''
+
+        const columns = (boardEntity.properties && boardEntity.properties.columns) || []
+        columns.forEach((column) => {
+          const section = document.createElement('section')
+          section.className = 'column'
+          section.dataset.columnId = column.id || column.title || ''
+          const heading = document.createElement('h3')
+          heading.textContent = column.title || column.id || 'Column'
+          section.appendChild(heading)
+
+          const list = document.createElement('ul')
+          const taskIds = column.taskIds || []
+          taskIds.forEach((taskId) => {
+            const task = graph.entities.find((entity) => entity.entityId === taskId)
+            if (!task) return
+            const item = document.createElement('li')
+            item.textContent = String((task.properties && task.properties.title) || 'Task')
+            list.appendChild(item)
+          })
+
+          section.appendChild(list)
+          columnContainer.appendChild(section)
+        })
+      }
+
+      window.addEventListener('message', (event) => {
+        const data = event.data
+        if (!data || typeof data !== 'object') return
+        if (data.type === 'graph:init' && data.blockId === blockId) {
+          graph = data.graph
+          render()
+        }
+      })
+
+      window.parent.postMessage({ type: 'block-ready', blockId }, '*')
+    </script>
+  </body>
+</html>

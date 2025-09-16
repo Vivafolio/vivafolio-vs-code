@@ -10,3 +10,6 @@
 [submodule "third_party/nix-nim-development"]
 	path = third_party/nix-nim-development
 	url = https://github.com/metacraft-labs/nix-nim-development
+[submodule "third_party/blockprotocol"]
+	path = third_party/blockprotocol
+	url = https://github.com/blockprotocol/blockprotocol.git

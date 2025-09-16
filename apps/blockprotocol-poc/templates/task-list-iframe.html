@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Task List (Iframe)</title>
+    <style>
+      :root {
+        font-family: 'Inter', system-ui, sans-serif;
+        color-scheme: light dark;
+      }
+      body {
+        margin: 0;
+        padding: 1rem;
+        background: transparent;
+        color: rgba(15, 23, 42, 0.9);
+      }
+      ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      li {
+        border-radius: 6px;
+        padding: 0.5rem;
+        border: 1px solid rgba(59, 130, 246, 0.35);
+        background: rgba(37, 99, 235, 0.15);
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 110px auto;
+        gap: 0.5rem;
+        align-items: center;
+      }
+      button {
+        border-radius: 999px;
+        border: 1px solid rgba(59, 130, 246, 0.6);
+        background: rgba(37, 99, 235, 0.3);
+        color: #0f172a;
+        padding: 0.25rem 0.65rem;
+        cursor: pointer;
+      }
+      button:hover {
+        background: rgba(37, 99, 235, 0.45);
+      }
+      .complete {
+        font-size: 0.75rem;
+        color: rgba(22, 163, 74, 0.9);
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Task List</h2>
+    <ul id="tasks"></ul>
+    <script>
+      const blockId = new URLSearchParams(location.search).get('blockId') || ''
+      let graph = null
+
+      function getNextStatus(status) {
+        switch (status) {
+          case 'todo':
+            return 'doing'
+          case 'doing':
+            return 'done'
+          default:
+            return null
+        }
+      }
+
+      function statusLabel(status) {
+        switch (status) {
+          case 'todo':
+            return 'To Do'
+          case 'doing':
+            return 'In Progress'
+          case 'done':
+            return 'Done'
+          default:
+            return status
+        }
+      }
+
+      function render() {
+        if (!graph) return
+        const list = document.getElementById('tasks')
+        list.innerHTML = ''
+
+        const tasks = graph.entities.filter(
+          (entity) => entity.entityTypeId === 'https://vivafolio.dev/entity-types/task/v1'
+        )
+
+        tasks.forEach((task) => {
+          const item = document.createElement('li')
+          item.dataset.entityId = task.entityId
+
+          const title = document.createElement('span')
+          title.textContent = String((task.properties && task.properties.title) || 'Task')
+          const status = document.createElement('span')
+          const statusValue = String(task.properties && task.properties.status) || 'todo'
+          status.textContent = statusLabel(statusValue)
+
+          const actions = document.createElement('div')
+          const next = getNextStatus(statusValue)
+          if (next) {
+            const button = document.createElement('button')
+            button.dataset.action = 'advance-status'
+            button.dataset.entityId = task.entityId
+            button.textContent = `Move to ${statusLabel(next)}`
+            button.addEventListener('click', () => {
+              window.parent.postMessage(
+                {
+                  type: 'graph:update',
+                  blockId,
+                  entityId: task.entityId,
+                  properties: { status: next }
+                },
+                '*'
+              )
+            })
+            actions.appendChild(button)
+          } else {
+            const doneLabel = document.createElement('span')
+            doneLabel.className = 'complete'
+            doneLabel.textContent = 'Complete'
+            actions.appendChild(doneLabel)
+          }
+
+          item.append(title, status, actions)
+          list.appendChild(item)
+        })
+      }
+
+      window.addEventListener('message', (event) => {
+        const data = event.data
+        if (!data || typeof data !== 'object') return
+        if (data.type === 'graph:init' && data.blockId === blockId) {
+          graph = data.graph
+          render()
+        }
+      })
+
+      window.parent.postMessage({ type: 'block-ready', blockId }, '*')
+    </script>
+  </body>
+</html>

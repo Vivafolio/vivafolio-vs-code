@@ -29,7 +29,7 @@ You likely only need a subset depending on which tests you run.
 ## 2. Recommended Approach
 Pick one path:
 1. Fastest (minimal): Install Node.js 22 LTS (or latest 22.x) + Playwright deps → build + runtime tests for JavaScript-only.
-2. Extended Runtime Path: Add Python, Ruby, Julia, R to run `test:runtime:blocksync`.
+2. Extended Runtime Path: Add Python, Ruby, Julia, R to run `test:runtime:vivafolioblock`.
 3. Full LSP Matrix: Also install Nim, D, Rust, Zig, Crystal toolchains + their language servers.
 4. Alternative: Use WSL2 Ubuntu and run the original Nix flake there (closest parity).
 
@@ -175,7 +175,7 @@ Install deps then:
 ```powershell
 npm install
 npx playwright install  # Ensures browsers downloaded
-npm run test:e2e:blocksync
+just test-e2e-vivafolioblock
 ```
 For WDIO with chromedriver you may need matching Chrome + chromedriver versions.
 

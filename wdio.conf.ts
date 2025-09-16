@@ -78,7 +78,7 @@ export const config: Options.Testrunner = {
     'wdio:vscodeOptions': ({
       ...(vscodeInsidersBinary ? { binary: vscodeInsidersBinary } : {}),
       extensionPath: path.resolve(__dirname),
-      workspacePath: path.resolve(__dirname, 'test', 'projects', 'blocksync-test'),
+      workspacePath: path.resolve(__dirname, 'test', 'projects', 'vivafolioblock-test'),
       storagePath: uniqueStorageRoot,
       vscodeProxyOptions: {
         connectionTimeout: 60000,

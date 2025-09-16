@@ -9,7 +9,7 @@ This stand-alone VS Code extension contributes a mock language (`vivafolio-mock`
 Status: DRAFT IMPLEMENTATION (do not ship).
 
 Test objectives:
-- Verify that opening a `.viv` file triggers mock LSP diagnostics with `vivafolio:` BlockSync payloads.
+- Verify that opening a `.viv` file triggers mock LSP diagnostics with `vivafolio:` VivafolioBlock payloads.
 - Verify the production Vivafolio extension responds by inserting an inset webview and handling Block Protocol messages.
 - Never cheat or shortcut tests; they must prove behavior inside VS Code.
 

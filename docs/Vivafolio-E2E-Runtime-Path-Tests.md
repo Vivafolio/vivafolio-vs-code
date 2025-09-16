@@ -1,6 +1,6 @@
 # Vivafolio E2E Runtime Path Tests
 
-This document tracks the progress of implementing runtime path support for Vivafolio, enabling languages like Python and Ruby to emit BlockSync notifications and create interactive webview blocks. This expands Vivafolio beyond CTFE languages to support the broader programming ecosystem.
+This document tracks the progress of implementing runtime path support for Vivafolio, enabling languages like Python and Ruby to emit VivafolioBlock notifications and create interactive webview blocks. This expands Vivafolio beyond CTFE languages to support the broader programming ecosystem.
 
 ## 🎉 **MAJOR ACHIEVEMENTS: COMPLETE IMPLEMENTATION** ✅
 
@@ -12,35 +12,35 @@ This document tracks the progress of implementing runtime path support for Vivaf
 
 ### ✅ **End-to-End Runtime Path Working**
 **Status**: VALIDATED AND TESTED
-**Workflow**: File execution → BlockSync parsing → Webview rendering → Bidirectional sync
-**Validation**: All 5 languages pass automated BlockSync validation tests
+**Workflow**: File execution → VivafolioBlock parsing → Webview rendering → Bidirectional sync
+**Validation**: All 5 languages pass automated VivafolioBlock validation tests
 **Performance**: Sub-500ms execution times across all supported languages
 
 ### ✅ **Production-Ready Features**
-- **Automated Testing**: `npm run test:runtime:blocksync` validates all languages
+- **Automated Testing**: `npm run test:runtime:vivafolioblock` validates all languages
 - **Manual Execution**: `Ctrl+Shift+R` keyboard shortcut for all supported files
 - **Error Handling**: Graceful failure handling with user-friendly error messages
 - **Webview Management**: Enhanced document-aware webview tracking and lifecycle management
 
 ## 🎯 **MISSION OBJECTIVE**
 
-Transform Vivafolio from a CTFE-only system into a universal interactive programming environment that works with any programming language through runtime execution and BlockSync notification emission.
+Transform Vivafolio from a CTFE-only system into a universal interactive programming environment that works with any programming language through runtime execution and VivafolioBlock notification emission.
 
 ## 📋 **CORE REQUIREMENTS**
 
 ### 1. **Multi-Language Runtime Support**
-- **Python**: Support for Python programs emitting BlockSync via stdout/stderr
-- **Ruby**: Support for Ruby programs emitting BlockSync via stdout/stderr
-- **Julia**: Support for Julia programs emitting BlockSync via stdout/stderr
-- **R**: Support for R programs emitting BlockSync via stdout/stderr
-- **JavaScript**: Support for JavaScript/Node.js programs emitting BlockSync via stdout/stderr
+- **Python**: Support for Python programs emitting VivafolioBlock via stdout/stderr
+- **Ruby**: Support for Ruby programs emitting VivafolioBlock via stdout/stderr
+- **Julia**: Support for Julia programs emitting VivafolioBlock via stdout/stderr
+- **R**: Support for R programs emitting VivafolioBlock via stdout/stderr
+- **JavaScript**: Support for JavaScript/Node.js programs emitting VivafolioBlock via stdout/stderr
 - **Extensible**: Framework for adding additional runtime languages
 - **Cross-Platform**: Works on macOS, Linux, and Windows environments
 
 ### 2. **Interactive Execution Model**
-- **Manual Trigger**: Command/shortcut to execute current file and process BlockSync output
+- **Manual Trigger**: Command/shortcut to execute current file and process VivafolioBlock output
 - **Real-Time Feedback**: Immediate webview rendering upon execution completion
-- **Error Handling**: Graceful handling of execution failures and malformed BlockSync
+- **Error Handling**: Graceful handling of execution failures and malformed VivafolioBlock
 - **State Persistence**: Support for gui_state blocks in source code for bidirectional sync
 
 ### 3. **Bidirectional Synchronization**
@@ -56,14 +56,14 @@ Transform Vivafolio from a CTFE-only system into a universal interactive program
 1. User edits source code with gui_state blocks
 2. User triggers execution (Ctrl+Shift+R or command)
 3. Extension executes program and captures stdout/stderr
-4. Extension parses BlockSync notifications from output
+4. Extension parses VivafolioBlock notifications from output
 5. Extension renders/updates webviews with block data
 6. User interacts with blocks → updates source code
 7. Loop repeats on next execution
 ```
 
-### **BlockSync Output Format**
-Programs emit BlockSync notifications to stdout in JSON Lines format:
+### **VivafolioBlock Output Format**
+Programs emit VivafolioBlock notifications to stdout in JSON Lines format:
 ```json
 {"blockId": "picker-123", "blockType": "color-picker", "initialGraph": {...}}
 {"blockId": "square-456", "blockType": "color-square", "initialGraph": {...}}
@@ -85,7 +85,7 @@ Programs emit BlockSync notifications to stdout in JSON Lines format:
 - **Features**:
   - `vivafolio_picker()` and `vivafolio_square()` helper functions
   - `gui_state()` function for state persistence
-  - BlockSync notification emission to stdout
+  - VivafolioBlock notification emission to stdout
   - Dynamic color extraction from source code
   - Cross-block synchronization support
 - **Files**: `test/runtime-path/python/two_blocks.py`, `test/runtime-path/python/vivafolio_helpers.py`
@@ -96,7 +96,7 @@ Programs emit BlockSync notifications to stdout in JSON Lines format:
 - **Features**:
   - `vivafolio_picker` and `vivafolio_square` methods
   - `gui_state` method for state management
-  - BlockSync notification emission to stdout
+  - VivafolioBlock notification emission to stdout
   - Dynamic color extraction from source code
   - Cross-block synchronization support
 - **Files**: `test/runtime-path/ruby/two_blocks.rb`, `test/runtime-path/ruby/vivafolio_helpers.rb`
@@ -107,7 +107,7 @@ Programs emit BlockSync notifications to stdout in JSON Lines format:
 - **Features**:
   - `vivafolio_picker()` and `vivafolio_square()` functions
   - `gui_state()` function for state persistence
-  - BlockSync notification emission to stdout
+  - VivafolioBlock notification emission to stdout
   - Dynamic color extraction from source code
   - Cross-block synchronization support
 - **Files**: `test/runtime-path/julia/two_blocks.jl`, `test/runtime-path/julia/vivafolio_helpers.jl`
@@ -118,7 +118,7 @@ Programs emit BlockSync notifications to stdout in JSON Lines format:
 - **Features**:
   - `vivafolio_picker()` and `vivafolio_square()` functions
   - `gui_state()` function for state management
-  - BlockSync notification emission to stdout
+  - VivafolioBlock notification emission to stdout
   - Dynamic color extraction from source code
   - Cross-block synchronization support
 - **Files**: `test/runtime-path/r/two_blocks.R`, `test/runtime-path/r/vivafolio_helpers.R`
@@ -129,7 +129,7 @@ Programs emit BlockSync notifications to stdout in JSON Lines format:
 - **Features**:
   - `vivafolioPicker()` and `vivafolioSquare()` functions
   - `guiState()` function for state persistence
-  - BlockSync notification emission to stdout
+  - VivafolioBlock notification emission to stdout
   - Dynamic color extraction from source code
   - Cross-block synchronization support
 - **Files**: `test/runtime-path/javascript/two_blocks.js`, `test/runtime-path/javascript/vivafolio_helpers.js`
@@ -140,16 +140,16 @@ Programs emit BlockSync notifications to stdout in JSON Lines format:
 - **Shortcut**: `Ctrl+Shift+R` (configurable)
 - **Features**:
   - Executes current file using appropriate runtime (Python, Ruby, Julia, R, JavaScript)
-  - Captures stdout/stderr for BlockSync parsing
+  - Captures stdout/stderr for VivafolioBlock parsing
   - Handles execution errors gracefully
-  - Updates diagnostics with parsed BlockSync notifications
+  - Updates diagnostics with parsed VivafolioBlock notifications
 - **Integration**: Triggers same diagnostic processing as LSP path
 
-#### **7. BlockSync Output Parser**
+#### **7. VivafolioBlock Output Parser**
 - **Status**: IMPLEMENTED ✅
 - **Features**:
   - Parses JSON Lines from runtime output
-  - Validates BlockSync payload structure
+  - Validates VivafolioBlock payload structure
   - Converts runtime notifications to LSP diagnostic format
   - Error handling for malformed JSON
 - **Files**: `src/extension.ts` (enhanced)
@@ -160,22 +160,22 @@ Programs emit BlockSync notifications to stdout in JSON Lines format:
 - **Workflow**:
   1. User opens supported file with Vivafolio blocks
   2. User presses `Ctrl+Shift+R` to execute
-  3. Extension runs file and captures BlockSync output
+  3. Extension runs file and captures VivafolioBlock output
   4. Extension parses notifications and creates diagnostics
   5. Diagnostics trigger same webview rendering as LSP path
   6. Interactive blocks appear with initial state from source code
   7. Bidirectional sync works between UI and source code
 - **Validation**: All 5 languages execute successfully and render blocks
 
-#### **9. Automated BlockSync Validation**
+#### **9. Automated VivafolioBlock Validation**
 - **Status**: IMPLEMENTED ✅
-- **Command**: `npm run test:runtime:blocksync`
+- **Command**: `npm run test:runtime:vivafolioblock`
 - **Features**:
-  - Validates BlockSync JSON output format for all languages
+  - Validates VivafolioBlock JSON output format for all languages
   - Checks required fields and data structure
   - Ensures proper entity and resource configuration
   - Reports detailed pass/fail results per language
-- **Files**: `test/validate-runtime-blocksync.js`
+- **Files**: `test/validate-runtime-vivafolioblock.js`
 
 #### **10. Enhanced Webview Management**
 - **Status**: IMPLEMENTED ✅
@@ -237,11 +237,11 @@ Programs emit BlockSync notifications to stdout in JSON Lines format:
 | Error Handling | ✅ | ✅ | ✅ | ✅ | ✅ | PASS |
 | Manual Execution | ✅ | ✅ | ✅ | ✅ | ✅ | PASS |
 | Runtime Execution Command | ✅ | ✅ | ✅ | ✅ | ✅ | PASS |
-| BlockSync Output Parsing | ✅ | ✅ | ✅ | ✅ | ✅ | PASS |
+| VivafolioBlock Output Parsing | ✅ | ✅ | ✅ | ✅ | ✅ | PASS |
 | Diagnostic Integration | ✅ | ✅ | ✅ | ✅ | ✅ | PASS |
 | Automated Validation | ✅ | ✅ | ✅ | ✅ | ✅ | PASS |
 
-Note on Linux (2025‑09‑15): The runtime path remains green on Linux; the differences we observed are limited to the LSP path and test orchestration. All runtime BlockSync tests pass under the Nix dev shell (Node 22) and the same five languages listed above.
+Note on Linux (2025‑09‑15): The runtime path remains green on Linux; the differences we observed are limited to the LSP path and test orchestration. All runtime VivafolioBlock tests pass under the Nix dev shell (Node 22) and the same five languages listed above.
 
 ## 🔧 **USAGE INSTRUCTIONS**
 
@@ -278,7 +278,7 @@ code test/runtime-path/javascript/two_blocks.js  # JavaScript
 # In VS Code: Ctrl+Shift+R to execute and see blocks
 
 # Automated validation
-npm run test:runtime:blocksync
+just test-runtime-vivafolioblock
 
 # Check extension logs
 # In VS Code DevTools Console: filter for [Vivafolio]
@@ -287,14 +287,14 @@ npm run test:runtime:blocksync
 ### **Development Commands**
 ```bash
 # Run extension tests
-npm run test:vscode:runtime-path
+just test-vscode
 
 # Test runtime execution manually
 npm run test:manual:python
 npm run test:manual:ruby
 
-# Validate BlockSync output format
-node test/validate-runtime-blocksync.js
+# Validate VivafolioBlock output format
+just test-runtime-vivafolioblock
 ```
 
 ## 🎯 **SUCCESS CRITERIA**
@@ -326,7 +326,7 @@ node test/validate-runtime-blocksync.js
 ## 📝 **DEVELOPMENT NOTES**
 
 ### **Key Design Decisions**
-- **JSON Lines Output**: Simple, streaming-compatible format for BlockSync
+- **JSON Lines Output**: Simple, streaming-compatible format for VivafolioBlock
 - **Language Detection**: Automatic runtime selection based on file extension (.py, .rb, .jl, .r, .js)
 - **Error Recovery**: Graceful handling of execution failures
 - **State Encoding**: Language-specific comment syntax for gui_state persistence

@@ -6,7 +6,7 @@ const path = require('path')
 
 module.exports = defineConfig({
   testDir: './test',
-  testMatch: 'e2e-blocksync.js',
+  testMatch: 'e2e-vivafolioblock.js',
 
   // Timeout settings for VS Code loading
   timeout: 60000,
@@ -27,7 +27,7 @@ module.exports = defineConfig({
   projects: [
     {
       name: 'vivafolio-e2e',
-      testMatch: '**/e2e-blocksync.js',
+      testMatch: '**/e2e-vivafolioblock.js',
       use: {
         // VS Code extension testing requires special setup
         // These tests will run against a VS Code instance with the extension loaded

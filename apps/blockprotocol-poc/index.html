@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vivafolio Block Protocol POC</title>
+    <link rel="stylesheet" href="/src/client/styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Vivafolio Block Protocol POC</h1>
+      <p>Simulated editor hosting Block Protocol blocks via VivafolioBlock notifications.</p>
+      <nav class="scenario-nav" aria-label="Scenarios">
+        <a href="/?scenario=hello-world" data-scenario-link="hello-world">Milestone 0 – Hello World</a>
+        <a href="/?scenario=nested-kanban" data-scenario-link="nested-kanban">Milestone 1 – Nested Kanban</a>
+      </nav>
+    </header>
+    <main>
+      <section class="editor" id="editor">
+        <div class="gutter" aria-hidden="true">
+          <span>1</span>
+          <span>2</span>
+          <span>3</span>
+          <span>4</span>
+          <span>5</span>
+        </div>
+        <div class="code">
+          <div class="scenario-banner">
+            <strong id="scenario-label">Loading scenario…</strong>
+            <span id="scenario-description"></span>
+          </div>
+          <pre><code>// Blocks anchor to fixed line numbers in this faux editor.
+// The backend emits VivafolioBlock notifications targeting
+// these anchors to simulate Block Protocol communication.
+</code></pre>
+          <div id="block-region" role="group" aria-label="Rendered blocks"></div>
+        </div>
+      </section>
+    </main>
+    <footer>
+      <small>Status: <span id="status">connecting…</span></small>
+    </footer>
+    <script type="module" src="/src/client/main.ts"></script>
+  </body>
+</html>

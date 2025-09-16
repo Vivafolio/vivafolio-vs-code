@@ -30,3 +30,5 @@
   - Minimize console output for agents to preserve context; rely on file logs for detailed inspection.
 
 - For test writing/maintenance guidelines, see `vivafolio/test/AGENTS.md`.
+
+- When updating project documentation, reference the implementation artefacts that changed using file paths (e.g., ``apps/blockprotocol-poc/src/server.ts:1``). Align with the formatting already used in status docs so progress notes stay auditable.

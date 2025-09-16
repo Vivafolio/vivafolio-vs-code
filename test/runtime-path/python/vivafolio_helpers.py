@@ -2,7 +2,7 @@
 """
 Vivafolio Runtime Path Helpers for Python
 
-This module provides helper functions for creating BlockSync notifications
+This module provides helper functions for creating VivafolioBlock notifications
 that work with the Vivafolio VS Code extension's runtime path.
 """
 
@@ -39,9 +39,9 @@ def extract_gui_state_from_source(source_lines, block_type):
         return {"properties": {"color": "#3700ff"}}  # Match picker default
     return {"properties": {}}
 
-def emit_blocksync_notification(block_id, block_type, entity_id, initial_graph, resources=None):
+def emit_vivafolioblock_notification(block_id, block_type, entity_id, initial_graph, resources=None):
     """
-    Emit a BlockSync notification to stdout for the Vivafolio extension.
+    Emit a VivafolioBlock notification to stdout for the Vivafolio extension.
 
     Args:
         block_id: Unique identifier for this block instance
@@ -101,9 +101,9 @@ def vivafolio_picker(block_id="picker-123"):
             "physicalPath": f"file://{os.path.abspath(html_path)}",
             "cachingTag": "picker-v1"
         }]
-        emit_blocksync_notification(block_id, "color-picker", entity_id, initial_graph, resources)
+        emit_vivafolioblock_notification(block_id, "color-picker", entity_id, initial_graph, resources)
     else:
-        emit_blocksync_notification(block_id, "color-picker", entity_id, initial_graph)
+        emit_vivafolioblock_notification(block_id, "color-picker", entity_id, initial_graph)
 
 def vivafolio_square(block_id="square-456"):
     """
@@ -140,9 +140,9 @@ def vivafolio_square(block_id="square-456"):
             "physicalPath": f"file://{os.path.abspath(html_path)}",
             "cachingTag": "square-v1"
         }]
-        emit_blocksync_notification(block_id, "color-square", entity_id, initial_graph, resources)
+        emit_vivafolioblock_notification(block_id, "color-square", entity_id, initial_graph, resources)
     else:
-        emit_blocksync_notification(block_id, "color-square", entity_id, initial_graph)
+        emit_vivafolioblock_notification(block_id, "color-square", entity_id, initial_graph)
 
 def gui_state(state_dict):
     """

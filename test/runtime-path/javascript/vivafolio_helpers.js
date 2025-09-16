@@ -3,7 +3,7 @@
 /**
  * Vivafolio Runtime Path Helpers for JavaScript/Node.js
  *
- * This module provides helper functions for creating BlockSync notifications
+ * This module provides helper functions for creating VivafolioBlock notifications
  * that work with the Vivafolio VS Code extension's runtime path.
  */
 
@@ -41,7 +41,7 @@ function extractGuiStateFromSource(sourceLines, blockType) {
 }
 
 /**
- * Emit a BlockSync notification to stdout for the Vivafolio extension
+ * Emit a VivafolioBlock notification to stdout for the Vivafolio extension
  *
  * @param {string} blockId - Unique identifier for this block instance
  * @param {string} blockType - Type of block (e.g., "color-picker", "color-square")
@@ -49,7 +49,7 @@ function extractGuiStateFromSource(sourceLines, blockType) {
  * @param {object} initialGraph - Initial graph data with entities and links
  * @param {object[]} [resources] - Optional array of resources (HTML files, etc.)
  */
-function emitBlockSyncNotification(blockId, blockType, entityId, initialGraph, resources = null) {
+function emitVivafolioBlockNotification(blockId, blockType, entityId, initialGraph, resources = null) {
   const notification = {
     blockId,
     blockType: `https://blockprotocol.org/@blockprotocol/types/block-type/${blockType}/`,
@@ -114,9 +114,9 @@ function vivafolioPicker(blockId = 'picker-123') {
       physicalPath: `file://${path.resolve(htmlPath)}`,
       cachingTag: 'picker-v1'
     }];
-    emitBlockSyncNotification(blockId, 'color-picker', entityId, initialGraph, resources);
+    emitVivafolioBlockNotification(blockId, 'color-picker', entityId, initialGraph, resources);
   } else {
-    emitBlockSyncNotification(blockId, 'color-picker', entityId, initialGraph);
+    emitVivafolioBlockNotification(blockId, 'color-picker', entityId, initialGraph);
   }
 }
 
@@ -166,9 +166,9 @@ function vivafolioSquare(blockId = 'square-456') {
       physicalPath: `file://${path.resolve(htmlPath)}`,
       cachingTag: 'square-v1'
     }];
-    emitBlockSyncNotification(blockId, 'color-square', entityId, initialGraph, resources);
+    emitVivafolioBlockNotification(blockId, 'color-square', entityId, initialGraph, resources);
   } else {
-    emitBlockSyncNotification(blockId, 'color-square', entityId, initialGraph);
+    emitVivafolioBlockNotification(blockId, 'color-square', entityId, initialGraph);
   }
 }
 
@@ -185,7 +185,7 @@ function guiState(stateDict) {
 // Export functions for use as module
 module.exports = {
   extractGuiStateFromSource,
-  emitBlockSyncNotification,
+  emitVivafolioBlockNotification,
   vivafolioPicker,
   vivafolioSquare,
   guiState

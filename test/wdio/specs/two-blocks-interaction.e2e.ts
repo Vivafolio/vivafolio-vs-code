@@ -20,8 +20,8 @@ describe('Vivafolio Two Blocks Interaction E2E', () => {
 
   beforeEach(async () => {
     // Prepare an isolated temporary copy of the two-blocks test file to avoid mutating the original
-    const srcFile = path.join(process.cwd(), 'test', 'projects', 'blocksync-test', 'two_blocks.viv')
-    const tmpDir = path.join(process.cwd(), 'test', 'projects', 'blocksync-test', '.tmp')
+    const srcFile = path.join(process.cwd(), 'test', 'projects', 'vivafolioblock-test', 'two_blocks.viv')
+    const tmpDir = path.join(process.cwd(), 'test', 'projects', 'vivafolioblock-test', '.tmp')
     try { fs.mkdirSync(tmpDir, { recursive: true }) } catch {}
     const tmpName = `two_blocks.${Date.now()}-${Math.random().toString(36).slice(2)}.viv`
     testFile = path.join(tmpDir, tmpName)

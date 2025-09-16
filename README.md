@@ -14,7 +14,7 @@ Standalone VS Code extension providing inline webview insets driven by Hint diag
 
 ## Quick Start
 
-- Dev shell: `direnv allow` then `nix develop` (or open in VS Code with direnv).
+- Dev shell: `direnv allow` then run project tasks via `just <target>` (recipes automatically enter the flake dev shell).
 - Build: `npm install && npm run compile`
 - Package: `npx vsce package` (or `npm run package:vsix`)
 
@@ -22,13 +22,12 @@ Standalone VS Code extension providing inline webview insets driven by Hint diag
 
 ```bash
 # Test Python runtime path
-python3 test/runtime-path/python/two_blocks.py
+just test-runtime-python
 
 # Test Ruby runtime path
-ruby test/runtime-path/ruby/two_blocks.rb
+just test-runtime-ruby
 
 # In VS Code: Ctrl+Shift+R to execute and render blocks
 ```
 
 See `docs/Vivafolio-E2E-Runtime-Path-Tests.md` for detailed documentation.
-

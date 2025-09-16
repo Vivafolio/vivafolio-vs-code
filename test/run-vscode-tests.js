@@ -31,7 +31,7 @@ async function main() {
     const productionExtensionPath = path.resolve(repoRoot, 'vivafolio')
     const mockExtensionPath = path.resolve(productionExtensionPath, 'mock-language-extension')
     const extensionTestsPath = path.resolve(__dirname, 'suite', 'index')
-    const testWorkspace = path.resolve(productionExtensionPath, 'test', 'projects', 'blocksync-test')
+    const testWorkspace = path.resolve(productionExtensionPath, 'test', 'projects', 'vivafolioblock-test')
 
     // Launch VS Code with BOTH extensions enabled by passing two extensionDevelopmentPath instances:
     // We emulate this by running tests twice: once for mock ext, and loading production ext as a dependency via VS Code.

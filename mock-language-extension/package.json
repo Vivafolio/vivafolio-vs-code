@@ -1,7 +1,7 @@
 {
   "name": "vivafolio-mock-language",
   "displayName": "Vivafolio Mock Language (Test Only)",
-  "description": "Mock language extension that starts a simple LSP server to emit Vivafolio BlockSync diagnostics for E2E tests.",
+  "description": "Mock language extension that starts a simple LSP server to emit VivafolioBlock diagnostics for E2E tests.",
   "version": "0.0.1",
   "publisher": "local",
   "engines": {

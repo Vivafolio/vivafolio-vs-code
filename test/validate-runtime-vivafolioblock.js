@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
 /**
- * Command-line test to verify runtime BlockSync output for all supported languages
+ * Command-line test to verify runtime VivafolioBlock output for all supported languages
  *
  * This test runs each language's test program and validates that the expected
- * BlockSync notifications are emitted to stdout.
+ * VivafolioBlock notifications are emitted to stdout.
  */
 
 const { spawn } = require('child_process');
@@ -44,7 +44,7 @@ const testPrograms = [
 ];
 
 /**
- * Expected BlockSync notifications for two_blocks programs
+ * Expected VivafolioBlock notifications for two_blocks programs
  */
 const expectedNotifications = [
   {
@@ -106,7 +106,7 @@ function runTest(testProgram) {
         for (const line of lines) {
           try {
             const parsed = JSON.parse(line.trim());
-            if (isValidBlockSyncNotification(parsed)) {
+            if (isValidVivafolioBlockNotification(parsed)) {
               notifications.push(parsed);
             }
           } catch (e) {
@@ -130,9 +130,9 @@ function runTest(testProgram) {
 }
 
 /**
- * Check if a parsed object is a valid BlockSync notification
+ * Check if a parsed object is a valid VivafolioBlock notification
  */
-function isValidBlockSyncNotification(obj) {
+function isValidVivafolioBlockNotification(obj) {
   return obj &&
          typeof obj === 'object' &&
          obj.blockId &&
@@ -229,7 +229,7 @@ function validateNotifications(notifications, languageName) {
  * Run all tests
  */
 async function runAllTests() {
-  console.log('🚀 Starting Vivafolio Runtime BlockSync Validation Tests\n');
+  console.log('🚀 Starting Vivafolio Runtime VivafolioBlock Validation Tests\n');
   console.log('=' * 60);
 
   const results = [];
@@ -262,7 +262,7 @@ async function runAllTests() {
   console.log(`📊 SUMMARY: ${totalPassed}/${testPrograms.length} languages passed`);
 
   if (totalPassed === testPrograms.length) {
-    console.log('🎉 All runtime BlockSync tests PASSED!');
+    console.log('🎉 All runtime VivafolioBlock tests PASSED!');
     process.exit(0);
   } else {
     console.log('💥 Some tests FAILED. Check the output above for details.');
@@ -278,4 +278,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { runTest, validateNotifications, isValidBlockSyncNotification };
+module.exports = { runTest, validateNotifications, isValidVivafolioBlockNotification };

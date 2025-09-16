@@ -1,6 +1,6 @@
 # Vivafolio Runtime Path Helpers for R
 #
-# This module provides helper functions for creating BlockSync notifications
+# This module provides helper functions for creating VivafolioBlock notifications
 # that work with the Vivafolio VS Code extension's runtime path.
 
 library(jsonlite)
@@ -34,14 +34,14 @@ extract_gui_state_from_source <- function(source_lines, block_type) {
   }
 }
 
-#' Emit a BlockSync notification to stdout for the Vivafolio extension
+#' Emit a VivafolioBlock notification to stdout for the Vivafolio extension
 #'
 #' @param block_id Unique identifier for this block instance
 #' @param block_type Type of block (e.g., "color-picker", "color-square")
 #' @param entity_id Entity identifier
 #' @param initial_graph Initial graph data with entities and links
 #' @param resources Optional list of resources (HTML files, etc.)
-emit_blocksync_notification <- function(block_id, block_type, entity_id, initial_graph, resources = NULL) {
+emit_vivafolioblock_notification <- function(block_id, block_type, entity_id, initial_graph, resources = NULL) {
   notification <- list(
     blockId = block_id,
     blockType = paste0("https://blockprotocol.org/@blockprotocol/types/block-type/", block_type, "/"),
@@ -85,9 +85,9 @@ vivafolio_picker <- function(block_id = "picker-123") {
       physicalPath = paste0("file://", normalizePath(html_path)),
       cachingTag = "picker-v1"
     ))
-    emit_blocksync_notification(block_id, "color-picker", entity_id, initial_graph, resources)
+    emit_vivafolioblock_notification(block_id, "color-picker", entity_id, initial_graph, resources)
   } else {
-    emit_blocksync_notification(block_id, "color-picker", entity_id, initial_graph)
+    emit_vivafolioblock_notification(block_id, "color-picker", entity_id, initial_graph)
   }
 }
 
@@ -116,9 +116,9 @@ vivafolio_square <- function(block_id = "square-456") {
       physicalPath = paste0("file://", normalizePath(html_path)),
       cachingTag = "square-v1"
     ))
-    emit_blocksync_notification(block_id, "color-square", entity_id, initial_graph, resources)
+    emit_vivafolioblock_notification(block_id, "color-square", entity_id, initial_graph, resources)
   } else {
-    emit_blocksync_notification(block_id, "color-square", entity_id, initial_graph)
+    emit_vivafolioblock_notification(block_id, "color-square", entity_id, initial_graph)
   }
 }
 

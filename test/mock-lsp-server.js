@@ -1,5 +1,5 @@
 // Mock LSP server that simulates a custom language implementing Vivafolio spec
-// Sends BlockSync notifications as LSP Hint diagnostics for vivafolio_block!() calls
+// Sends VivafolioBlock notifications as LSP Hint diagnostics for vivafolio_block!() calls
 
 const rpc = require('vscode-jsonrpc/node')
 
@@ -30,7 +30,7 @@ connection.onNotification('initialized', () => {
   } catch {}
 })
 
-function createBlockSyncPayload(blockId, entityId) {
+function createVivafolioBlockPayload(blockId, entityId) {
   return {
     blockId: blockId,
     blockType: "https://blockprotocol.org/@blockprotocol/types/block-type/test-block/",
@@ -140,7 +140,7 @@ connection.onNotification('textDocument/didOpen', (p) => {
       const diagnostics = blocks.map(block => {
         let payload
         if (block.kind === 'picker') {
-          payload = createBlockSyncPayload(block.blockId, block.entityId)
+          payload = createVivafolioBlockPayload(block.blockId, block.entityId)
           payload.resources[0].physicalPath = `file://${__dirname}/resources/blocks/color-picker.html`
           const gsHere = parseGuiStateFromText(doc.text)
           if (gsHere.present && gsHere.error) {
@@ -154,7 +154,7 @@ connection.onNotification('textDocument/didOpen', (p) => {
             console.error('LSP didOpen: picker block', block.blockId, 'initialized with color', currentColor)
           }
         } else if (block.kind === 'square') {
-          payload = createBlockSyncPayload(block.blockId, block.entityId)
+          payload = createVivafolioBlockPayload(block.blockId, block.entityId)
           payload.resources[0].physicalPath = `file://${__dirname}/resources/blocks/color-square.html`
           const gsHere = parseGuiStateFromText(doc.text)
           if (gsHere.present && gsHere.error) {
@@ -167,7 +167,7 @@ connection.onNotification('textDocument/didOpen', (p) => {
             console.error('LSP didOpen: square block', block.blockId, 'initialized with color', currentColor)
           }
         } else {
-          payload = createBlockSyncPayload(block.blockId, block.entityId)
+          payload = createVivafolioBlockPayload(block.blockId, block.entityId)
         }
         return {
           range: {
@@ -231,7 +231,7 @@ connection.onNotification('textDocument/didChange', (p) => {
         console.error('LSP didChange: processing block', block.blockId, 'kind:', block.kind || 'generic')
         let payload
         if (block.kind === 'picker') {
-          payload = createBlockSyncPayload(block.blockId, block.entityId)
+          payload = createVivafolioBlockPayload(block.blockId, block.entityId)
           payload.resources[0].physicalPath = `file://${__dirname}/resources/blocks/color-picker.html`
           const gsHere = parseGuiStateFromText(doc)
           if (gsHere.present && gsHere.error) {
@@ -244,7 +244,7 @@ connection.onNotification('textDocument/didChange', (p) => {
             console.error('LSP didChange: picker block', block.blockId, 'updated with color', currentColor)
           }
         } else if (block.kind === 'square') {
-          payload = createBlockSyncPayload(block.blockId, block.entityId)
+          payload = createVivafolioBlockPayload(block.blockId, block.entityId)
           payload.resources[0].physicalPath = `file://${__dirname}/resources/blocks/color-square.html`
           const gsHere = parseGuiStateFromText(doc)
           if (gsHere.present && gsHere.error) {
@@ -257,7 +257,7 @@ connection.onNotification('textDocument/didChange', (p) => {
             console.error('LSP didChange: square block', block.blockId, 'updated with color', currentColor)
           }
         } else {
-          payload = createBlockSyncPayload(block.blockId, block.entityId)
+          payload = createVivafolioBlockPayload(block.blockId, block.entityId)
         }
         return {
           range: {

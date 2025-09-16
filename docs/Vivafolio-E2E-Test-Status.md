@@ -13,7 +13,7 @@ This document tracks the progress of implementing a comprehensive end-to-end tes
 ### ✅ Dynamic Color Initialization Fixed
 **Status**: IMPLEMENTED AND VALIDATED
 **Problem Solved**: Color picker was always initializing to hard-coded green (#00ff00) regardless of gui_state
-**Solution**: Dynamic color extraction from BlockSync notifications with no hard-coded fallbacks
+**Solution**: Dynamic color extraction from VivafolioBlock notifications with no hard-coded fallbacks
 **Result**: Color picker now initializes with EXACT color from gui_state string dynamically
 **Validation**: ✅ All 6 test colors work correctly: #ff0000, #00ff00, #0000ff, #ffff00, #ff00ff, #00ffff
 
@@ -25,21 +25,21 @@ This document tracks the progress of implementing a basic end-to-end test that v
 
 The E2E tests are structured around two primary objectives:
 
-### 1. BlockSync via LSP Diagnostic (`blocksync-e2e`)
-Verifies that the Vivafolio extension can receive a BlockSync notification delivered as an LSP Hint diagnostic and render an interactive inset webview. This test establishes the minimal viable product (MVP) for the Vivafolio system.
+### 1. VivafolioBlock via LSP Diagnostic (`vivafolioblock-e2e`)
+Verifies that the Vivafolio extension can receive a VivafolioBlock notification delivered as an LSP Hint diagnostic and render an interactive inset webview. This test establishes the minimal viable product (MVP) for the Vivafolio system.
 
 ### 2. Graceful gui_state syntax error handling (`syntax-error-semantics`)
 - **Problem**: While the user is editing the JSON in `gui_state! r#"..."#`, transient parse errors can occur. Today the server responds with a diagnostic that causes a fallback color (e.g., `#ff0000`) to be applied, overwriting in-progress edits.
-- **Requirement (Server)**: When the inline JSON cannot be parsed, publish a Vivafolio BlockSync diagnostic that indicates a syntax error instead of injecting any fallback state.
-- **Requirement (Client)**: Upon receiving a syntax-error BlockSync, do not modify the document. Forward the error to the webview and keep the user's in-progress edits intact.
+- **Requirement (Server)**: When the inline JSON cannot be parsed, publish a VivafolioBlock diagnostic that indicates a syntax error instead of injecting any fallback state.
+- **Requirement (Client)**: Upon receiving a syntax-error VivafolioBlock, do not modify the document. Forward the error to the webview and keep the user's in-progress edits intact.
 - **Requirement (Webview)**: If an error is signaled for an existing inset, show a lightweight error indicator (e.g., a syntax error icon) but do not reset user-visible state unnecessarily. Clear the indicator once a valid update arrives.
-- **Recovery**: As soon as the JSON becomes valid again, the server publishes a normal BlockSync with `initialGraph`; the client forwards it and the webview returns to normal.
+- **Recovery**: As soon as the JSON becomes valid again, the server publishes a normal VivafolioBlock with `initialGraph`; the client forwards it and the webview returns to normal.
 
 ## Test Requirements
 
 - **Mock LSP Server**: A minimal LSP server that simulates a custom language implementing Vivafolio-Overview.md
-- **VS Code Extension**: The Vivafolio extension with BlockSync diagnostic handling
-- **Webview Rendering**: Inset webview insertion triggered by BlockSync diagnostics
+- **VS Code Extension**: The Vivafolio extension with VivafolioBlock diagnostic handling
+- **Webview Rendering**: Inset webview insertion triggered by VivafolioBlock diagnostics
 - **WebdriverIO Framework**: Test automation using WebdriverIO (`wdio-vscode-service`) for full VS Code + webview automation
 - **Protocol Coverage**: Verify end-to-end flow from LSP diagnostic → extension → webview rendering
 - **Deterministic**: Use fixed test data and mock responses for reliable test execution
@@ -49,14 +49,14 @@ Verifies that the Vivafolio extension can receive a BlockSync notification deliv
 ### Phase 1: Mock LSP Server Setup
 - Create a minimal LSP server in Node.js that responds to LSP protocol messages
 - Implement textDocument/didOpen and textDocument/didChange handling
-- Generate BlockSync diagnostics on specific code patterns (e.g., `vivafolio_block!()`)
+- Generate VivafolioBlock diagnostics on specific code patterns (e.g., `vivafolio_block!()`)
 - Follow LSP specification for proper message framing and JSON-RPC communication
 
 ### Phase 2: VS Code Extension Test Harness
-- Extend existing Vivafolio extension to handle BlockSync diagnostics
+- Extend existing Vivafolio extension to handle VivafolioBlock diagnostics
 - Implement inset webview creation for multi-line blocks
 - Add basic block HTML/CSS/JS serving for test validation
-- Ensure extension can parse BlockSync payload from diagnostic messages
+- Ensure extension can parse VivafolioBlock payload from diagnostic messages
 
 ### Phase 3: WebdriverIO Test Implementation
 - Set up WebdriverIO test environment with `wdio-vscode-service`
@@ -103,17 +103,17 @@ Verifies that the Vivafolio extension can receive a BlockSync notification deliv
   3. Mock server receives notification and processes the change
 - **Validation**: Server receives and logs the edit notification
 
-#### BlockSync Notification Cycle
-- **Requirement**: Server sends BlockSync notifications back to client after processing changes
+#### VivafolioBlock Notification Cycle
+- **Requirement**: Server sends VivafolioBlock notifications back to client after processing changes
 - **Flow**:
   1. Server processes `didChange` notification
-  2. Server sends `textDocument/publishDiagnostics` with updated BlockSync payloads
+  2. Server sends `textDocument/publishDiagnostics` with updated VivafolioBlock payloads
   3. Client receives diagnostics and updates webviews accordingly
-- **Validation**: Client receives matching BlockSync notifications
+- **Validation**: Client receives matching VivafolioBlock notifications
 
 #### Idempotent State Updates
 - **Requirement**: Matching notifications produce no further changes
-- **Behavior**: When server sends BlockSync with same color as current state, no UI updates occur
+- **Behavior**: When server sends VivafolioBlock with same color as current state, no UI updates occur
 - **Validation**: No unnecessary webview re-renders or state changes
 
 #### External File Modification Support
@@ -121,20 +121,20 @@ Verifies that the Vivafolio extension can receive a BlockSync notification deliv
 - **Flow**:
   1. External tool modifies file content (e.g., changes `gui_state!` color)
   2. VS Code detects file change and sends `textDocument/didChange`
-  3. LSP server processes change and sends BlockSync notifications
+  3. LSP server processes change and sends VivafolioBlock notifications
   4. Color picker webview updates to reflect new color
 - **Validation**: Color picker updates when file is modified externally
 
 #### Editor-Driven Modifications
 - **Requirement**: User edits in VS Code editor trigger LSP round-trip updates
-- **Flow**: User edits `gui_state!` in editor → VS Code sends `didChange` → Server sends BlockSync → Picker updates
+- **Flow**: User edits `gui_state!` in editor → VS Code sends `didChange` → Server sends VivafolioBlock → Picker updates
 - **Validation**: Color picker reflects editor changes immediately
 
 #### Cross-Block State Synchronization
 - **Requirement**: Square component always syncs with color picker updates
 - **Flow**:
   1. Any color change (picker, editor, external) triggers LSP notification
-  2. Server sends BlockSync for BOTH picker AND square with same color value
+  2. Server sends VivafolioBlock for BOTH picker AND square with same color value
   3. Both webviews update simultaneously
 - **Validation**: Square color always matches picker color in real-time
 
@@ -146,8 +146,8 @@ Verifies that the Vivafolio extension can receive a BlockSync notification deliv
   - UI-only interaction: All changes initiated via realistic user actions
 
 ### Phase 4: Test Data and Validation
-- Define test project structure with sample code triggering BlockSync
-- Create expected BlockSync payload format
+- Define test project structure with sample code triggering VivafolioBlock
+- Create expected VivafolioBlock payload format
 - Implement assertion logic for webview content and positioning
 
 ## Current Status
@@ -376,7 +376,7 @@ If vendoring proves helpful, we can extend this pattern to `zls` and `crystallin
 - Features:
   - Spawns mock LSP server process using `vscode-jsonrpc`
   - Sends real LSP messages and validates responses
-  - Comprehensive payload validation for BlockSync format
+  - Comprehensive payload validation for VivafolioBlock format
   - Color state persistence testing across document changes
   - Error handling and timeout management
 - Benefits:
@@ -388,11 +388,11 @@ If vendoring proves helpful, we can extend this pattern to `zls` and `crystallin
 #### Stand-alone Tests: gui_state Syntax Error Semantics (Server)
 - File: `vivafolio/test/e2e-lsp-syntax-error.test.js`
 - Status: PASS ✅
-- Purpose: Verify the mock LSP server emits a non-destructive syntax-error BlockSync when inline `gui_state!` JSON is invalid during edits.
+- Purpose: Verify the mock LSP server emits a non-destructive syntax-error VivafolioBlock when inline `gui_state!` JSON is invalid during edits.
 - Scenarios:
-  1. Open document with valid `gui_state!` → normal BlockSync with `initialGraph`.
+  1. Open document with valid `gui_state!` → normal VivafolioBlock with `initialGraph`.
   2. Send `didChange` making JSON invalid (mid-edit) → `publishDiagnostics` includes `error: { kind: "gui_state_syntax_error" }` with `initialGraph: null`.
-  3. Send `didChange` restoring valid JSON → normal BlockSync again with correct `initialGraph` and color.
+  3. Send `didChange` restoring valid JSON → normal VivafolioBlock again with correct `initialGraph` and color.
 - Assertions:
   - Presence/shape of `error` field for invalid state.
   - No server-side fallback overwrites (no `initialGraph` color when error present).
@@ -445,9 +445,9 @@ LSP diagnostics are "owned" by the server, meaning the server is fully responsib
   - **Document Synchronization**: LSP supports incremental updates for document changes via `textDocument/didChange`, where `contentChanges` can be an array of partial edits
   - **Diagnostics for Large Files**: Diagnostics themselves are not incremental—they are always the full list for the entire document. There is no mechanism to send diagnostics only for a "processed range"
 
-## BlockSync Payload Format
+## VivafolioBlock Payload Format
 
-The test will use a standardized BlockSync payload embedded in LSP Hint diagnostics:
+The test will use a standardized VivafolioBlock payload embedded in LSP Hint diagnostics:
 
 ```json
 {
@@ -502,7 +502,7 @@ The test will use a standardized BlockSync payload embedded in LSP Hint diagnost
 Client behavior on syntax error:
 - Do not modify the `gui_state!` string in the editor.
 - Forward an error signal to the webview (e.g., `graph:error` or `graph:update` with `error` attached) so the component can render an unobtrusive error indicator.
-- Clear the indicator once a valid (non-error) BlockSync arrives.
+- Clear the indicator once a valid (non-error) VivafolioBlock arrives.
 
 ## Test Execution
 
@@ -535,8 +535,8 @@ npm run test:wdio:two-blocks         # Test two-blocks interaction
 
 # Playwright E2E Tests (legacy - infrastructure kept for reference)
 cd vivafolio
-npm run test:e2e:blocksync            # Legacy Playwright tests (not functional)
-npm run test:e2e:blocksync:headed     # Legacy Playwright tests (not functional)
+just test-e2e-vivafolioblock               # Legacy Playwright tests (not functional)
+just test-e2e-vivafolioblock-headed        # Legacy Playwright tests (not functional)
 
 # Manual inspection in VS Code Insiders (fresh profile by default)
 cd vivafolio
@@ -547,7 +547,7 @@ just vscode-e2e
 ## Success Criteria
 
 - Mock LSP server starts successfully and responds to LSP protocol messages
-- VS Code extension receives BlockSync diagnostic and creates inset webview
+- VS Code extension receives VivafolioBlock diagnostic and creates inset webview
 - Webview renders with expected content and dimensions
 - Basic interaction (clicks, data updates) works through Block Protocol messages
 - Test completes without timeouts or protocol errors
@@ -568,13 +568,13 @@ just vscode-e2e
     - `basic-vscode-test.e2e.ts` - Basic VS Code accessibility tests
     - `minimal-vscode-test.e2e.ts` - Minimal VS Code functionality tests
   - `README.md` - WebdriverIO test documentation
-- `vivafolio/test/e2e-blocksync.js` - Legacy Playwright E2E test suite (kept for reference)
+- `vivafolio/test/e2e-vivafolioblock.js` - Legacy Playwright E2E test suite (kept for reference)
 - `vivafolio/test/e2e-mock-lsp-client.js` - LSP client test suite for mock server validation
 - `vivafolio/src/test/suite/vscode-inset-management.test.js` - VS Code extension inset management tests
 - `vivafolio/test/playwright.config.js` - Legacy Playwright configuration
 - `vivafolio/test/playwright-setup.js` - Legacy Playwright global setup
 - `vivafolio/test/playwright-teardown.js` - Legacy Playwright global teardown
-- `vivafolio/test/projects/blocksync-test/` - Test project with sample code
+- `vivafolio/test/projects/vivafolioblock-test/` - Test project with sample code
 - `vivafolio/test/resources/` - HTML/CSS/JS resources for test webview
  - `vivafolio/mock-language-extension/` - Stand-alone mock language VS Code extension
  - VS Code test harness (loads BOTH extensions):
@@ -604,7 +604,7 @@ just vscode-e2e
   - Test Specs: `vivafolio/test/wdio/specs/`
   - Documentation: `vivafolio/test/wdio/README.md`
 - VS Code Extension Inset Management Tests: `vivafolio/src/test/suite/vscode-inset-management.test.js`
-- Legacy Playwright E2E Tests (reference only): `vivafolio/test/e2e-blocksync.js`
+- Legacy Playwright E2E Tests (reference only): `vivafolio/test/e2e-vivafolioblock.js`
 - VS Code test harness and suite: `vivafolio/test/run-vscode-tests.js`, `vivafolio/test/suite/vscode-diagnostics.test.js`
 
 ## Two-Blocks Synchronization Implementation Plan
@@ -624,9 +624,9 @@ just vscode-e2e
 ### Phase 2: Dynamic Webview State Initialization ✅ COMPLETED
 - **Status**: IMPLEMENTED ✅
 - **Changes Made**:
-  - ✅ Color picker now properly initializes with color from `initialGraph` (BlockSync payload)
+  - ✅ Color picker now properly initializes with color from `initialGraph` (VivafolioBlock payload)
   - ✅ Added initialization tracking to prevent infinite loops on first update
-  - ✅ Color square displays correct initial color from BlockSync notification
+  - ✅ Color square displays correct initial color from VivafolioBlock notification
   - ✅ Dynamic initialization - no hard-coded values, works with any color from gui_state
 - **Files Updated**: `vivafolio/test/resources/blocks/color-picker.html`
 - **Key Fix**: Track initialization state and handle initial `graph:update` message correctly
@@ -638,7 +638,7 @@ just vscode-e2e
   - ✅ Updated `two_blocks.viv` with proper initial state for manual testing
   - ✅ File now contains both `vivafolio_picker!()` and `vivafolio_square!()` blocks
   - ✅ Includes `gui_state! r#"{"properties":{"color":"#00ff00"}}"#` with initial green color
-- **Files Updated**: `vivafolio/test/projects/blocksync-test/two_blocks.viv`
+- **Files Updated**: `vivafolio/test/projects/vivafolioblock-test/two_blocks.viv`
 - **Validation**: File ready for manual testing with proper block structure
 
 ### Phase 4: Bidirectional Sync Debugging ✅ IN PROGRESS
@@ -887,8 +887,8 @@ just vscode-e2e
 ```
 
 **Test Files:**
-- `test/projects/blocksync-test/main.viv` - Single block demonstration
-- `test/projects/blocksync-test/two_blocks.viv` - Interactive color picker + square
+- `test/projects/vivafolioblock-test/main.viv` - Single block demonstration
+- `test/projects/vivafolioblock-test/two_blocks.viv` - Interactive color picker + square
 
 **Manual Test Scenarios:**
 1. **Inset Creation**: Open files with vivafolio blocks → verify insets appear

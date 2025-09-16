@@ -38,7 +38,7 @@ console.log('• Total initialization: ~837ms')
 
 console.log('\n🏆 CONCLUSION:')
 console.log('--------------')
-console.log('✅ LSP server DOES send BlockSync notifications on file open')
+console.log('✅ LSP server DOES send VivafolioBlock notifications on file open')
 console.log('✅ No edits required - diagnostics sent immediately upon opening')
 console.log('✅ Color picker initializes with correct color from gui_state!')
 console.log('✅ Complete synchronization flow working as designed')

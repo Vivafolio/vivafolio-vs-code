@@ -7,7 +7,7 @@ set shell := ["./scripts/nix-env.sh", "-c"]
 
 # Launch VS Code for manual inspection of E2E setup (loads BOTH extensions)
 vscode-e2e:
-    # Open the blocksync test project with mock + production extensions (Insiders)
+    # Open the vivafolioblock test project with mock + production extensions (Insiders)
     bash ./scripts/vscode-e2e.sh
 
 # Run VS Code extension test harness
@@ -21,8 +21,11 @@ test-scenario-basic-comms:
 test-scenario-callsite-diagnostics:
 	node test/scenarios/callsite-diagnostics.js | cat
 
-test-e2e-blocksync:
-	VIVAFOLIO_DEBUG=1 VIVAFOLIO_CAPTURE_WEBVIEW_LOGS=1 npm run -s test:e2e:blocksync | cat
+test-e2e-vivafolioblock:
+	VIVAFOLIO_DEBUG=1 VIVAFOLIO_CAPTURE_WEBVIEW_LOGS=1 npm run -s test:e2e:vivafolioblock | cat
+
+test-e2e-vivafolioblock-headed:
+	VIVAFOLIO_DEBUG=1 VIVAFOLIO_CAPTURE_WEBVIEW_LOGS=1 npm run -s test:e2e:vivafolioblock:headed | cat
 
 # Runtime Path Testing
 test-runtime-python:
@@ -41,6 +44,14 @@ test-runtime-javascript:
 	node test/runtime-path/javascript/two_blocks.js
 
 test-runtime-all: test-runtime-python test-runtime-ruby test-runtime-julia test-runtime-r test-runtime-javascript
+
+test-runtime-vivafolioblock:
+	npm run -s test:runtime:vivafolioblock | cat
+
+test-blockprotocol-poc:
+	cd apps/blockprotocol-poc && \
+	  PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH:-$(command -v chromium)}" \
+	  npm test | cat
 
 # -----------------------------
 # Build commands

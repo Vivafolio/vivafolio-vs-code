@@ -60,7 +60,7 @@ malformedTests.forEach(test => {
   console.log(`   ${status} "${test.input}" → ${extractedColor || 'undefined'}`)
 })
 
-console.log('\n3. Testing BlockSync payload generation:')
+console.log('\n3. Testing VivafolioBlock payload generation:')
 testColors.forEach(color => {
   const testContent = `vivafolio_picker!() gui_state! r#"{"properties":{"color":"${color}"}}"#
 vivafolio_square!()`
@@ -78,13 +78,13 @@ vivafolio_square!()`
   }
 
   const status = payload.initialGraph.entities[0].properties.color === color ? '✅' : '❌'
-  console.log(`   ${status} ${color} → BlockSync payload color: ${payload.initialGraph.entities[0].properties.color}`)
+  console.log(`   ${status} ${color} → VivafolioBlock payload color: ${payload.initialGraph.entities[0].properties.color}`)
 })
 
 console.log('\n🎉 Dynamic color initialization validation complete!')
 console.log('\nKey improvements:')
 console.log('✅ Color picker initializes with EXACT color from gui_state (no hard-coding)')
 console.log('✅ LSP server extracts colors dynamically from current document content')
-console.log('✅ BlockSync notifications contain precise colors from source code')
+console.log('✅ VivafolioBlock notifications contain precise colors from source code')
 console.log('✅ Webview receives correct initial state from initialGraph')
 console.log('✅ No fallback to hard-coded colors - everything is dynamic')

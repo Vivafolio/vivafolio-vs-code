@@ -8,7 +8,7 @@ async function globalSetup(config) {
   console.log('Setting up Vivafolio E2E test environment...')
 
   // Verify test files and resources exist
-  const testProjectDir = path.join(__dirname, 'projects', 'blocksync-test')
+  const testProjectDir = path.join(__dirname, 'projects', 'vivafolioblock-test')
   const mainFile = path.join(testProjectDir, 'main.viv')
   const twoBlocksFile = path.join(testProjectDir, 'two_blocks.viv')
 

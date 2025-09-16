@@ -16,3 +16,7 @@ node_modules/
 test-results/
 playwright-report/
 test-results.json
+
+# Block Protocol POC build output
+apps/blockprotocol-poc/dist/
+apps/blockprotocol-poc/node_modules/

@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 # Vivafolio Runtime Path Helpers for Ruby
 #
-# This module provides helper methods for creating BlockSync notifications
+# This module provides helper methods for creating VivafolioBlock notifications
 # that work with the Vivafolio VS Code extension's runtime path.
 
 require 'json'
@@ -41,9 +41,9 @@ module VivafolioHelpers
     end
   end
 
-  def self.emit_blocksync_notification(block_id, block_type, entity_id, initial_graph, resources = nil)
+  def self.emit_vivafolioblock_notification(block_id, block_type, entity_id, initial_graph, resources = nil)
     """
-    Emit a BlockSync notification to stdout for the Vivafolio extension.
+    Emit a VivafolioBlock notification to stdout for the Vivafolio extension.
 
     Args:
         block_id: Unique identifier for this block instance
@@ -104,9 +104,9 @@ module VivafolioHelpers
         "physicalPath" => "file://#{File.absolute_path(html_path)}",
         "cachingTag" => "picker-v1"
       }]
-      VivafolioHelpers.emit_blocksync_notification(block_id, "color-picker", entity_id, initial_graph, resources)
+      VivafolioHelpers.emit_vivafolioblock_notification(block_id, "color-picker", entity_id, initial_graph, resources)
     else
-      VivafolioHelpers.emit_blocksync_notification(block_id, "color-picker", entity_id, initial_graph)
+      VivafolioHelpers.emit_vivafolioblock_notification(block_id, "color-picker", entity_id, initial_graph)
     end
   end
 
@@ -145,9 +145,9 @@ module VivafolioHelpers
         "physicalPath" => "file://#{File.absolute_path(html_path)}",
         "cachingTag" => "square-v1"
       }]
-      VivafolioHelpers.emit_blocksync_notification(block_id, "color-square", entity_id, initial_graph, resources)
+      VivafolioHelpers.emit_vivafolioblock_notification(block_id, "color-square", entity_id, initial_graph, resources)
     else
-      VivafolioHelpers.emit_blocksync_notification(block_id, "color-square", entity_id, initial_graph)
+      VivafolioHelpers.emit_vivafolioblock_notification(block_id, "color-square", entity_id, initial_graph)
     end
   end
 

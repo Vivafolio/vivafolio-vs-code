@@ -38,7 +38,7 @@ switch ($Command) {
   'test-runtime-javascript' { node test/runtime-path/javascript/two_blocks.js; break }
   'vscode-e2e' {
       # Launch VS Code Insiders with both extensions if available
-      $ws = Join-Path $PSScriptRoot '../test/projects/blocksync-test' | Resolve-Path
+      $ws = Join-Path $PSScriptRoot '../test/projects/vivafolioblock-test' | Resolve-Path
       $file = Join-Path $ws 'two_blocks.viv'
       code-insiders $ws $file --extensionDevelopmentPath $(Resolve-Path "$PSScriptRoot/../mock-language-extension") --extensionDevelopmentPath $(Resolve-Path "$PSScriptRoot/..") --enable-proposed-api local.vivafolio --disable-workspace-trust --new-window
       break }

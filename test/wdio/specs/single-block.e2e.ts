@@ -18,11 +18,11 @@ describe('Vivafolio Single Block E2E', () => {
     await workbench.executeCommand('workbench.action.closeAllEditors')
     await browser.pause(500)
     // Reset the test file to a known initial state for deterministic coordinates
-    const testFile = path.join(process.cwd(), 'test', 'projects', 'blocksync-test', 'main.viv')
+    const testFile = path.join(process.cwd(), 'test', 'projects', 'vivafolioblock-test', 'main.viv')
     const initialContent = `// Vivafolio E2E Test File
-// This file demonstrates BlockSync notifications via LSP diagnostics
+// This file demonstrates VivafolioBlock notifications via LSP diagnostics
 
-// This should trigger a BlockSync diagnostic
+// This should trigger a VivafolioBlock diagnostic
 vivafolio_block!("test-entity-123")
 
 // Some other code
@@ -48,7 +48,7 @@ vivafolio_block!("test-entity-456")
   })
 
   it('should create inset for single vivafolio block', async () => {
-    const testFile = path.join(process.cwd(), 'test', 'projects', 'blocksync-test', 'main.viv')
+    const testFile = path.join(process.cwd(), 'test', 'projects', 'vivafolioblock-test', 'main.viv')
 
     // Open the test file using VS Code command palette
     await browser.executeWorkbench((vscode, tf) => {
@@ -90,7 +90,7 @@ vivafolio_block!("test-entity-456")
 
   it('should handle block updates correctly', async () => {
     // First, ensure we have the initial file open
-    const testFile = path.join(process.cwd(), 'test', 'projects', 'blocksync-test', 'main.viv')
+    const testFile = path.join(process.cwd(), 'test', 'projects', 'vivafolioblock-test', 'main.viv')
 
     // Open the test file using VS Code command palette
     await browser.executeWorkbench((vscode, tf) => {
@@ -139,7 +139,7 @@ fn updated_main() {
 
   it('should remove inset when block is deleted', async () => {
     // First, ensure we have the initial file open
-    const testFile = path.join(process.cwd(), 'test', 'projects', 'blocksync-test', 'main.viv')
+    const testFile = path.join(process.cwd(), 'test', 'projects', 'vivafolioblock-test', 'main.viv')
 
     // Open the test file using VS Code command palette
     await browser.executeWorkbench((vscode, tf) => {

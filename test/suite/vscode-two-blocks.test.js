@@ -3,7 +3,7 @@ const vscode = require('vscode')
 const path = require('path')
 
 suite('Vivafolio Two Blocks Interaction', () => {
-  test('color picker updates color square via LSP BlockSync', async () => {
+  test('color picker updates color square via LSP VivafolioBlock', async () => {
     const folder = vscode.workspace.workspaceFolders?.[0]?.uri
     assert.ok(folder, 'No workspace open')
     const fileUri = vscode.Uri.file(path.join(folder.fsPath, 'two_blocks.viv'))

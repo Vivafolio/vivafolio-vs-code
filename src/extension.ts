@@ -407,17 +407,17 @@ async function executeRuntimeFile(filePath: string): Promise<string[]> {
   })
 }
 
-function parseRuntimeBlockSync(lines: string[]): any[] {
+function parseRuntimeVivafolioBlock(lines: string[]): any[] {
   const notifications: any[] = []
 
   for (const line of lines) {
     try {
       const parsed = JSON.parse(line.trim())
-      // Validate it's a BlockSync notification
+      // Validate it's a VivafolioBlock notification
       if (parsed && typeof parsed === 'object' &&
           parsed.blockId && parsed.blockType && parsed.initialGraph) {
         notifications.push(parsed)
-        console.log('[Vivafolio] Parsed BlockSync notification:', parsed.blockId)
+        console.log('[Vivafolio] Parsed VivafolioBlock notification:', parsed.blockId)
       }
     } catch (e) {
       // Skip non-JSON lines
@@ -428,7 +428,7 @@ function parseRuntimeBlockSync(lines: string[]): any[] {
   return notifications
 }
 
-function convertBlockSyncToDiagnostics(notifications: any[], document: vscode.TextDocument): vscode.Diagnostic[] {
+function convertVivafolioBlockToDiagnostics(notifications: any[], document: vscode.TextDocument): vscode.Diagnostic[] {
   const diagnostics: vscode.Diagnostic[] = []
 
   for (const notification of notifications) {
@@ -755,19 +755,19 @@ export function activate(context: vscode.ExtensionContext) {
 
       // Execute the file and capture output
       const lines = await executeRuntimeFile(filePath)
-      console.log('[Vivafolio] Execution successful, parsing BlockSync notifications')
+      console.log('[Vivafolio] Execution successful, parsing VivafolioBlock notifications')
 
-      // Parse BlockSync notifications from output
-      const notifications = parseRuntimeBlockSync(lines)
-      console.log('[Vivafolio] Found', notifications.length, 'BlockSync notifications')
+      // Parse VivafolioBlock notifications from output
+      const notifications = parseRuntimeVivafolioBlock(lines)
+      console.log('[Vivafolio] Found', notifications.length, 'VivafolioBlock notifications')
 
       if (notifications.length === 0) {
-        vscode.window.showInformationMessage('No BlockSync notifications found in output')
+        vscode.window.showInformationMessage('No VivafolioBlock notifications found in output')
         return
       }
 
       // Convert to diagnostics
-      const newDiagnostics = convertBlockSyncToDiagnostics(notifications, document)
+      const newDiagnostics = convertVivafolioBlockToDiagnostics(notifications, document)
 
       // Add new diagnostics to the collection
       diagnostics.set(document.uri, newDiagnostics)

@@ -23,7 +23,7 @@ describe('Vivafolio Two-Blocks Synchronization E2E', () => {
   testColors.forEach((initialColor) => {
     describe(`with initial color ${initialColor}`, () => {
       beforeEach(async () => {
-        testFile = path.join(process.cwd(), 'test', 'projects', 'blocksync-test', `two_blocks_sync_${initialColor.replace('#', '')}.viv`)
+        testFile = path.join(process.cwd(), 'test', 'projects', 'vivafolioblock-test', `two_blocks_sync_${initialColor.replace('#', '')}.viv`)
 
         // Ensure the test file exists with initial content using the test color
         const initialContent = `// Vivafolio two blocks synchronization demo

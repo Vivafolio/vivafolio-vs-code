@@ -20,7 +20,7 @@ console.log('   cd vivafolio')
 console.log('   just vscode-e2e  # Opens VS Code with test environment')
 console.log('')
 console.log('2. TEST INITIAL STATE:')
-console.log('   - Open: test/projects/blocksync-test/two_blocks.viv')
+console.log('   - Open: test/projects/vivafolioblock-test/two_blocks.viv')
 console.log('   - Verify color picker shows green (#00ff00)')
 console.log('   - Verify color square also shows green')
 console.log('   - Check VS Code console for LSP diagnostics')
@@ -54,7 +54,7 @@ console.log('✅ Bidirectional sync working correctly')
 console.log('')
 
 // Simple validation of test file
-const testFile = path.join(__dirname, 'projects', 'blocksync-test', 'two_blocks.viv')
+const testFile = path.join(__dirname, 'projects', 'vivafolioblock-test', 'two_blocks.viv')
 if (fs.existsSync(testFile)) {
   const content = fs.readFileSync(testFile, 'utf8')
   console.log('📄 Test file content:')

@@ -200,7 +200,7 @@ For a fully reproducible development environment, you can use a Nix flake to man
          });  
    }
 
-2. **Enter the Environment:** Activate the development shell by running nix develop in your terminal. All the tools defined in the flake will now be available in your PATH.  
+2. **Enter the Environment:** Use the project’s `just` recipes (which automatically enter the dev shell) or run `./scripts/nix-env.sh -c <command>` to execute tasks with all flake-provided tools available in your PATH.  
 3. **Configure wdio.conf.ts for Nix:** Modify your wdio.conf.ts to instruct the service to use the binaries provided by your Nix environment instead of downloading them.  
    TypeScript  
    // wdio.conf.ts  

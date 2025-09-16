@@ -16,7 +16,7 @@
         inherit system;
         config.allowUnfree = true;
         overlays = [ nix-nim-dev.overlays.default ];
-      };
+        };
       lib = pkgs.lib;
       # Explicit Insiders derivation on Linux; keep upstream override on macOS where it works.
       vscodeInsiders = if pkgs.stdenv.isDarwin then
@@ -41,64 +41,93 @@
           pname = "vscode-insiders";
           name = "${pname}-${version}";
         });
-    in {
-      devShells.default = pkgs.mkShell {
-        packages = with pkgs; [
-          nodejs_22
-          typescript
-          bashInteractive
-          gdb
-          # Lean toolchain (lake, lean4) to run lean connectivity
-          lean4
-          # Nim runtime and tools (nim/nimsuggest). We may need multiple Nim versions in CI.
-          nim
-          nimble
-          nimlsp
-          # Nim language server from overlay
-          pkgs.metacraft-labs.langserver
-        ] ++ [
-          # D toolchain + serve-d
-          ldc
-          dub
-          serve-d
-          # Rust
-          rust-analyzer
-          cargo
-          rustc
-          # Zig
-          zig
-          zls
-          # Crystal
-          crystal
-          crystalline
-          # Python for runtime path testing
-          python3
-          python3Packages.pip
-          # Ruby for runtime path testing
-          ruby
-          bundler
-          # Julia for runtime path testing
-          julia-bin
-          # R for runtime path testing
-          R
-          rPackages.devtools
-          # JavaScript/Node.js for runtime path testing (already have nodejs_22 above)
-          # WebdriverIO testing dependencies
-          chromedriver
-          selenium-server-standalone
-          xorg.xorgserver # provides Xvfb for headless VS Code on Linux
-          # Virtual framebuffer for headless GUI testing in CI (Linux only)
-          # xvfb-run  # Not available on macOS
-          # VS Code Insiders is used only for manual testing
-          # @vscode/test-electron downloads VS Code for the automated tests.
-          vscodeInsiders
+    in
+      let
+        playwrightLibs = with pkgs; [
+          glib
+          gtk3
+          nspr
+          nss
+          dbus
+          atk
+          at-spi2-atk
+          at-spi2-core
+          expat
+          xorg.libX11
+          xorg.libXcomposite
+          xorg.libXdamage
+          xorg.libXext
+          xorg.libXfixes
+          xorg.libXrandr
+          mesa
+          libxcb
+          libxkbcommon
+          udev
+          alsa-lib
         ];
-        shellHook = ''
-          echo "Vivafolio dev shell: Node $(node -v)"
-          # Agents note: This shell is intentionally minimal and self-contained for Vivafolio tests.
-          # In CI we may instantiate multiple shells to test different Nim versions and LSP variants.
-          export DC=ldc2
-        '';
+      in {
+        devShells.default = pkgs.mkShell {
+          packages = (with pkgs; [
+            nodejs_22
+            typescript
+            bashInteractive
+            gdb
+            # Lean toolchain (lake, lean4) to run lean connectivity
+            lean4
+            # Nim runtime and tools (nim/nimsuggest). We may need multiple Nim versions in CI.
+            nim
+            nimble
+            nimlsp
+            # Nim language server from overlay
+            pkgs.metacraft-labs.langserver
+          ] ++ [
+            # D toolchain + serve-d
+            ldc
+            dub
+            serve-d
+            # Rust
+            rust-analyzer
+            cargo
+            rustc
+            # Zig
+            zig
+            zls
+            # Crystal
+            crystal
+            crystalline
+            # Python for runtime path testing
+            python3
+            python3Packages.pip
+            # Ruby for runtime path testing
+            ruby
+            bundler
+            # Julia for runtime path testing
+            julia-bin
+            # R for runtime path testing
+            R
+            rPackages.devtools
+            # JavaScript/Node.js for runtime path testing (already have nodejs_22 above)
+            # WebdriverIO testing dependencies
+            chromedriver
+            chromium
+            selenium-server-standalone
+            xorg.xorgserver # provides Xvfb for headless VS Code on Linux
+            # Virtual framebuffer for headless GUI testing in CI (Linux only)
+            # xvfb-run  # Not available on macOS
+            # VS Code Insiders is used only for manual testing
+            # @vscode/test-electron downloads VS Code for the automated tests.
+            vscodeInsiders
+            yarn
+          ]) ++ playwrightLibs;
+          shellHook = ''
+            echo "Vivafolio dev shell: Node $(node -v)"
+            # Agents note: This shell is intentionally minimal and self-contained for Vivafolio tests.
+            # In CI we may instantiate multiple shells to test different Nim versions and LSP variants.
+            export DC=ldc2
+            export LD_LIBRARY_PATH=${pkgs.lib.makeLibraryPath playwrightLibs}:$LD_LIBRARY_PATH
+            export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=${pkgs.chromium}/bin/chromium
+            export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+          '';
       };
     });
 }

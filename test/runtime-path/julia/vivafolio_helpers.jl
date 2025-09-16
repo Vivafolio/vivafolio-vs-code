@@ -1,6 +1,6 @@
 # Vivafolio Runtime Path Helpers for Julia
 #
-# This module provides helper functions for creating BlockSync notifications
+# This module provides helper functions for creating VivafolioBlock notifications
 # that work with the Vivafolio VS Code extension's runtime path.
 
 """
@@ -39,9 +39,9 @@ function extract_gui_state_from_source(source_lines, block_type)
 end
 
 """
-    emit_blocksync_notification(block_id, block_type, entity_id, initial_graph, resources=nothing)
+    emit_vivafolioblock_notification(block_id, block_type, entity_id, initial_graph, resources=nothing)
 
-Emit a BlockSync notification to stdout for the Vivafolio extension.
+Emit a VivafolioBlock notification to stdout for the Vivafolio extension.
 
 # Arguments
 - `block_id`: Unique identifier for this block instance
@@ -50,7 +50,7 @@ Emit a BlockSync notification to stdout for the Vivafolio extension.
 - `initial_graph`: Initial graph data with entities and links
 - `resources`: Optional array of resources (HTML files, etc.)
 """
-function emit_blocksync_notification(block_id, block_type, entity_id, initial_graph, resources=nothing)
+function emit_vivafolioblock_notification(block_id, block_type, entity_id, initial_graph, resources=nothing)
   # Manually construct JSON string
   json_str = """{"blockId":"$(block_id)","blockType":"https://blockprotocol.org/@blockprotocol/types/block-type/$(block_type)/","displayMode":"multi-line","entityId":"$(entity_id)","initialGraph":{"entities":[{"entityId":"$(entity_id)","properties":{"color":"$(initial_graph["entities"][1]["properties"]["color"])"}}],"links":[]},"supportsHotReload":false,"initialHeight":200"""
 
@@ -109,9 +109,9 @@ function vivafolio_picker(block_id="picker-123")
       "physicalPath" => "file://$html_path",
       "cachingTag" => "picker-v1"
     )]
-    emit_blocksync_notification(block_id, "color-picker", entity_id, initial_graph, resources)
+    emit_vivafolioblock_notification(block_id, "color-picker", entity_id, initial_graph, resources)
   else
-    emit_blocksync_notification(block_id, "color-picker", entity_id, initial_graph)
+    emit_vivafolioblock_notification(block_id, "color-picker", entity_id, initial_graph)
   end
 end
 
@@ -159,9 +159,9 @@ function vivafolio_square(block_id="square-456")
       "physicalPath" => "file://$html_path",
       "cachingTag" => "square-v1"
     )]
-    emit_blocksync_notification(block_id, "color-square", entity_id, initial_graph, resources)
+    emit_vivafolioblock_notification(block_id, "color-square", entity_id, initial_graph, resources)
   else
-    emit_blocksync_notification(block_id, "color-square", entity_id, initial_graph)
+    emit_vivafolioblock_notification(block_id, "color-square", entity_id, initial_graph)
   end
 end
 

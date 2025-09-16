@@ -1,7 +1,7 @@
 // Vivafolio E2E Test File
-// This file demonstrates BlockSync notifications via LSP diagnostics
+// This file demonstrates VivafolioBlock notifications via LSP diagnostics
 
-// This should trigger a BlockSync diagnostic
+// This should trigger a VivafolioBlock diagnostic
 vivafolio_block!("test-entity-123")
 
 // Some other code
