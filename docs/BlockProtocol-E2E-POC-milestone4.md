@@ -55,3 +55,9 @@ Integrate an official Block Protocol block (e.g., `@blocks/feature-showcase`) in
 - Once artefacts are available, update the Milestone 3 scenario to load real resources and implement the spec-defined `initialize` / `capabilities` handshake.
 
 Please advise on the preferred path forward or provide instructions for building the `feature-showcase` block in isolation.
+
+## Update (2025-09-16 Late Night++)
+- Instead of building the entire monorepo, the POC now consumes the published `test-npm-block` bundle directly. The server exposes hashed assets via the manifest (`apps/blockprotocol-poc/src/server.ts:1`) and the browser host evaluates the bundle with a CommonJS shim plus React externals (`apps/blockprotocol-poc/src/client/main.ts:1`).
+- `GraphEmbedderHandler` bridges `init` / `updateEntity` traffic to the simulated backend, and Playwright validates the full loop through `just test-blockprotocol-poc` (`apps/blockprotocol-poc/tests/hello-block.spec.ts:93`).
+- Host debug hooks now surface `aggregateEntities` and linked aggregation lifecycles so we can cross-check the spec’s graph service guarantees against the published block (`apps/blockprotocol-poc/src/client/main.ts:1`).
+- Remaining questions before closing this milestone: should we fan out the same loader for additional npm blocks, and what guidance exists around caching / signature verification when sideloading published bundles?

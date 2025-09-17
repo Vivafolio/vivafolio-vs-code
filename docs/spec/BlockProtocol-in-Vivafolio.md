@@ -445,6 +445,46 @@ sequenceDiagram
     end  
     MiniHost-\>\>ParentBlock: Renders Child Block into placeholder div (Live Mount)
 
+### **5.4. Published Bundle Execution Requirements**
+
+To align with the security posture demonstrated in the Block Protocol reference implementation, the Vivafolio Host **must** enforce the following guardrails when executing third-party bundles (e.g., npm-published blocks):
+
+1. **Dependency Allowlist:** Only modules explicitly approved by the Host (e.g., `react`, `react-dom`, Block Protocol runtimes) can be required. Any other CommonJS dependency **must** be blocked with a descriptive error.  
+2. **Integrity Metadata:** The Host **must** compute a SHA-256 hash (or stronger) for each fetched bundle and surface that digest to diagnostics. Hosts deploying remote content **should** reject responses whose hash differs from recorded metadata.  
+3. **Audit Logging:** For every bundle evaluation, capture the evaluated URL, timestamp, allowed dependencies, and any blocked dependency attempts. This metadata enables downstream policy enforcement (e.g., unit tests, telemetry).  
+4. **Caching Discipline:** Cache-busting tags supplied in VivafolioBlock resources **must** be preserved when fetching bundle assets so blocks pick up updates without stale assets leaking into other instances.
+
+> **Rationale:** These requirements mirror the behaviour validated in the POC (`apps/blockprotocol-poc/src/client/main.ts`), ensuring the Host mediates bundle execution instead of allowing arbitrary module resolution.
+
+### **5.5. Multi-Instance Graph Synchronization**
+
+When multiple blocks reference the same root entity, the Host **must** fan-out `blockEntitySubgraph` updates to every active WebView:
+
+* Each incoming `updateEntity` **must** mutate the shared in-memory graph and immediately trigger fresh notifications for every connected instance (including the originator).  
+* Hosts **must not** suppress updates based on the origin blockId—each WebView is responsible for de-duping optimistic UI state if needed.  
+* Diagnostics **should** include the list of blockIds that received any given update, enabling regression tests like those captured in the Milestone 4 scenario.
+
+> **Rationale:** The POC proved that twin instances of `test-npm-block` rely on a consistent broadcast model (`apps/blockprotocol-poc/src/server.ts`). Clarifying this behaviour avoids divergence with official Block Protocol expectations around shared graphs.
+
+### **5.6. Baseline Graph Service Coverage**
+
+Vivafolio treats the following Block Protocol graph services as **mandatory** for published blocks:
+
+1. `aggregateEntities` supporting pagination metadata (`pageNumber`, `itemsPerPage`, `pageCount`, `totalCount`).  
+2. Linked aggregation lifecycle (`createLinkedAggregation`, `updateLinkedAggregation`, `deleteLinkedAggregation`, `getLinkedAggregation`) with deterministic aggregationIds.  
+3. `getEntity` returning the latest entity snapshot, even if the requested entity is not part of the initial subgraph.
+
+Hosts **must** implement these services on the embedder side and tests **should** exercise them when onboarding a new block. This guarantee reflects the behaviour of Block Protocol starter blocks and prevents runtime failures when blocks call into the graph service helpers.
+
+### **5.7. Development Diagnostics (Optional, Recommended)**
+
+While not mandatory for production deployments, the Host **should** expose non-invasive diagnostics in development builds:
+
+* A global registry (e.g., `window.__vivafolioDiagnostics`) containing loader metadata (hashes, dependency decisions) and live graph snapshots.  
+* Toggleable logging for Block Protocol message traffic to aid regression tests.
+
+Any diagnostic surface **must** respect the sandbox boundary and avoid leaking sensitive data to untrusted blocks; the Host is responsible for gating the feature behind trusted contexts (e.g., dev mode flag).
+
 ## **6\. Appendix: Key Block Protocol Libraries**
 
 The Vivafolio implementation will rely on the official libraries provided by the Block Protocol team to ensure compliance and reduce development overhead.

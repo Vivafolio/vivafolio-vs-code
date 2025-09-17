@@ -4,10 +4,10 @@ This document tracks the proof-of-concept effort to validate the Block Protocol 
 
 ## 🎯 Initiative Overview
 
-Goal: build a minimal, self-contained environment that exercises the Vivafolio Block Protocol stack end-to-end without relying on the VS Code extension. The POC models the host/editor in a browser app, drives hard-coded VivafolioBlock notifications from a Node.js backend, and verifies block rendering plus graph synchronization with Playwright.
+Goal: **validate the design choices in `docs/spec/BlockProtocol-in-Vivafolio.md` against real Block Protocol behaviour** by building a minimal, self-contained environment that exercises the entire stack end-to-end without relying on the VS Code extension. The POC models the host/editor in a browser app, drives hard-coded VivafolioBlock notifications from a Node.js backend, and verifies block rendering plus graph synchronization with Playwright while harvesting insights and potential spec improvements. Reference Block Protocol documentation lives under `third_party/blockprotocol/apps/site/src/_pages/` and informs each milestone matchup with the upstream contract.
 
 Scope highlights:
-- Simulated editor UI (no actual editing) with fixed line anchors per the spec.
+- Simulated VS code editor UI (no actual editing) with fixed line anchors per the spec.
 - Server emits VivafolioBlock notifications targeting those anchors and mutates an in-memory entity graph.
 - Blocks sourced from the Block Protocol repository (vendored as a git submodule) to allow local fixes that we can upstream.
 - Progressive milestones that culminate in iframe-hosted blocks mirroring Vivafolio’s webview behavior.
@@ -29,13 +29,24 @@ Scope highlights:
   - **Milestone 2 (Prototype)**: Introduced multi-view sync scenario with per-scenario routing (`apps/blockprotocol-poc/src/server.ts:1`) and interactive list renderer driving `graph/update` messages (`apps/blockprotocol-poc/src/client/main.ts:1`, `apps/blockprotocol-poc/src/client/styles.css:1`). Playwright exercises the round-trip (`apps/blockprotocol-poc/tests/hello-block.spec.ts:40`).
 - **2025-09-16 (Late Night)**
   - **Milestone 3 (Prototype)**: Added iframe/webview simulation with resource loading and cache-busting tags (`apps/blockprotocol-poc/src/server.ts:1`, `apps/blockprotocol-poc/templates/kanban-iframe.html:1`, `apps/blockprotocol-poc/templates/task-list-iframe.html:1`). Client bridges postMessage traffic (`apps/blockprotocol-poc/src/client/main.ts:1`) and Playwright verifies iframe-driven updates (`apps/blockprotocol-poc/tests/hello-block.spec.ts:62`).
-- **Next Target (Milestone 4 – Real Block Protocol Resources)**
-  - Integrate the official Block Protocol build output (e.g., `third_party/blockprotocol/blocks/feature-showcase`).
-  - Serve those assets through the POC host with proper resource mapping and caching tags.
-  - Implement the spec-defined initialization handshake using the Block Protocol libraries.
-  - Add Playwright coverage to ensure blocks load via the optimized path and respond to `graph/update` messages.
-  - **Current blocker report**: see `docs/BlockProtocol-E2E-POC-milestone4.md` for details on dependency/build issues encountered while installing the upstream Block Protocol workspace.
-  - **Next**: Swap placeholder renderer for real Block Protocol resources and start modeling entity mutations for multi-view sync.
+- **2025-09-16 (Late Night++)**
+  - **Milestone 4 (Runtime Integration)**: Host now evaluates the npm-published `test-npm-block` bundle using a CommonJS shim, wires it to the Block Protocol graph service via `GraphEmbedderHandler`, and mirrors resource manifests in the faux editor (`apps/blockprotocol-poc/src/client/main.ts:1`, `apps/blockprotocol-poc/src/server.ts:1`, `apps/blockprotocol-poc/src/client/styles.css:200`).
+  - **Testing**: `just test-blockprotocol-poc` exercises the scenario end-to-end, asserting handshake-driven updates in `apps/blockprotocol-poc/tests/hello-block.spec.ts:93`.
+- **2025-09-17 (Early AM)**
+  - **Milestone 4 (Multi-view Sync)**: Scenario now renders two `test-npm-block` instances bound to the same entity graph. Updates triggered in one view propagate to the sibling view via the shared Graph service (`apps/blockprotocol-poc/src/server.ts:1`, `apps/blockprotocol-poc/src/client/main.ts:1`). Playwright confirms bidirectional consistency after user interaction (`apps/blockprotocol-poc/tests/hello-block.spec.ts:93`).
+- **2025-09-17 (Morning)**
+  - **Graph Service Coverage**: Host debug hooks expose `aggregateEntities` plus linked aggregation lifecycle handlers running through `GraphEmbedderHandler`, enabling spec-driven assertions of pagination and aggregation helpers (`apps/blockprotocol-poc/src/client/main.ts:1`, `apps/blockprotocol-poc/tests/hello-block.spec.ts:93`).
+  - **Loader Diagnostics**: CommonJS shim now records bundle integrity hashes (SHA-256) and dependency allowlist outcomes, making it easier to contrast the runtime behaviour with `third_party/blockprotocol/apps/site/src/_pages/docs/1_blocks` loader recommendations (`apps/blockprotocol-poc/src/client/main.ts:1`).
+- **2025-09-17 (Morning++)**
+  - **HTML Template Block Debug**: Integration of the HTML template block stalls on missing asset errors despite static routing changes; see `docs/BlockProtocol-E2E-POC-html-template-debug.md` for full reproduction steps and mitigation ideas.
+- **2025-09-17 (Afternoon)**
+  - **Spec Feedback Drafting**: Captured preliminary recommendations mapping POC findings to potential updates in `docs/spec/BlockProtocol-in-Vivafolio.md` (see *Draft Spec Feedback* below).
+- **2025-09-17 (Afternoon++)**
+  - **Spec Updated**: Incorporated bundle safety, multi-instance sync, baseline graph services, and diagnostic guidance directly into `docs/spec/BlockProtocol-in-Vivafolio.md:448` so the spec now mirrors the validated POC behaviour.
+- **Upcoming Focus (Post–Milestone 4 Research)**
+  - **Resource-loader hardening**: generalize the CommonJS loader so additional npm bundles (including ones with nested assets) can execute safely, and document cache-busting plus integrity checks for spec feedback.
+  - **Spec feedback loop**: capture deltas between observed host/embedder traffic and the behaviour mandated in `docs/spec/BlockProtocol-in-Vivafolio.md`, preparing recommended edits once the loader research concludes. Historical blocker notes remain in `docs/BlockProtocol-E2E-POC-milestone4.md` for context.
+  - **Block variety scouting**: evaluate additional published blocks from `third_party/blockprotocol/apps/site/src/_pages/docs/1_blocks` to stress the loader against more complex dependency graphs.
 
 ## 🧱 Milestones
 
@@ -74,6 +85,15 @@ Scope highlights:
 - Playwright (`apps/blockprotocol-poc/tests/hello-block.spec.ts:62`) validates handshake, messaging, and hot-reload semantics across iframe boundaries.
 - Backend verifies updates flow through the Block Protocol without direct DOM shortcuts via the shared `graph/update` handler in `apps/blockprotocol-poc/src/server.ts:1`.
 
+### Milestone 4 — Published Block Resources
+**Objective**: Execute a published Block Protocol bundle inside the POC host and validate graph-service interoperability.
+**Host Behavior**:
+- Map hashed npm assets via the Express manifest and expose them through VivafolioBlock resources (`apps/blockprotocol-poc/src/server.ts:1`).
+- Evaluate the bundle in-browser with a CommonJS loader shim, inject `react` externals, and attach `GraphEmbedderHandler` so `init` / `updateEntity` traffic mirrors the real host (`apps/blockprotocol-poc/src/client/main.ts:1`).
+- Surface runtime resources and metadata in the faux editor for debugging (`apps/blockprotocol-poc/src/client/styles.css:200`).
+**Acceptance**:
+- Playwright clicks “Update Name” inside the npm block, observes heading + metadata changes, and confirms resources list matches the host-provided manifest (`apps/blockprotocol-poc/tests/hello-block.spec.ts:93`, `just test-blockprotocol-poc`).
+
 ## 🔧 Implementation Plan
 
 ### Phase A — Repository Setup
@@ -106,8 +126,13 @@ Scope highlights:
 - Playwright reports archived under `test-results/blockprotocol-poc/`.
 - Upstream-ready patches to Block Protocol components when fixes are required.
 
+## ✏️ Draft Spec Feedback
+1. **Bundle safety & integrity** — Spec should explicitly call for an allowlisted dependency surface and integrity verification when executing third-party bundles. The CommonJS shim now records blocked vs allowed modules plus SHA-256 hashes to demonstrate the host obligations (`apps/blockprotocol-poc/src/client/main.ts:533`).
+2. **Multi-instance graph semantics** — Running two published blocks against a shared graph confirmed that `graph/update` broadcasts must be fan-out safe. Spec could clarify how hosts identify and rebroadcast updates to sibling instances without duplicate notifications (`apps/blockprotocol-poc/src/server.ts:1`).
+3. **Graph service coverage expectations** — Blocks rely on `aggregateEntities` and linked aggregation workflows out of the box. The spec should highlight these as baseline services, including pagination defaults and error semantics, to align with `GraphEmbedderHandler` behaviour validated in the POC (`apps/blockprotocol-poc/src/client/main.ts:533`).
+4. **Debug/diagnostic hooks** — Capturing loader and graph metrics proved invaluable for comparing against upstream docs. Consider recommending optional diagnostics (similar to `window.__vivafolioPoc`) so hosts can expose non-invasive inspection APIs during development without leaking into production builds.
+
 ## 🧭 Next Steps
-1. Initialize git submodule for Block Protocol sources.
-2. Scaffold the POC app directory with shared tooling (TypeScript, Vite/Express, Playwright config).
-3. Implement Milestone 0 host-server loop and Playwright smoke test.
-- Upcoming work: adopt the actual Block Protocol loader so iframe blocks can request resources dynamically (Milestone 4 goal).
+1. Prototype with an additional published block to validate the loader’s generality and surface further spec insights about multi-block workspaces.
+2. Define automated checks (lint/test hooks) that assert bundle integrity metadata is captured for every published resource scenario.
+3. Enforce loader integrity diagnostics in CI so regressions are caught automatically.

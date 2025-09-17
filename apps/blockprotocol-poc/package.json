@@ -5,19 +5,27 @@
   "type": "module",
   "scripts": {
     "dev": "cross-env NODE_ENV=development tsx watch src/server.ts",
-    "dev:once": "cross-env NODE_ENV=development tsx src/server.ts",
+    "dev:once": "timeout 60s cross-env NODE_ENV=development tsx src/server.ts",
     "build": "rimraf dist && cross-env NODE_ENV=production tsc -p tsconfig.server.json && vite build",
     "start": "cross-env NODE_ENV=production node dist/server/server.js",
     "test": "playwright test"
   },
   "dependencies": {
+    "@blockprotocol/core": "^0.0.14",
+    "@blockprotocol/graph": "^0.0.14",
+    "block-template": "^0.0.26",
     "express": "^4.19.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "test-npm-block": "^0.3.0",
     "ws": "^8.17.0"
   },
   "devDependencies": {
     "@playwright/test": "1.52.0",
     "@types/express": "^4.17.21",
     "@types/node": "^20.12.7",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
     "@types/ws": "^8.5.10",
     "cross-env": "^7.0.3",
     "rimraf": "^5.0.5",

@@ -1,3 +1,6 @@
+import { renderHtmlBlock } from '@blockprotocol/core'
+import { GraphEmbedderHandler } from '@blockprotocol/graph'
+
 const scenarioId = new URLSearchParams(window.location.search).get('scenario') ?? 'hello-world'
 
 document.querySelectorAll<HTMLElement>('[data-scenario-link]').forEach((link) => {
@@ -43,6 +46,73 @@ type VivafolioBlockNotification = {
   initialHeight?: number
 }
 
+interface GraphUpdatePayload {
+  blockId: string
+  entityId: string
+  properties: Record<string, unknown>
+  kind?: string
+}
+
+interface BlockGraphState {
+  depth: number
+  linkedEntities: Entity[]
+  linkGroups: Array<Record<string, unknown>>
+}
+
+type AggregateEntitiesDebugResult = {
+  results: Entity[]
+  operation: {
+    entityTypeId: string | null
+    pageNumber: number
+    itemsPerPage: number
+    pageCount: number
+    totalCount: number
+  }
+}
+
+type LinkedAggregationEntry = {
+  aggregationId: string
+  sourceEntityId: string
+  path: string
+  operation: Record<string, unknown>
+}
+
+interface PublishedBlockLoaderDiagnostics {
+  bundleUrl: string
+  evaluatedAt: string
+  integritySha256?: string | null
+  requiredDependencies: string[]
+  blockedDependencies: string[]
+  allowedDependencies: string[]
+}
+
+type PublishedBlockDebug = {
+  aggregateEntities: (
+    input?: {
+      entityTypeId?: string | null
+      itemsPerPage?: number | null
+      pageNumber?: number | null
+    }
+  ) => Promise<AggregateEntitiesDebugResult>
+  createLinkedAggregation: (
+    input?: Partial<LinkedAggregationEntry>
+  ) => Promise<LinkedAggregationEntry>
+  updateLinkedAggregation: (
+    input: Partial<LinkedAggregationEntry> & { aggregationId: string }
+  ) => Promise<LinkedAggregationEntry>
+  deleteLinkedAggregation: (aggregationId: string) => Promise<boolean>
+  listLinkedAggregations: () => Promise<LinkedAggregationEntry[]>
+  loaderDiagnostics: () => Promise<PublishedBlockLoaderDiagnostics | null>
+}
+
+declare global {
+  interface Window {
+    __vivafolioPoc?: {
+      publishedBlocks: Record<string, PublishedBlockDebug>
+    }
+  }
+}
+
 type ServerEnvelope =
   | {
       type: 'connection_ack'
@@ -82,7 +152,30 @@ function createElement<K extends keyof HTMLElementTagNameMap>(
   return el
 }
 
+function sendGraphUpdateMessage(update: GraphUpdatePayload) {
+  if (!liveSocket || liveSocket.readyState !== WebSocket.OPEN) return
+  liveSocket.send(
+    JSON.stringify({
+      type: 'graph/update',
+      payload: {
+        blockId: update.blockId,
+        entityId: update.entityId,
+        kind: update.kind ?? 'updateEntity',
+        properties: update.properties
+      }
+    })
+  )
+}
+
 type BlockRenderer = (notification: VivafolioBlockNotification) => HTMLElement
+
+const ALLOWED_CJS_DEPENDENCIES = new Set([
+  'react',
+  'react/jsx-runtime',
+  'react/jsx-dev-runtime',
+  'react-dom',
+  'react-dom/client'
+])
 
 const renderers: Record<string, BlockRenderer> = {
   'https://blockprotocol.org/@local/blocks/hello-world/v1': renderHelloBlock,
@@ -91,7 +184,9 @@ const renderers: Record<string, BlockRenderer> = {
   'https://vivafolio.dev/blocks/iframe-kanban/v1': (notification) =>
     renderIframeBlock(notification, 'iframe-kanban', 'Kanban IFrame'),
   'https://vivafolio.dev/blocks/iframe-task-list/v1': (notification) =>
-    renderIframeBlock(notification, 'iframe-task-list', 'Task List IFrame')
+    renderIframeBlock(notification, 'iframe-task-list', 'Task List IFrame'),
+  'https://blockprotocol.org/@blockprotocol/blocks/test-npm-block/v0': renderPublishedBlock,
+  'https://blockprotocol.org/@blockprotocol/blocks/html-template/v0': renderPublishedBlock
 }
 
 function renderHelloBlock(notification: VivafolioBlockNotification): HTMLElement {
@@ -179,18 +274,11 @@ function renderTaskList(notification: VivafolioBlockNotification): HTMLElement {
       )
       advanceButton.dataset.action = 'advance-status'
       advanceButton.addEventListener('click', () => {
-        if (!liveSocket || liveSocket.readyState !== WebSocket.OPEN) return
-        liveSocket.send(
-          JSON.stringify({
-            type: 'graph/update',
-            payload: {
-              blockId: notification.blockId,
-              kind: 'updateEntity',
-              entityId: task.entityId,
-              properties: { status: nextStatus }
-            }
-          })
-        )
+        sendGraphUpdateMessage({
+          blockId: notification.blockId,
+          entityId: task.entityId,
+          properties: { status: nextStatus }
+        })
       })
       actions.appendChild(advanceButton)
     } else {
@@ -326,6 +414,577 @@ function renderFallback(notification: VivafolioBlockNotification): HTMLElement {
   return container
 }
 
+function renderPublishedBlock(notification: VivafolioBlockNotification): HTMLElement {
+  let controller = publishedControllers.get(notification.blockId)
+  if (!controller) {
+    controller = new PublishedBlockController(notification)
+    publishedControllers.set(notification.blockId, controller)
+  } else {
+    controller.updateFromNotification(notification)
+  }
+  return controller.element
+}
+
+
+class PublishedBlockController {
+  readonly element: HTMLElement
+  private readonly runtime: HTMLDivElement
+  private readonly description: HTMLParagraphElement
+  private readonly resourcesList: HTMLUListElement
+  private readonly metadataPanel: HTMLPreElement
+  private blockEntity: Entity
+  private blockGraph: BlockGraphState
+  private resources: VivafolioBlockNotification['resources']
+  private reactModule: typeof import('react') | undefined
+  private reactRoot: ReturnType<typeof import('react-dom/client')['createRoot']> | undefined
+  private blockComponent: unknown
+  private embedder: GraphEmbedderHandler | undefined
+  private destroyed = false
+  private readonly linkedAggregations = new Map<string, LinkedAggregationEntry>()
+  private loaderDiagnostics: PublishedBlockLoaderDiagnostics | null = null
+  private readonly mode: 'bundle' | 'html'
+  private blockMount: HTMLDivElement | undefined
+  public readonly debug: PublishedBlockDebug
+
+  constructor(private notification: VivafolioBlockNotification) {
+    this.blockEntity = deriveBlockEntity(notification)
+    this.blockGraph = deriveBlockGraph(notification)
+    this.resources = notification.resources
+
+    const mainResource = this.findResource('main.js')
+    const htmlResource = this.findResource('app.html')
+    if (mainResource) {
+      this.mode = 'bundle'
+    } else if (htmlResource) {
+      this.mode = 'html'
+    } else {
+      this.mode = 'bundle'
+    }
+
+    this.element = createElement(
+      'article',
+      this.mode === 'html' ? 'published-block published-block--html' : 'published-block'
+    )
+    this.element.dataset.blockId = notification.blockId
+
+    const header = createElement('header', 'published-block__header', 'Published Block Runtime')
+    this.description = createElement(
+      'p',
+      'published-block__description',
+      'Preparing npm block runtime…'
+    )
+    this.runtime = createElement('div', 'published-block__runtime')
+    this.runtime.textContent = 'Loading block…'
+
+    const resourcesHeading = createElement('h3', 'published-block__subheading', 'Resources')
+    this.resourcesList = createElement('ul', 'published-block__resources')
+    const metadataHeading = createElement('h3', 'published-block__subheading', 'Metadata Snapshot')
+    this.metadataPanel = createElement('pre', 'published-block__metadata')
+
+    this.element.append(
+      header,
+      this.description,
+      this.runtime,
+      resourcesHeading,
+      this.resourcesList,
+      metadataHeading,
+      this.metadataPanel
+    )
+
+    this.updateResourceList()
+    this.updateMetadataPanel()
+
+    this.debug = {
+      aggregateEntities: async (input) => {
+        const response = await this.handleAggregateEntities({ operation: input ?? {} })
+        return response.data as AggregateEntitiesDebugResult
+      },
+      createLinkedAggregation: async (input) => {
+        const response = await this.handleCreateLinkedAggregation(input)
+        return response.data as LinkedAggregationEntry
+      },
+      updateLinkedAggregation: async (input) => {
+        const response = await this.handleUpdateLinkedAggregation(input)
+        if ('errors' in response && response.errors?.length) {
+          throw new Error(response.errors.join(', '))
+        }
+        return response.data as LinkedAggregationEntry
+      },
+      deleteLinkedAggregation: async (aggregationId) => {
+        const response = await this.handleDeleteLinkedAggregation({ aggregationId })
+        return Boolean(response.data)
+      },
+      listLinkedAggregations: async () => Array.from(this.linkedAggregations.values()),
+      loaderDiagnostics: async () => this.loaderDiagnostics
+    }
+
+    const registry = ensureDebugRegistry()
+    registry.publishedBlocks[this.notification.blockId] = this.debug
+
+    void this.initialize()
+  }
+
+  private findResource(logicalName: string) {
+    return this.resources?.find((resource) => resource.logicalName === logicalName)
+  }
+
+  private resolveResourceUrl(logicalName: string): string | undefined {
+    const resource = this.findResource(logicalName)
+    if (!resource) return undefined
+    const url = new URL(resource.physicalPath, window.location.origin)
+    if (resource.cachingTag) {
+      url.searchParams.set('cache', resource.cachingTag)
+    }
+    return url.pathname + url.search
+  }
+
+  updateFromNotification(notification: VivafolioBlockNotification) {
+    this.notification = notification
+    this.blockEntity = deriveBlockEntity(notification)
+    this.blockGraph = deriveBlockGraph(notification)
+    this.resources = notification.resources
+    this.updateResourceList()
+    this.updateMetadataPanel()
+    if (this.embedder) {
+      this.embedder.blockEntity({ data: this.blockEntity as Entity })
+      this.embedder.blockGraph({ data: this.blockGraph })
+      this.emitLinkedAggregations()
+    }
+    this.render()
+  }
+
+  destroy() {
+    this.destroyed = true
+    this.embedder?.destroy()
+    this.reactRoot?.unmount()
+    const registry = getDebugRegistry()
+    if (registry) {
+      delete registry.publishedBlocks[this.notification.blockId]
+    }
+  }
+
+  private async initialize() {
+    try {
+      if (this.mode === 'bundle') {
+        await this.initializeBundle()
+      } else {
+        await this.initializeHtml()
+      }
+      this.description.textContent = this.describeBlock()
+      this.render()
+    } catch (error) {
+      console.error('[blockprotocol-poc] Failed to initialize published block runtime', error)
+      const message = error instanceof Error ? error.message : String(error)
+      this.runtime.textContent = `Failed to load published block: ${message}`
+    }
+  }
+
+  private async initializeBundle() {
+    const [reactModule, reactDomModule] = await Promise.all([
+      import('react'),
+      import('react-dom/client')
+    ])
+
+    const bundleUrl = this.resolveResourceUrl('main.js')
+    if (!bundleUrl) {
+      throw new Error('Bundle resource missing (main.js)')
+    }
+
+    const bundleResponse = await fetch(bundleUrl, { cache: 'no-store' })
+    if (!bundleResponse.ok) {
+      throw new Error(`Bundle request failed with ${bundleResponse.status}`)
+    }
+    const bundleBuffer = await bundleResponse.arrayBuffer()
+    const decoder = new TextDecoder('utf-8')
+    const bundleSource = decoder.decode(bundleBuffer)
+    const integrity = await computeSha256Hex(bundleBuffer)
+
+    const moduleShim: { exports: unknown } = { exports: {} }
+    const exportsShim = moduleShim.exports as Record<string, unknown>
+    const requiredDependencies: string[] = []
+    const blockedDependencies: string[] = []
+    const requireShim = (specifier: string) => {
+      if (!ALLOWED_CJS_DEPENDENCIES.has(specifier)) {
+        blockedDependencies.push(specifier)
+        throw new Error(`Unsupported dependency: ${specifier}`)
+      }
+      requiredDependencies.push(specifier)
+      switch (specifier) {
+        case 'react':
+        case 'react/jsx-runtime':
+        case 'react/jsx-dev-runtime':
+          return reactModule
+        case 'react-dom':
+        case 'react-dom/client':
+          return reactDomModule
+      }
+      throw new Error(`Dependency resolution fallback hit for ${specifier}`)
+    }
+    const evaluator = new Function(
+      'require',
+      'module',
+      'exports',
+      `${bundleSource}
+return module.exports;`
+    ) as (
+      require: unknown,
+      module: { exports: unknown },
+      exports: Record<string, unknown>
+    ) => unknown
+
+    const blockModule = evaluator(requireShim, moduleShim, exportsShim) ?? moduleShim.exports
+
+    if (this.destroyed) {
+      return
+    }
+
+    this.loaderDiagnostics = {
+      bundleUrl,
+      evaluatedAt: new Date().toISOString(),
+      integritySha256: integrity,
+      requiredDependencies,
+      blockedDependencies,
+      allowedDependencies: Array.from(ALLOWED_CJS_DEPENDENCIES)
+    }
+    console.info('[blockprotocol-poc] evaluated npm bundle', this.loaderDiagnostics)
+
+    this.reactModule = reactModule
+    const { createRoot } = reactDomModule
+    this.reactRoot = createRoot(this.runtime)
+    this.blockComponent = (blockModule?.default ?? blockModule?.App ?? blockModule) as unknown
+
+    this.createEmbedder(this.runtime)
+    this.emitLinkedAggregations()
+    this.updateMetadataPanel()
+  }
+
+  private async initializeHtml() {
+    const mount = createElement('div', 'html-block__container')
+    this.blockMount = mount
+    this.runtime.innerHTML = ''
+    this.runtime.appendChild(mount)
+
+    this.createEmbedder(mount)
+
+    const htmlUrl = this.resolveResourceUrl('app.html')
+    if (!htmlUrl) {
+      throw new Error('HTML entry (app.html) not provided')
+    }
+
+    await renderHtmlBlock(mount, { url: htmlUrl })
+    if (this.destroyed) {
+      return
+    }
+
+    this.loaderDiagnostics = {
+      bundleUrl: htmlUrl,
+      evaluatedAt: new Date().toISOString(),
+      integritySha256: null,
+      requiredDependencies: [],
+      blockedDependencies: [],
+      allowedDependencies: []
+    }
+
+    this.emitLinkedAggregations()
+    this.updateMetadataPanel()
+  }
+
+  private createEmbedder(element: HTMLElement) {
+    this.embedder = new GraphEmbedderHandler({
+      element,
+      blockEntity: this.blockEntity as Entity,
+      blockGraph: this.blockGraph,
+      entityTypes: [],
+      linkedAggregations: [],
+      readonly: false,
+      callbacks: {
+        updateEntity: async ({ data }) => this.handleBlockUpdate(data),
+        getEntity: async ({ data }) => this.handleGetEntity(data),
+        aggregateEntities: async ({ data }) => this.handleAggregateEntities(data),
+        getLinkedAggregation: async ({ data }) => this.handleGetLinkedAggregation(data),
+        createLinkedAggregation: async ({ data }) => this.handleCreateLinkedAggregation(data),
+        updateLinkedAggregation: async ({ data }) => this.handleUpdateLinkedAggregation(data),
+        deleteLinkedAggregation: async ({ data }) => this.handleDeleteLinkedAggregation(data)
+      }
+    })
+  }
+
+  private async handleBlockUpdate(
+    data?: { entityId?: string; properties?: Record<string, unknown> }
+  ) {
+    if (!data?.entityId) {
+      return { errors: ['Missing entityId in updateEntity message'] }
+    }
+
+    const nextProperties = {
+      ...(this.blockEntity.properties ?? {}),
+      ...(data.properties ?? {})
+    }
+    this.blockEntity = { ...this.blockEntity, entityId: data.entityId, properties: nextProperties }
+    this.blockGraph = {
+      ...this.blockGraph,
+      linkedEntities: mergeLinkedEntities(this.blockGraph.linkedEntities, this.blockEntity)
+    }
+
+    this.updateMetadataPanel()
+    sendGraphUpdateMessage({
+      blockId: this.notification.blockId,
+      entityId: data.entityId,
+      properties: data.properties ?? {}
+    })
+    this.render()
+    return { data: this.blockEntity }
+  }
+
+  private async handleGetEntity(data?: { entityId?: string }) {
+    const entityId = data?.entityId
+    if (!entityId) {
+      return { data: this.blockEntity }
+    }
+
+    const found = this.blockGraph.linkedEntities.find((entity) => entity.entityId === entityId)
+    return { data: found ?? this.blockEntity }
+  }
+
+  private async handleAggregateEntities(data?: {
+    operation?: {
+      entityTypeId?: string | null
+      itemsPerPage?: number | null
+      pageNumber?: number | null
+    }
+  }) {
+    const operation = data?.operation ?? {}
+    const pageNumber = operation.pageNumber ?? 1
+    const itemsPerPage = operation.itemsPerPage ?? this.blockGraph.linkedEntities.length
+
+    const sliceStart = (pageNumber - 1) * itemsPerPage
+    const sliceEnd = sliceStart + itemsPerPage
+    const results = this.blockGraph.linkedEntities.slice(sliceStart, sliceEnd)
+
+    return {
+      data: {
+        results,
+        operation: {
+          entityTypeId: operation.entityTypeId ?? null,
+          pageNumber,
+          itemsPerPage,
+          pageCount: Math.max(1, Math.ceil(this.blockGraph.linkedEntities.length / itemsPerPage)),
+          totalCount: this.blockGraph.linkedEntities.length
+        }
+      }
+    }
+  }
+
+  private async handleGetLinkedAggregation(data?: { aggregationId?: string }) {
+    if (!data?.aggregationId) {
+      return { errors: ['aggregationId is required'] }
+    }
+    return { data: this.linkedAggregations.get(data.aggregationId) ?? null }
+  }
+
+  private async handleCreateLinkedAggregation(data?: {
+    sourceEntityId?: string
+    path?: string
+    aggregationId?: string
+    operation?: Record<string, unknown>
+  }) {
+    const aggregationId =
+      data?.aggregationId ??
+      `agg-${
+        typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID()
+          : Math.random().toString(36).slice(2)
+      }`
+    const payload: LinkedAggregationEntry = {
+      aggregationId,
+      sourceEntityId: data?.sourceEntityId ?? this.blockEntity.entityId,
+      path: data?.path ?? '',
+      operation: data?.operation ?? {}
+    }
+    this.linkedAggregations.set(aggregationId, payload)
+    this.emitLinkedAggregations()
+    return { data: payload }
+  }
+
+  private async handleUpdateLinkedAggregation(data?: {
+    aggregationId?: string
+    operation?: Record<string, unknown>
+  }) {
+    if (!data?.aggregationId) {
+      return { errors: ['aggregationId is required'] }
+    }
+    const current = this.linkedAggregations.get(data.aggregationId)
+    if (!current) {
+      return { errors: ['aggregation not found'] }
+    }
+    const next = { ...current, operation: data.operation ?? current.operation }
+    this.linkedAggregations.set(data.aggregationId, next)
+    this.emitLinkedAggregations()
+    return { data: next }
+  }
+
+  private async handleDeleteLinkedAggregation(data?: { aggregationId?: string }) {
+    if (!data?.aggregationId) {
+      return { errors: ['aggregationId is required'] }
+    }
+    const existed = this.linkedAggregations.delete(data.aggregationId)
+    this.emitLinkedAggregations()
+    return { data: existed }
+  }
+
+  private emitLinkedAggregations(): LinkedAggregationEntry[] {
+    const snapshot = Array.from(this.linkedAggregations.values())
+    if (this.embedder) {
+      this.embedder.linkedAggregations({ data: snapshot })
+    }
+    return snapshot
+  }
+
+  private updateResourceList() {
+    this.resourcesList.innerHTML = ''
+    const resources = this.resources ?? []
+    if (!resources.length) {
+      const item = createElement('li', 'published-block__resource-empty', 'No runtime resources provided.')
+      this.resourcesList.appendChild(item)
+      return
+    }
+
+    resources.forEach((resource) => {
+      const item = createElement('li', 'published-block__resource-item')
+      const name = createElement('strong')
+      name.textContent = resource.logicalName
+      const path = createElement('code')
+      path.textContent = resource.physicalPath
+      item.append(name, document.createTextNode(': '), path)
+      if (resource.cachingTag) {
+        const tag = createElement('span', 'published-block__resource-tag', ` (cache ${resource.cachingTag})`)
+        item.appendChild(tag)
+      }
+      this.resourcesList.appendChild(item)
+    })
+  }
+
+  private updateMetadataPanel() {
+    const properties = this.blockEntity.properties ?? {}
+    this.metadataPanel.textContent = JSON.stringify(properties, null, 2)
+  }
+
+  private describeBlock() {
+    const properties = this.blockEntity.properties ?? {}
+    const baseName =
+      typeof properties.name === 'string'
+        ? properties.name
+        : (properties[
+            'https://blockprotocol.org/@blockprotocol/types/property-type/name/'
+          ] as string | undefined) ?? 'test-npm-block'
+    const version = typeof properties.version === 'string' ? properties.version : undefined
+    const versionLabel = version ? ` v${version}` : ''
+    if (this.mode === 'html') {
+      return `Loaded HTML entry block ${baseName}${versionLabel} via the Block Protocol host shim.`
+    }
+    return `Loaded from npm package ${baseName}${versionLabel} via the Block Protocol host shim.`
+  }
+
+  private render() {
+    if (this.mode === 'html') {
+      return
+    }
+    if (!this.reactModule || !this.reactRoot || !this.blockComponent) {
+      return
+    }
+
+    const graphProps = {
+      graph: {
+        blockEntity: this.blockEntity,
+        blockGraph: this.blockGraph,
+        entityTypes: [],
+        linkedAggregations: [],
+        readonly: false
+      }
+    }
+
+    const element = this.reactModule.createElement(this.blockComponent as any, graphProps)
+    this.reactRoot.render(element)
+  }
+}
+const publishedControllers = new Map<string, PublishedBlockController>()
+
+function cleanupPublishedControllers() {
+  publishedControllers.forEach((controller) => controller.destroy())
+  publishedControllers.clear()
+}
+
+async function computeSha256Hex(buffer: ArrayBuffer): Promise<string | null> {
+  try {
+    if (!('crypto' in window) || !window.crypto.subtle) {
+      return null
+    }
+    const digest = await window.crypto.subtle.digest('SHA-256', buffer)
+    const bytes = new Uint8Array(digest)
+    return Array.from(bytes)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('')
+  } catch (error) {
+    console.warn('[blockprotocol-poc] failed to compute bundle hash', error)
+    return null
+  }
+}
+
+function ensureDebugRegistry() {
+  const win = window as typeof window & {
+    __vivafolioPoc?: { publishedBlocks: Record<string, PublishedBlockDebug> }
+  }
+  if (!win.__vivafolioPoc) {
+    win.__vivafolioPoc = { publishedBlocks: {} }
+  }
+  return win.__vivafolioPoc
+}
+
+function getDebugRegistry() {
+  const win = window as typeof window & {
+    __vivafolioPoc?: { publishedBlocks: Record<string, PublishedBlockDebug> }
+  }
+  return win.__vivafolioPoc
+}
+
+function deriveBlockEntity(notification: VivafolioBlockNotification): Entity {
+  const entity =
+    notification.initialGraph.entities.find((item) => item.entityId === notification.entityId) ??
+    notification.initialGraph.entities[0] ?? {
+      entityId: notification.entityId,
+      entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v1',
+      properties: {}
+    }
+
+  return {
+    entityId: entity.entityId,
+    entityTypeId: entity.entityTypeId,
+    properties: { ...(entity.properties ?? {}) }
+  }
+}
+
+function deriveBlockGraph(notification: VivafolioBlockNotification): BlockGraphState {
+  return {
+    depth: 1,
+    linkedEntities: notification.initialGraph.entities.map((entity) => ({
+      entityId: entity.entityId,
+      entityTypeId: entity.entityTypeId,
+      properties: { ...(entity.properties ?? {}) }
+    })),
+    linkGroups: []
+  }
+}
+
+function mergeLinkedEntities(collection: Entity[], entity: Entity): Entity[] {
+  const index = collection.findIndex((item) => item.entityId === entity.entityId)
+  if (index === -1) {
+    return [...collection, entity]
+  }
+  const next = collection.slice()
+  next[index] = entity
+  return next
+}
+
 function handleEnvelope(data: ServerEnvelope) {
   switch (data.type) {
     case 'connection_ack': {
@@ -334,6 +993,7 @@ function handleEnvelope(data: ServerEnvelope) {
       iframeControllers.forEach((controller) => {
         controller.ready = false
       })
+      cleanupPublishedControllers()
       const scenarioTitle = data.scenario?.title ?? 'Unknown Scenario'
       scenarioLabel.textContent = scenarioTitle
       scenarioDescription.textContent = data.scenario?.description ?? ''

@@ -4,6 +4,7 @@ import { WebSocketServer, type WebSocket } from 'ws'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs/promises'
+import { readFileSync, existsSync } from 'fs'
 
 import type { ViteDevServer } from 'vite'
 
@@ -73,6 +74,67 @@ const ROOT_DIR = path.resolve(__dirname, '..')
 const DIST_CLIENT_DIR = path.resolve(ROOT_DIR, 'dist/client')
 const INDEX_HTML = path.resolve(ROOT_DIR, 'index.html')
 const TEMPLATES_DIR = path.resolve(ROOT_DIR, 'templates')
+const TEST_BLOCK_DIST_DIR = path.resolve(
+  ROOT_DIR,
+  'node_modules',
+  'test-npm-block',
+  'dist'
+)
+function findRepoRoot(startDir = ROOT_DIR) {
+  let current = startDir
+  const { root } = path.parse(current)
+  while (current !== root) {
+    if (
+      existsSync(path.join(current, '.git')) ||
+      existsSync(path.join(current, 'pnpm-workspace.yaml')) ||
+      (existsSync(path.join(current, 'apps')) && existsSync(path.join(current, 'third_party')))
+    ) {
+      return current
+    }
+    current = path.dirname(current)
+  }
+  return ROOT_DIR
+}
+
+const REPO_ROOT = findRepoRoot()
+
+const HTML_TEMPLATE_BLOCK_DIR = path.resolve(
+  REPO_ROOT,
+  'third_party',
+  'blockprotocol',
+  'libs',
+  'block-template-html'
+)
+const HTML_TEMPLATE_BLOCK_SRC_DIR = path.join(HTML_TEMPLATE_BLOCK_DIR, 'src')
+const HTML_TEMPLATE_BLOCK_PUBLIC_DIR = path.join(HTML_TEMPLATE_BLOCK_DIR, 'public')
+const HTML_TEMPLATE_BLOCK_METADATA_PATH = path.join(
+  HTML_TEMPLATE_BLOCK_DIR,
+  'block-metadata.json'
+)
+
+const HTML_TEMPLATE_PUBLIC_DIR = path.resolve(
+  REPO_ROOT,
+  'apps',
+  'blockprotocol-poc',
+  'external',
+  'html-template-block'
+)
+const HTML_TEMPLATE_PUBLIC_SRC_DIR = path.join(HTML_TEMPLATE_PUBLIC_DIR, 'src')
+const HTML_TEMPLATE_PUBLIC_ASSETS_DIR = path.join(HTML_TEMPLATE_PUBLIC_DIR, 'public')
+const HTML_TEMPLATE_PUBLIC_METADATA_PATH = path.join(
+  HTML_TEMPLATE_PUBLIC_DIR,
+  'block-metadata.json'
+)
+const TEST_BLOCK_MANIFEST_PATH = path.resolve(TEST_BLOCK_DIST_DIR, 'assets-manifest.json')
+
+interface TestBlockAssets {
+  bundle: string
+  icon: string
+  preview: string
+}
+
+const testBlockAssets = loadTestBlockAssets()
+console.log('[blockprotocol-poc] html template dir', HTML_TEMPLATE_BLOCK_DIR)
 
 const entityGraph: EntityGraph = {
   entities: [],
@@ -93,6 +155,35 @@ let resourceCounter = 0
 function nextCachingTag() {
   resourceCounter += 1
   return `v${resourceCounter}`
+}
+
+function loadTestBlockAssets(): TestBlockAssets {
+  const fallback: TestBlockAssets = {
+    bundle: '/external/test-npm-block/main.js',
+    icon: '/external/test-npm-block/public/omega.svg',
+    preview: '/external/test-npm-block/public/block-preview.svg'
+  }
+
+  try {
+    if (!existsSync(TEST_BLOCK_MANIFEST_PATH)) {
+      return fallback
+    }
+
+    const manifestRaw = readFileSync(TEST_BLOCK_MANIFEST_PATH, 'utf-8')
+    const manifest = JSON.parse(manifestRaw) as Record<string, string>
+    const bundleName = manifest['main.js'] ?? 'main.js'
+    const iconName = manifest['public/omega.svg'] ?? 'public/omega.svg'
+    const previewName = manifest['public/block-preview.svg'] ?? 'public/block-preview.svg'
+
+    return {
+      bundle: `/external/test-npm-block/${bundleName}`,
+      icon: `/external/test-npm-block/${iconName}`,
+      preview: `/external/test-npm-block/${previewName}`
+    }
+  } catch (error) {
+    console.warn('[blockprotocol-poc] Failed to load test-npm-block manifest', error)
+    return fallback
+  }
 }
 
 function createHelloWorldGraph(): EntityGraph {
@@ -349,7 +440,181 @@ const scenarios: Record<string, ScenarioDefinition> = {
         }
       }
     }
+  },
+  'real-test-block': {
+    id: 'real-test-block',
+    title: 'Milestone 4 – Published Block Snapshot',
+    description:
+      'Loads metadata from the published test-npm-block package and exposes its bundle assets.',
+    createState: () => ({ graph: createTestBlockGraph() }),
+    buildNotifications: (state) => [
+      {
+        blockId: 'test-npm-block',
+        blockType: 'https://blockprotocol.org/@blockprotocol/blocks/test-npm-block/v0',
+        entityId: state.graph.entities[0]?.entityId ?? 'test-npm-block',
+        displayMode: 'multi-line',
+        initialGraph: state.graph,
+        supportsHotReload: false,
+        initialHeight: 280,
+        resources: [
+          {
+            logicalName: 'block-metadata.json',
+            physicalPath: '/external/test-npm-block/block-metadata.json',
+            cachingTag: nextCachingTag()
+          },
+          {
+            logicalName: 'main.js',
+            physicalPath: testBlockAssets.bundle,
+            cachingTag: nextCachingTag()
+          },
+          {
+            logicalName: 'icon.svg',
+            physicalPath: testBlockAssets.icon,
+            cachingTag: nextCachingTag()
+          }
+        ]
+      },
+      {
+        blockId: 'test-npm-block-secondary',
+        blockType: 'https://blockprotocol.org/@blockprotocol/blocks/test-npm-block/v0',
+        entityId: state.graph.entities[0]?.entityId ?? 'test-npm-block',
+        displayMode: 'multi-line',
+        initialGraph: state.graph,
+        supportsHotReload: false,
+        initialHeight: 280,
+        resources: [
+          {
+            logicalName: 'block-metadata.json',
+            physicalPath: '/external/test-npm-block/block-metadata.json',
+            cachingTag: nextCachingTag()
+          },
+          {
+            logicalName: 'main.js',
+            physicalPath: testBlockAssets.bundle,
+            cachingTag: nextCachingTag()
+          },
+          {
+            logicalName: 'icon.svg',
+            physicalPath: testBlockAssets.icon,
+            cachingTag: nextCachingTag()
+          }
+        ]
+      }
+    ],
+    applyUpdate: ({ state, update }) => {
+      const entity = state.graph.entities.find((item) => item.entityId === update.entityId)
+      if (!entity) return
+      entity.properties = { ...entity.properties, ...update.properties }
+    }
+  },
+  'html-template-block': {
+    id: 'html-template-block',
+    title: 'Milestone 4 – HTML Template Block',
+    description:
+      'Executes the HTML-based block template to validate iframe-style loading and CommonJS diagnostics.',
+    createState: () => ({ graph: createHtmlTemplateGraph() }),
+    buildNotifications: (state) => [
+      {
+        blockId: 'html-template-block-1',
+        blockType: 'https://blockprotocol.org/@blockprotocol/blocks/html-template/v0',
+        entityId: state.graph.entities[0]?.entityId ?? 'html-template-block-entity',
+        displayMode: 'multi-line',
+        initialGraph: state.graph,
+        supportsHotReload: false,
+        initialHeight: 320,
+        resources: [
+          {
+            logicalName: 'block-metadata.json',
+            physicalPath: '/external/html-template-block/block-metadata.json',
+            cachingTag: nextCachingTag()
+          },
+          {
+            logicalName: 'app.html',
+            physicalPath: '/external/html-template-block/src/app.html',
+            cachingTag: nextCachingTag()
+          },
+          {
+            logicalName: 'app.js',
+            physicalPath: '/external/html-template-block/src/app.js',
+            cachingTag: nextCachingTag()
+          },
+          {
+            logicalName: 'icon.svg',
+            physicalPath: '/external/html-template-block/public/omega.svg',
+            cachingTag: nextCachingTag()
+          }
+        ]
+      }
+    ],
+    applyUpdate: ({ state, update }) => {
+      const entity = state.graph.entities.find((item) => item.entityId === update.entityId)
+      if (!entity) return
+      entity.properties = { ...entity.properties, ...update.properties }
+    }
   }
+}
+
+function createTestBlockGraph(): EntityGraph {
+  try {
+    const metadataPath = path.join(TEST_BLOCK_DIST_DIR, 'block-metadata.json')
+    if (!existsSync(metadataPath)) throw new Error('metadata missing')
+    const metadata = JSON.parse(readFileSync(metadataPath, 'utf-8'))
+    return {
+      entities: [
+        {
+          entityId: 'test-npm-block',
+          entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
+          properties: metadata
+        }
+      ],
+      links: []
+    }
+  } catch (error) {
+    console.error('[blockprotocol-poc] Failed to load test-npm-block metadata', error)
+    return {
+      entities: [
+        {
+          entityId: 'test-npm-block',
+          entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
+          properties: { error: 'Unable to load metadata' }
+        }
+      ],
+      links: []
+    }
+  }
+}
+
+async function ensureHtmlTemplateAssets() {
+  await fs.mkdir(HTML_TEMPLATE_PUBLIC_SRC_DIR, { recursive: true })
+  await fs.mkdir(HTML_TEMPLATE_PUBLIC_ASSETS_DIR, { recursive: true })
+
+  const copies = [
+    { from: HTML_TEMPLATE_BLOCK_METADATA_PATH, to: HTML_TEMPLATE_PUBLIC_METADATA_PATH },
+    { from: path.join(HTML_TEMPLATE_BLOCK_SRC_DIR, 'app.html'), to: path.join(HTML_TEMPLATE_PUBLIC_SRC_DIR, 'app.html') },
+    { from: path.join(HTML_TEMPLATE_BLOCK_SRC_DIR, 'app.js'), to: path.join(HTML_TEMPLATE_PUBLIC_SRC_DIR, 'app.js') },
+    { from: path.join(HTML_TEMPLATE_BLOCK_PUBLIC_DIR, 'omega.svg'), to: path.join(HTML_TEMPLATE_PUBLIC_ASSETS_DIR, 'omega.svg') }
+  ]
+
+  await Promise.all(
+    copies.map(async ({ from, to }) => {
+      await fs.copyFile(from, to)
+    })
+  )
+}
+
+function createHtmlTemplateGraph(): EntityGraph {
+  const namePropertyBase = 'https://blockprotocol.org/@blockprotocol/types/property-type/name/'
+  const namePropertyVersioned = `${namePropertyBase}v/1`
+  const entity: Entity = {
+    entityId: 'html-template-block-entity',
+    entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
+    properties: {
+      [namePropertyBase]: 'Vivafolio Template Block',
+      [namePropertyVersioned]: 'Vivafolio Template Block'
+    }
+  }
+
+  return { entities: [entity], links: [] }
 }
 
 function dispatchScenarioNotifications(
@@ -368,8 +633,60 @@ function dispatchScenarioNotifications(
   }
 }
 
+function dumpExpressStack(app: express.Express) {
+  // @ts-ignore Express internals – safe for debugging
+  const stack = app._router?.stack ?? []
+  console.log('[routes] dump start')
+  for (const layer of stack) {
+    if (layer.route) {
+      const methods = Object.keys(layer.route.methods)
+        .map((method) => method.toUpperCase())
+        .join(',')
+      console.log(`[routes] ${methods} ${layer.route.path}`)
+    } else if (layer.name === 'router' && layer.regexp) {
+      console.log(`[routes] MOUNT ${layer.regexp}`)
+      for (const sub of layer.handle.stack) {
+        if (sub.route) {
+          const methods = Object.keys(sub.route.methods)
+            .map((method) => method.toUpperCase())
+            .join(',')
+          console.log(`[routes]   ${methods} ${sub.route.path}`)
+        }
+      }
+    }
+  }
+  console.log('[routes] dump end')
+}
+
 async function bootstrap() {
   const app = express()
+
+  console.log('[boot] entry', { file: __filename, cwd: process.cwd(), argv: process.argv })
+
+  await ensureHtmlTemplateAssets()
+
+  app.use('/external/test-npm-block', express.static(TEST_BLOCK_DIST_DIR))
+  app.get('/external/html-template-block/block-metadata.json', (req, res, next) => {
+    res.sendFile(HTML_TEMPLATE_PUBLIC_METADATA_PATH, (err) => {
+      if (err) next(err)
+    })
+  })
+  app.get('/external/html-template-block/src/:asset', (req, res, next) => {
+    const filePath = path.join(HTML_TEMPLATE_PUBLIC_SRC_DIR, req.params.asset)
+    res.sendFile(filePath, (err) => {
+      if (err) next(err)
+    })
+  })
+  app.get('/external/html-template-block/public/:asset', (req, res, next) => {
+    const filePath = path.join(HTML_TEMPLATE_PUBLIC_ASSETS_DIR, req.params.asset)
+    res.sendFile(filePath, (err) => {
+      if (err) next(err)
+    })
+  })
+  app.use('/templates', express.static(TEMPLATES_DIR))
+
+  dumpExpressStack(app)
+
   let viteServer: ViteDevServer | undefined
 
   if (process.env.NODE_ENV !== 'production') {
@@ -385,7 +702,6 @@ async function bootstrap() {
   }
 
   app.use(express.json())
-  app.use('/templates', express.static(TEMPLATES_DIR))
 
   app.get('/api/graph', (_req, res) => {
     res.json(entityGraph)

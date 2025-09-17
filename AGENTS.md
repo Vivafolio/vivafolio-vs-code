@@ -32,3 +32,5 @@
 - For test writing/maintenance guidelines, see `vivafolio/test/AGENTS.md`.
 
 - When updating project documentation, reference the implementation artefacts that changed using file paths (e.g., ``apps/blockprotocol-poc/src/server.ts:1``). Align with the formatting already used in status docs so progress notes stay auditable.
+- Agents must not launch long-lived dev servers directly. Instead, rely on test scripts or commands that start the server, exercise it, and shut it down automatically.
+
