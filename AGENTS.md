@@ -1,5 +1,12 @@
 ### Agents: How to run Vivafolio tests
 
+## ⚠️ Critical Testing Guidelines
+
+- **ALWAYS WRITE AND RELY ON HEADLESS TESTS**: All tests must be headless and automated. Never run tests that require manual interaction or visual inspection.
+- **NEVER START SERVER PROCESSES FROM THE SHELL**: Server processes block the agent loop and prevent parallel execution. Always start servers within automated test scripts that can manage their lifecycle.
+- **USE TEST FRAMEWORKS WITH BUILT-IN SERVER MANAGEMENT**: Configure test frameworks (like Playwright) to automatically start/stop servers as part of the test suite.
+- **KEEP TESTS FAST AND RELIABLE**: Tests should complete in seconds, not minutes, and be deterministic.
+
 - All Just recipes use `scripts/nix-env.sh` as a shell wrapper via the Justfile:
   - It checks `IN_NIX_SHELL`. If not set, it enters the vivafolio flake dev shell (`nix develop`) before executing the recipe.
   - This ensures tool availability (lean4, nim, nimlsp/nimlangserver, ldc, dub, serve-d) without leaking large logs into the agent console.

@@ -1,0 +1,279 @@
+name: Standalone Server Tests
+
+on:
+  push:
+    paths:
+      - 'apps/blockprotocol-poc/src/standalone-server.ts'
+      - 'apps/blockprotocol-poc/package-standalone.json'
+      - 'apps/blockprotocol-poc/tsconfig.standalone.json'
+  pull_request:
+    paths:
+      - 'apps/blockprotocol-poc/src/standalone-server.ts'
+      - 'apps/blockprotocol-poc/package-standalone.json'
+      - 'apps/blockprotocol-poc/tsconfig.standalone.json'
+
+jobs:
+  test-standalone-server:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/blockprotocol-poc/package-lock.json
+
+      - name: Install dependencies
+        working-directory: apps/blockprotocol-poc
+        run: npm ci
+
+      - name: Build standalone server
+        working-directory: apps/blockprotocol-poc
+        run: npm run build:standalone
+
+      - name: Build main server
+        working-directory: apps/blockprotocol-poc
+        run: npm run build
+
+      - name: Test standalone server startup
+        working-directory: apps/blockprotocol-poc
+        run: |
+          timeout 30s node dist/standalone-server.js --no-hot-reload --port 3001 &
+          sleep 5
+          curl -f http://localhost:3001/healthz || exit 1
+
+      - name: Test framework compilation
+        working-directory: apps/blockprotocol-poc
+        run: |
+          timeout 30s node dist/standalone-server.js --frameworks solidjs --no-hot-reload --port 3002 &
+          sleep 10
+          curl -f http://localhost:3002/api/frameworks/solidjs/bundles || exit 1
+
+      - name: Test multiple frameworks concurrently
+        working-directory: apps/blockprotocol-poc
+        run: |
+          timeout 30s node dist/standalone-server.js --frameworks solidjs,vue --no-hot-reload --port 3003 &
+          sleep 15
+          # Test that both frameworks are available
+          curl -f http://localhost:3003/api/frameworks/bundles | jq '.bundles | has("solidjs") and has("vue")' | grep -q true || exit 1
+
+      - name: Test server isolation
+        working-directory: apps/blockprotocol-poc
+        run: |
+          # Start two servers on different ports to test isolation
+          timeout 30s node dist/standalone-server.js --frameworks solidjs --no-hot-reload --port 3004 &
+          SERVER1_PID=$!
+          sleep 5
+
+          timeout 30s node dist/standalone-server.js --frameworks vue --no-hot-reload --port 3005 &
+          SERVER2_PID=$!
+          sleep 5
+
+          # Test that each server serves only its configured frameworks
+          SERVER1_FRAMEWORKS=$(curl -s http://localhost:3004/healthz | jq -r '.frameworks | join(",")')
+          SERVER2_FRAMEWORKS=$(curl -s http://localhost:3005/healthz | jq -r '.frameworks | join(",")')
+
+          echo "Server 1 frameworks: $SERVER1_FRAMEWORKS"
+          echo "Server 2 frameworks: $SERVER2_FRAMEWORKS"
+
+          # Verify isolation
+          echo "$SERVER1_FRAMEWORKS" | grep -q "solidjs" || exit 1
+          echo "$SERVER1_FRAMEWORKS" | grep -q "vue" && exit 1  # Should not contain vue
+          echo "$SERVER2_FRAMEWORKS" | grep -q "vue" || exit 1
+          echo "$SERVER2_FRAMEWORKS" | grep -q "solidjs" && exit 1  # Should not contain solidjs
+
+      - name: Test CLI options
+        working-directory: apps/blockprotocol-poc
+        run: |
+          # Test help option
+          node dist/standalone-server.js --help | grep -q "Usage:" || exit 1
+
+          # Test custom port
+          timeout 15s node dist/standalone-server.js --port 3006 --no-hot-reload &
+          sleep 3
+          curl -f http://localhost:3006/healthz | jq -r '.ok' | grep -q true || exit 1
+
+  test-programmatic-api:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/blockprotocol-poc/package-lock.json
+
+      - name: Install dependencies
+        working-directory: apps/blockprotocol-poc
+        run: npm ci
+
+      - name: Create test script
+        working-directory: apps/blockprotocol-poc
+        run: |
+          cat > test-programmatic.js << 'EOF'
+          import { startStandaloneServer } from './dist/standalone-server.js';
+
+          async function testProgrammaticAPI() {
+            console.log('Testing programmatic API...');
+
+            const server = await startStandaloneServer({
+              port: 3007,
+              frameworks: ['solidjs'],
+              enableHotReload: false,
+              attachSignalHandlers: false,
+              onReady: (url) => {
+                console.log(`Server ready at ${url}`);
+              }
+            });
+
+            // Wait a bit for server to start
+            await new Promise(resolve => setTimeout(resolve, 3000));
+
+            // Test health endpoint
+            const response = await fetch('http://localhost:3007/healthz');
+            const data = await response.json();
+
+            if (!data.ok) {
+              throw new Error('Health check failed');
+            }
+
+            console.log('Health check passed:', data);
+
+            // Test framework bundles
+            const bundlesResponse = await fetch('http://localhost:3007/api/frameworks/bundles');
+            const bundlesData = await bundlesResponse.json();
+
+            console.log('Bundles check passed:', Object.keys(bundlesData.bundles));
+
+            // Close server
+            await server.close();
+            console.log('Server closed successfully');
+
+            return true;
+          }
+
+          testProgrammaticAPI()
+            .then(() => {
+              console.log('✅ Programmatic API test passed');
+              process.exit(0);
+            })
+            .catch((error) => {
+              console.error('❌ Programmatic API test failed:', error);
+              process.exit(1);
+            });
+          EOF
+
+      - name: Run programmatic API test
+        working-directory: apps/blockprotocol-poc
+        run: node test-programmatic.js
+
+  test-custom-scenarios:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/blockprotocol-poc/package-lock.json
+
+      - name: Install dependencies
+        working-directory: apps/blockprotocol-poc
+        run: npm ci
+
+      - name: Create custom scenario test
+        working-directory: apps/blockprotocol-poc
+        run: |
+          cat > test-custom-scenario.js << 'EOF'
+          import { startStandaloneServer } from './dist/standalone-server.js';
+
+          async function testCustomScenarios() {
+            console.log('Testing custom scenarios...');
+
+            const customScenarios = {
+              'test-scenario': {
+                id: 'test-scenario',
+                title: 'Test Scenario',
+                description: 'Custom test scenario',
+                createState: () => ({
+                  graph: {
+                    entities: [{
+                      entityId: 'test-entity',
+                      entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
+                      properties: {
+                        'https://blockprotocol.org/@blockprotocol/types/property-type/name/': 'Test Entity',
+                        customProperty: 'test-value'
+                      }
+                    }],
+                    links: []
+                  }
+                }),
+                buildNotifications: (state) => [{
+                  blockId: 'test-block',
+                  blockType: 'https://test.com/blocks/test/v1',
+                  entityId: state.graph.entities[0]?.entityId || 'test-entity',
+                  displayMode: 'multi-line',
+                  initialGraph: state.graph,
+                  supportsHotReload: false,
+                  initialHeight: 150
+                }],
+                applyUpdate: ({ state, update }) => {
+                  const entity = state.graph.entities.find(e => e.entityId === update.entityId);
+                  if (entity) {
+                    entity.properties = { ...entity.properties, ...update.properties };
+                  }
+                }
+              }
+            };
+
+            const server = await startStandaloneServer({
+              port: 3008,
+              frameworks: [],
+              enableHotReload: false,
+              attachSignalHandlers: false,
+              scenarios: customScenarios
+            });
+
+            // Wait for server to start
+            await new Promise(resolve => setTimeout(resolve, 3000));
+
+            // Test health endpoint includes custom scenarios
+            const response = await fetch('http://localhost:3008/healthz');
+            const data = await response.json();
+
+            if (!data.scenarios.includes('test-scenario')) {
+              throw new Error('Custom scenario not found in health check');
+            }
+
+            console.log('Custom scenario test passed:', data.scenarios);
+
+            await server.close();
+            return true;
+          }
+
+          testCustomScenarios()
+            .then(() => {
+              console.log('✅ Custom scenario test passed');
+              process.exit(0);
+            })
+            .catch((error) => {
+              console.error('❌ Custom scenario test failed:', error);
+              process.exit(1);
+            });
+          EOF
+
+      - name: Run custom scenario test
+        working-directory: apps/blockprotocol-poc
+        run: node test-custom-scenario.js

@@ -15,7 +15,7 @@ export default defineConfig({
     }
   },
   webServer: {
-    command: 'npm run dev:once',
+    command: 'npm run dev:once-frameworks',
     url: 'http://localhost:4173',
     reuseExistingServer: !process.env.CI,
     stdout: 'pipe',

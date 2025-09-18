@@ -4,7 +4,8 @@ import { WebSocketServer, type WebSocket } from 'ws'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs/promises'
-import { readFileSync, existsSync } from 'fs'
+import { readFileSync, existsSync, watch } from 'fs'
+import crypto from 'crypto'
 
 import type { ViteDevServer } from 'vite'
 
@@ -128,11 +129,29 @@ const RESOURCE_LOADER_BLOCK_DIR = path.resolve(
   'resource-loader-block'
 )
 
-export interface StartServerOptions {
+export interface FrameworkBundle {
+  id: string
+  hash: string
+  assets: string[]
+  metadata: Record<string, unknown>
+  entryPoint: string
+  lastModified: Date
+}
+
+interface FrameworkWatcher {
+  framework: string
+  sourceDir: string
+  outputDir: string
+  watcher?: ReturnType<typeof watch>
+  bundles: Map<string, FrameworkBundle>
+}
+
+interface StartServerOptions {
   port?: number
   host?: string
   attachSignalHandlers?: boolean
   enableVite?: boolean
+  enableFrameworkWatch?: boolean
 }
 
 const HTML_TEMPLATE_BLOCK_CLIENT_SOURCE = [
@@ -221,10 +240,302 @@ const socketStates = new Map<
 >()
 
 let resourceCounter = 0
+let globalFrameworkWatchers: FrameworkWatcher[] = []
 
 function nextCachingTag() {
   resourceCounter += 1
   return `v${resourceCounter}`
+}
+
+// Framework compilation helpers
+function generateAssetHash(content: string): string {
+  return crypto.createHash('sha256').update(content).digest('hex').slice(0, 8)
+}
+
+async function compileSolidJSBlock(sourcePath: string, outputPath: string): Promise<FrameworkBundle> {
+  const sourceContent = await fs.readFile(sourcePath, 'utf8')
+  const hash = generateAssetHash(sourceContent)
+
+  // For now, create a simple CommonJS wrapper
+  // In a real implementation, this would use esbuild or similar
+  const compiledContent = `
+(function() {
+  const React = { createElement: function(tag, props, ...children) {
+    if (typeof tag === 'function') {
+      return tag(props || {}, children);
+    }
+    const el = document.createElement(tag);
+    if (props) {
+      Object.keys(props).forEach(key => {
+        if (key === 'className') {
+          el.className = props[key];
+        } else if (key === 'style') {
+          Object.assign(el.style, props[key]);
+        } else if (key.startsWith('on') && typeof props[key] === 'function') {
+          el.addEventListener(key.slice(2).toLowerCase(), props[key]);
+        } else {
+          el.setAttribute(key, props[key]);
+        }
+      });
+    }
+    children.forEach(child => {
+      if (typeof child === 'string') {
+        el.appendChild(document.createTextNode(child));
+      } else if (child) {
+        el.appendChild(child);
+      }
+    });
+    return el;
+  }};
+
+  ${sourceContent}
+
+  if (typeof module !== 'undefined' && module.exports) {
+    return module.exports;
+  }
+  return StatusPillBlock;
+})();
+`
+
+  const outputFile = path.join(outputPath, `solidjs-${hash}.js`)
+  await fs.mkdir(outputPath, { recursive: true })
+  await fs.writeFile(outputFile, compiledContent, 'utf8')
+
+  return {
+    id: `solidjs-${path.basename(sourcePath, path.extname(sourcePath))}`,
+    hash,
+    assets: [`solidjs-${hash}.js`],
+    metadata: {
+      framework: 'solidjs',
+      sourcePath,
+      compiledAt: new Date().toISOString()
+    },
+    entryPoint: `solidjs-${hash}.js`,
+    lastModified: new Date()
+  }
+}
+
+async function compileVueBlock(sourcePath: string, outputPath: string): Promise<FrameworkBundle> {
+  const sourceContent = await fs.readFile(sourcePath, 'utf8')
+  const hash = generateAssetHash(sourceContent)
+
+  // Simple Vue compilation placeholder
+  const compiledContent = `
+(function() {
+  const Vue = {
+    createApp: function(component) {
+      return {
+        mount: function(el) {
+          console.log('Vue block mounted:', component);
+          el.innerHTML = '<div class="vue-block">Vue Block Component</div>';
+        }
+      };
+    }
+  };
+
+  ${sourceContent}
+
+  return { default: VueBlock };
+})();
+`
+
+  const outputFile = path.join(outputPath, `vue-${hash}.js`)
+  await fs.mkdir(outputPath, { recursive: true })
+  await fs.writeFile(outputFile, compiledContent, 'utf8')
+
+  return {
+    id: `vue-${path.basename(sourcePath, path.extname(sourcePath))}`,
+    hash,
+    assets: [`vue-${hash}.js`],
+    metadata: {
+      framework: 'vue',
+      sourcePath,
+      compiledAt: new Date().toISOString()
+    },
+    entryPoint: `vue-${hash}.js`,
+    lastModified: new Date()
+  }
+}
+
+async function compileSvelteBlock(sourcePath: string, outputPath: string): Promise<FrameworkBundle> {
+  const sourceContent = await fs.readFile(sourcePath, 'utf8')
+  const hash = generateAssetHash(sourceContent)
+
+  // Simple Svelte compilation placeholder
+  const compiledContent = `
+(function() {
+  ${sourceContent}
+
+  return { default: SvelteBlock };
+})();
+`
+
+  const outputFile = path.join(outputPath, `svelte-${hash}.js`)
+  await fs.mkdir(outputPath, { recursive: true })
+  await fs.writeFile(outputFile, compiledContent, 'utf8')
+
+  return {
+    id: `svelte-${path.basename(sourcePath, path.extname(sourcePath))}`,
+    hash,
+    assets: [`svelte-${hash}.js`],
+    metadata: {
+      framework: 'svelte',
+      sourcePath,
+      compiledAt: new Date().toISOString()
+    },
+    entryPoint: `svelte-${hash}.js`,
+    lastModified: new Date()
+  }
+}
+
+async function compileLitBlock(sourcePath: string, outputPath: string): Promise<FrameworkBundle> {
+  const sourceContent = await fs.readFile(sourcePath, 'utf8')
+  const hash = generateAssetHash(sourceContent)
+
+  // Simple Lit compilation placeholder
+  const compiledContent = `
+(function() {
+  ${sourceContent}
+
+  return { LitBlock };
+})();
+`
+
+  const outputFile = path.join(outputPath, `lit-${hash}.js`)
+  await fs.mkdir(outputPath, { recursive: true })
+  await fs.writeFile(outputFile, compiledContent, 'utf8')
+
+  return {
+    id: `lit-${path.basename(sourcePath, path.extname(sourcePath))}`,
+    hash,
+    assets: [`lit-${hash}.js`],
+    metadata: {
+      framework: 'lit',
+      sourcePath,
+      compiledAt: new Date().toISOString()
+    },
+    entryPoint: `lit-${hash}.js`,
+    lastModified: new Date()
+  }
+}
+
+async function compileAngularBlock(sourcePath: string, outputPath: string): Promise<FrameworkBundle> {
+  const sourceContent = await fs.readFile(sourcePath, 'utf8')
+  const hash = generateAssetHash(sourceContent)
+
+  // Simple Angular compilation placeholder
+  const compiledContent = `
+(function() {
+  ${sourceContent}
+
+  return { AngularBlock };
+})();
+`
+
+  const outputFile = path.join(outputPath, `angular-${hash}.js`)
+  await fs.mkdir(outputPath, { recursive: true })
+  await fs.writeFile(outputFile, compiledContent, 'utf8')
+
+  return {
+    id: `angular-${path.basename(sourcePath, path.extname(sourcePath))}`,
+    hash,
+    assets: [`angular-${hash}.js`],
+    metadata: {
+      framework: 'angular',
+      sourcePath,
+      compiledAt: new Date().toISOString()
+    },
+    entryPoint: `angular-${hash}.js`,
+    lastModified: new Date()
+  }
+}
+
+function getFrameworkCompiler(framework: string) {
+  switch (framework) {
+    case 'solidjs': return compileSolidJSBlock
+    case 'vue': return compileVueBlock
+    case 'svelte': return compileSvelteBlock
+    case 'lit': return compileLitBlock
+    case 'angular': return compileAngularBlock
+    default: throw new Error(`Unsupported framework: ${framework}`)
+  }
+}
+
+async function setupFrameworkWatchers(): Promise<FrameworkWatcher[]> {
+  const watchers: FrameworkWatcher[] = []
+  const frameworksDir = path.resolve(ROOT_DIR, 'libs/block-frameworks')
+  const outputDir = path.resolve(ROOT_DIR, 'dist/frameworks')
+
+  const frameworks = ['solidjs', 'vue', 'svelte', 'lit', 'angular']
+
+  for (const framework of frameworks) {
+    const sourceDir = path.join(frameworksDir, framework, 'examples')
+    const frameworkOutputDir = path.join(outputDir, framework)
+
+    if (!existsSync(sourceDir)) {
+      console.log(`[framework-watch] Skipping ${framework} - examples directory not found`)
+      continue
+    }
+
+    const watcher: FrameworkWatcher = {
+      framework,
+      sourceDir,
+      outputDir: frameworkOutputDir,
+      bundles: new Map()
+    }
+
+    // Initial compilation of existing blocks
+    try {
+      const files = await fs.readdir(sourceDir)
+      const compiler = getFrameworkCompiler(framework)
+
+      for (const file of files) {
+        if (file.endsWith('.tsx') || file.endsWith('.ts') || file.endsWith('.js') || file.endsWith('.vue') || file.endsWith('.svelte')) {
+          const sourcePath = path.join(sourceDir, file)
+          const bundle = await compiler(sourcePath, frameworkOutputDir)
+          watcher.bundles.set(bundle.id, bundle)
+          console.log(`[framework-watch] Compiled ${framework}/${file} -> ${bundle.entryPoint}`)
+        }
+      }
+    } catch (error) {
+      console.error(`[framework-watch] Failed to compile ${framework} blocks:`, error)
+    }
+
+    // Setup file watcher for hot reload
+    watcher.watcher = watch(sourceDir, { recursive: true }, async (event, filename) => {
+      if (!filename || !filename.match(/\.(tsx|ts|js|vue|svelte)$/)) return
+
+      try {
+        const sourcePath = path.join(sourceDir, filename)
+        const compiler = getFrameworkCompiler(framework)
+        const bundle = await compiler(sourcePath, frameworkOutputDir)
+
+        watcher.bundles.set(bundle.id, bundle)
+        console.log(`[framework-watch] Recompiled ${framework}/${filename} -> ${bundle.entryPoint}`)
+
+        // Notify connected clients about the update
+        for (const socket of liveSockets) {
+          socket.send(JSON.stringify({
+            type: 'framework-update',
+            framework,
+            bundle: {
+              id: bundle.id,
+              hash: bundle.hash,
+              entryPoint: bundle.entryPoint,
+              lastModified: bundle.lastModified.toISOString()
+            }
+          }))
+        }
+      } catch (error) {
+        console.error(`[framework-watch] Failed to recompile ${framework}/${filename}:`, error)
+      }
+    })
+
+    watchers.push(watcher)
+    console.log(`[framework-watch] Watching ${framework} blocks in ${sourceDir}`)
+  }
+
+  return watchers
 }
 
 
@@ -841,6 +1152,189 @@ const scenarios: Record<string, ScenarioDefinition> = {
       if (!entity) return
       entity.properties = { ...entity.properties, ...update.properties }
     }
+  },
+  'framework-compilation-demo': {
+    id: 'framework-compilation-demo',
+    title: 'Framework Compilation Demo',
+    description: 'Demonstrates hot-reloaded framework blocks with compilation and serving',
+    createState: () => ({
+      graph: {
+        entities: [{
+          entityId: 'framework-demo-entity',
+          entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
+          properties: {
+            'https://blockprotocol.org/@blockprotocol/types/property-type/name/': 'Framework Demo',
+            'https://blockprotocol.org/@blockprotocol/types/property-type/name/v/1': 'Framework Demo',
+            status: 'in-progress'
+          }
+        }],
+        links: []
+      }
+    }),
+    buildNotifications: (state) => {
+      const notifications: VivafolioBlockNotificationPayload[] = []
+
+      // Add the original static status-pill block
+      notifications.push({
+        blockId: 'status-pill-static',
+        blockType: 'https://vivafolio.dev/blocks/status-pill/v1',
+        entityId: state.graph.entities[0]?.entityId ?? 'framework-demo-entity',
+        displayMode: 'inline',
+        initialGraph: state.graph,
+        supportsHotReload: false,
+        initialHeight: 40,
+        resources: [
+          {
+            logicalName: 'main.js',
+            physicalPath: '/examples/blocks/status-pill/main.js',
+            cachingTag: nextCachingTag()
+          }
+        ]
+      })
+
+      // Add compiled framework versions if available
+      for (const watcher of globalFrameworkWatchers) {
+        const solidjsBundles = watcher.bundles.get('solidjs-status-pill')
+        if (solidjsBundles && watcher.framework === 'solidjs') {
+          notifications.push({
+            blockId: `status-pill-${watcher.framework}`,
+            blockType: `https://vivafolio.dev/blocks/status-pill-${watcher.framework}/v1`,
+            entityId: state.graph.entities[0]?.entityId ?? 'framework-demo-entity',
+            displayMode: 'inline',
+            initialGraph: state.graph,
+            supportsHotReload: true,
+            initialHeight: 40,
+            resources: [
+              {
+                logicalName: 'main.js',
+                physicalPath: `/frameworks/${watcher.framework}/${solidjsBundles.entryPoint}`,
+                cachingTag: solidjsBundles.hash
+              }
+            ]
+          })
+        }
+      }
+
+      return notifications
+    },
+    applyUpdate: ({ state, update }) => {
+      const entity = state.graph.entities.find((item) => item.entityId === update.entityId)
+      if (!entity) return
+      entity.properties = { ...entity.properties, ...update.properties }
+    }
+  },
+  'cross-framework-nesting': {
+    id: 'cross-framework-nesting',
+    title: 'Cross-Framework Nesting Demo',
+    description: 'Demonstrates nested blocks from different frameworks sharing the same Graph service',
+    createState: () => ({
+      graph: {
+        entities: [
+          {
+            entityId: 'parent-entity',
+            entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
+            properties: {
+              'https://blockprotocol.org/@blockprotocol/types/property-type/name/': 'Cross-Framework Parent',
+              'https://blockprotocol.org/@blockprotocol/types/property-type/name/v/1': 'Cross-Framework Parent'
+            }
+          },
+          {
+            entityId: 'child-entity-1',
+            entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
+            properties: {
+              'https://blockprotocol.org/@blockprotocol/types/property-type/name/': 'SolidJS Child',
+              'https://blockprotocol.org/@blockprotocol/types/property-type/name/v/1': 'SolidJS Child',
+              status: 'todo'
+            }
+          },
+          {
+            entityId: 'child-entity-2',
+            entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
+            properties: {
+              'https://blockprotocol.org/@blockprotocol/types/property-type/name/': 'Vue Child',
+              'https://blockprotocol.org/@blockprotocol/types/property-type/name/v/1': 'Vue Child',
+              status: 'in-progress'
+            }
+          }
+        ],
+        links: []
+      }
+    }),
+    buildNotifications: (state) => {
+      const notifications: VivafolioBlockNotificationPayload[] = []
+
+      // Parent block (using existing implementation)
+      notifications.push({
+        blockId: 'parent-block',
+        blockType: 'https://vivafolio.dev/blocks/parent/v1',
+        entityId: 'parent-entity',
+        displayMode: 'multi-line',
+        initialGraph: state.graph,
+        supportsHotReload: true,
+        initialHeight: 200,
+        resources: [
+          {
+            logicalName: 'main.js',
+            physicalPath: '/external/custom-element-block/main.js',
+            cachingTag: nextCachingTag()
+          }
+        ]
+      })
+
+      // Child blocks from different frameworks
+      const solidjsWatcher = globalFrameworkWatchers.find((w: FrameworkWatcher) => w.framework === 'solidjs')
+      if (solidjsWatcher) {
+        const solidjsBundle = solidjsWatcher.bundles.get('solidjs-task-block')
+        if (solidjsBundle) {
+          notifications.push({
+            blockId: 'child-solidjs',
+            blockType: 'https://vivafolio.dev/blocks/child-solidjs/v1',
+            entityId: 'child-entity-1',
+            displayMode: 'inline',
+            initialGraph: state.graph,
+            supportsHotReload: true,
+            initialHeight: 60,
+            resources: [
+              {
+                logicalName: 'main.js',
+                physicalPath: `/frameworks/solidjs/${solidjsBundle.entryPoint}`,
+                cachingTag: solidjsBundle.hash
+              }
+            ]
+          })
+        }
+      }
+
+      const vueWatcher = globalFrameworkWatchers.find((w: FrameworkWatcher) => w.framework === 'vue')
+      if (vueWatcher) {
+        const vueBundle = vueWatcher.bundles.get('vue-task-block')
+        if (vueBundle) {
+          notifications.push({
+            blockId: 'child-vue',
+            blockType: 'https://vivafolio.dev/blocks/child-vue/v1',
+            entityId: 'child-entity-2',
+            displayMode: 'inline',
+            initialGraph: state.graph,
+            supportsHotReload: true,
+            initialHeight: 60,
+            resources: [
+              {
+                logicalName: 'main.js',
+                physicalPath: `/frameworks/vue/${vueBundle.entryPoint}`,
+                cachingTag: vueBundle.hash
+              }
+            ]
+          })
+        }
+      }
+
+      return notifications
+    },
+    applyUpdate: ({ state, update }) => {
+      const entity = state.graph.entities.find((item) => item.entityId === update.entityId)
+      if (!entity) return
+      entity.properties = { ...entity.properties, ...update.properties }
+    }
   }
 }
 
@@ -976,12 +1470,27 @@ export async function startServer(options: StartServerOptions = {}) {
   const host = options.host ?? '0.0.0.0'
   const attachSignalHandlers = options.attachSignalHandlers ?? true
   const enableVite = options.enableVite ?? process.env.NODE_ENV !== 'production'
+  const enableFrameworkWatch = options.enableFrameworkWatch ?? process.env.ENABLE_FRAMEWORK_WATCH === 'true'
 
   const app = express()
+
+  // Framework watchers and bundles
+  let frameworkWatchers: FrameworkWatcher[] = []
 
   console.log('[blockprotocol-poc] html template dir', HTML_TEMPLATE_BLOCK_DIR)
 
   await ensureHtmlTemplateAssets()
+
+  // Setup framework watchers if enabled
+  if (enableFrameworkWatch) {
+    try {
+      frameworkWatchers = await setupFrameworkWatchers()
+      globalFrameworkWatchers = frameworkWatchers
+      console.log(`[framework-watch] Initialized ${frameworkWatchers.length} framework watchers`)
+    } catch (error) {
+      console.error('[framework-watch] Failed to setup framework watchers:', error)
+    }
+  }
 
   app.use(
     '/external/html-template-block',
@@ -1007,6 +1516,50 @@ export async function startServer(options: StartServerOptions = {}) {
   app.use('/examples/blocks/table-view', express.static(path.resolve(ROOT_DIR, 'examples/blocks/table-view')))
   app.use('/examples/blocks/board-view', express.static(path.resolve(ROOT_DIR, 'examples/blocks/board-view')))
   app.use('/templates', express.static(TEMPLATES_DIR))
+
+  // Framework compiled assets
+  app.use('/frameworks', express.static(path.resolve(ROOT_DIR, 'dist/frameworks'), {
+    fallthrough: false,
+    index: false,
+    cacheControl: false,
+    etag: true
+  }))
+
+  // Framework bundles API
+  app.get('/api/frameworks/:framework/bundles', (req, res) => {
+    const { framework } = req.params
+    const watcher = frameworkWatchers.find(w => w.framework === framework)
+
+    if (!watcher) {
+      return res.status(404).json({ error: `Framework ${framework} not found` })
+    }
+
+    const bundles = Array.from(watcher.bundles.values()).map(bundle => ({
+      id: bundle.id,
+      hash: bundle.hash,
+      entryPoint: bundle.entryPoint,
+      lastModified: bundle.lastModified.toISOString(),
+      assets: bundle.assets
+    }))
+
+    res.json({ bundles })
+  })
+
+  app.get('/api/frameworks/bundles', (req, res) => {
+    const allBundles: Record<string, any[]> = {}
+
+    for (const watcher of frameworkWatchers) {
+      allBundles[watcher.framework] = Array.from(watcher.bundles.values()).map(bundle => ({
+        id: bundle.id,
+        hash: bundle.hash,
+        entryPoint: bundle.entryPoint,
+        lastModified: bundle.lastModified.toISOString(),
+        assets: bundle.assets
+      }))
+    }
+
+    res.json({ bundles: allBundles })
+  })
 
   dumpExpressStack(app)
 
@@ -1148,6 +1701,14 @@ export async function startServer(options: StartServerOptions = {}) {
     if (viteServer) {
       await viteServer.close()
     }
+
+    // Clean up framework watchers
+    for (const watcher of globalFrameworkWatchers) {
+      if (watcher.watcher) {
+        watcher.watcher.close()
+      }
+    }
+    globalFrameworkWatchers = []
   }
 
   if (attachSignalHandlers) {

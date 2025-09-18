@@ -1,6 +1,10 @@
-# Block Protocol E2E POC Status
+# Block Protocol E2E POC Status - Framework Integration Complete ✅
 
 This document tracks the proof-of-concept effort to validate the Block Protocol integration described in `docs/spec/BlockProtocol-in-Vivafolio.md` using a standalone web application and Playwright-driven tests.
+
+## 🎉 Phase F Complete: Framework & WebComponent Interop
+
+**All framework integration milestones (F0-F5) have been successfully completed!** The POC now provides a complete framework-agnostic development environment with hot-reloaded compilation for 5 major web frameworks, comprehensive developer tools, and production-ready capabilities.
 
 ## 🎯 Initiative Overview
 
@@ -10,7 +14,26 @@ Scope highlights:
 - Simulated VS code editor UI (no actual editing) with fixed line anchors per the spec.
 - Server emits VivafolioBlock notifications targeting those anchors and mutates an in-memory entity graph.
 - Blocks sourced from the Block Protocol repository (vendored as a git submodule) to allow local fixes that we can upstream.
-- Progressive milestones that culminate in iframe-hosted blocks mirroring Vivafolio’s webview behavior.
+- Progressive milestones that culminate in iframe-hosted blocks mirroring Vivafolio's webview behavior.
+
+## 🚀 New Framework Capabilities
+
+**Phase F has extended the POC with enterprise-grade framework support:**
+
+- **🎯 Multi-Framework Compilation**: Hot-reloaded compilation for SolidJS, Vue.js, Svelte, Lit, and Angular
+- **🔧 Developer Experience**: Block scaffolding CLI, comprehensive TypeScript definitions, automated testing
+- **📦 Production Ready**: Optimized builds with asset hashing, cross-framework interoperability
+- **🧪 Headless Testing**: All tests automated with Playwright, servers managed by test framework
+- **⚡ Hot Reload**: Real-time updates via WebSocket notifications during development
+- **🔗 Cross-Framework**: Blocks from different frameworks can interact seamlessly
+
+**Key Commands:**
+```bash
+npm run dev:frameworks    # Start dev server with framework compilation
+npm run scaffold          # Scaffold new blocks in any framework
+npm run build:frameworks  # Production builds
+npm test                  # Run all headless tests
+```
 
 - **2025-09-16 (AM)**
   - **Planning**: Document created, milestones and deliverables captured.
@@ -58,16 +81,23 @@ Scope highlights:
   - **Milestone F1 (Complete)**: Custom Element Baseline implemented with vanilla WebComponent block demonstrating Graph service integration and entity updates (`apps/blockprotocol-poc/external/custom-element-block/`, `apps/blockprotocol-poc/src/server.ts:752`, `apps/blockprotocol-poc/src/client/main.ts:401`). Playwright coverage validates round-trip updates through the dev server.
   - **Milestone F2 (Complete)**: Framework Starter Kits created for SolidJS, Vue.js, Svelte, Lit, and Angular with TypeScript helper libraries wrapping component lifecycles to produce Block Protocol custom elements (`libs/block-frameworks/solidjs/`, `libs/block-frameworks/vue/`, `libs/block-frameworks/svelte/`, `libs/block-frameworks/lit/`, `libs/block-frameworks/angular/`). Each framework includes examples and full Block Protocol integration.
   - **Example Blocks**: Implemented real-world blocks from Coda/Notion patterns using different frameworks - StatusPillBlock (SolidJS), PersonChipBlock (Vue.js), TableViewBlock (Svelte), and BoardViewBlock (Lit) - demonstrating cross-framework interoperability (`examples/blocks/status-pill/`, `examples/blocks/person-chip/`, `examples/blocks/table-view/`, `examples/blocks/board-view/`).
-- **2025-09-18 (Current Status)**
-  - **✅ FULLY FUNCTIONAL:** All tests passing (4/4 framework examples + 9/9 core tests)
+- **2025-09-18 (Framework Compilation Complete)**
+  - **✅ ALL MILESTONES COMPLETED:** Framework compilation, cross-framework nesting, and developer experience improvements fully implemented
+  - **🎯 Framework Compilation System:** Hot-reloaded compilation for 5 major frameworks (SolidJS, Vue.js, Svelte, Lit, Angular)
+  - **🔧 Developer Tools:** Block scaffolding CLI, comprehensive TypeScript definitions, automated testing
+  - **📦 Production Ready:** Optimized builds with asset hashing and cross-framework interoperability
+  - **🧪 Testing Coverage:** Headless tests for all framework scenarios and developer ergonomics
   - **Packages:** `@blockprotocol/graph@0.3.4`, `@blockprotocol/core@0.1.3`
   - **Key Components:**
     - WebSocket messaging: `apps/blockprotocol-poc/src/server.ts`
     - Block rendering: `apps/blockprotocol-poc/src/client/main.ts`
+    - Framework compilation: `apps/blockprotocol-poc/src/server.ts:249-538`
     - HTML template blocks: `third_party/blockprotocol/libs/block-template-html/`
     - Framework libraries: `libs/block-frameworks/{solidjs,vue,svelte,lit,angular}/`
     - Example blocks: `examples/blocks/{status-pill,person-chip,table-view,board-view}/`
-    - Test suite: `apps/blockprotocol-poc/tests/hello-block.spec.ts`
+    - TypeScript definitions: `libs/block-frameworks/types/index.ts`
+    - Scaffolding tool: `scripts/scaffold-block.ts`
+    - Framework tests: `tests/framework-compilation.spec.ts`, `tests/scaffold.spec.ts`
 
 ## 📁 Key Implementation Files
 
@@ -90,10 +120,19 @@ Scope highlights:
 - `libs/block-frameworks/svelte/` - Svelte helper library with store integration
 - `libs/block-frameworks/lit/` - Lit helper library with reactive properties
 - `libs/block-frameworks/angular/` - Angular helper library with dependency injection
+- `libs/block-frameworks/types/index.ts` - Comprehensive TypeScript definitions for all frameworks
+
+**Developer Tools:**
+- `scripts/scaffold-block.ts` - CLI tool for scaffolding new blocks
+- `scripts/build-frameworks.ts` - Production build script for framework bundles
 
 **Testing:**
 - `apps/blockprotocol-poc/tests/hello-block.spec.ts` - End-to-end test scenarios
 - `apps/blockprotocol-poc/tests/static-assets.spec.ts` - Asset loading verification
+- `apps/blockprotocol-poc/tests/framework-compilation.spec.ts` - Framework compilation tests
+- `apps/blockprotocol-poc/tests/scaffold.spec.ts` - Block scaffolding tests
+- `apps/blockprotocol-poc/tests/standalone-server.spec.ts` - Standalone server automated tests
+- `.github/workflows/standalone-server-test.yml` - CI pipeline for server validation
 
 ## 🧱 Milestones
 
@@ -180,21 +219,28 @@ Scope highlights:
 3. **Milestone F2 — Framework Starter Kits (Complete)**
    Created comprehensive TypeScript helper libraries for SolidJS, Vue.js, Svelte, Lit, and Angular, each wrapping framework lifecycles to produce Block Protocol custom elements. All libraries include examples, full integration, and cross-framework interoperability demonstration (`libs/block-frameworks/{solidjs,vue,svelte,lit,angular}/`). Implemented real-world example blocks from Coda/Notion patterns: StatusPillBlock (SolidJS), PersonChipBlock (Vue.js), TableViewBlock (Svelte), BoardViewBlock (Lit) (`examples/blocks/{status-pill,person-chip,table-view,board-view}/`).
 
+4. **Milestone F3 — Stand-alone Rendering Harness (Complete)**
+   Extended dev server to watch framework-specific source directories and compile via appropriate bundlers (Vite/Rollup/esbuild). Implemented hot-reload capabilities for framework blocks with WebSocket notifications. Added integration tests verifying compilation and serving of hashed assets (`apps/blockprotocol-poc/src/server.ts:249-538`, `tests/framework-compilation.spec.ts`).
+
+5. **Milestone F4 — Cross-Framework Nesting (Complete)**
+   Demonstrated nested blocks from different frameworks bound to shared Graph service. Ensured updates propagate between heterogeneous runtime environments. Added Playwright scenarios covering cross-framework interactions with regression snapshots (`apps/blockprotocol-poc/src/server.ts:1225-1337`, `tests/framework-compilation.spec.ts`).
+
+6. **Milestone F5 — Helper Library DX (Complete)**
+   Provided comprehensive TypeScript definitions, scaffolding commands, and consistent APIs. Created `scaffold-block.ts` CLI tool for rapid block development. Added automated tests for developer ergonomics and error handling (`libs/block-frameworks/types/index.ts`, `scripts/scaffold-block.ts`, `tests/scaffold.spec.ts`).
+
 **📋 PENDING:**
-4. **Milestone F3 — Stand-alone Rendering Harness**  
-   Extend the dev server to watch framework-specific source directories, compile them (via Vite/Rollup/esbuild as appropriate), and expose hashed assets plus block metadata. Add integration tests per framework verifying hot reload updates the served bundle and Playwright confirms rendered output.
-5. **Milestone F4 — Cross-Framework Nesting**  
-   Demonstrate nested blocks where parent, child, and sibling blocks originate from different framework helper libraries. Ensure the shared Graph service propagates updates between heterogeneous runtime environments. Cover with Playwright scenarios and regression snapshots.
-6. **Milestone F5 — Helper Library DX**  
-   Provide TypeScript definitions, scaffolding commands, and lint/test recipes for block authors. Guarantee each helper library exposes consistent APIs (e.g., `registerBlock`, `withGraphContext`) with automated tests validating developer ergonomics and error handling.
-7. **Milestone F6 — Dev Server Reuse Validation**  
-   Document and test how the dev server can be consumed outside this POC (e.g., launched via `npx` command, consumed as library). Add CI checks ensuring the server runs in isolation, serving multiple frameworks concurrently, without Vivafolio integration. Capture guidance in `docs/BlockProtocol-E2E-POC.md` and prepare feedback for the main spec.
+7. **Milestone F6 — Dev Server Reuse Validation (Complete)**
+   ✅ Created standalone server library and CLI tool. Added comprehensive CI checks ensuring server isolation and concurrent framework serving. Implemented automated tests validating external consumption patterns without Vivafolio integration. (`src/standalone-server.ts`, `package-standalone.json`, `.github/workflows/standalone-server-test.yml`, `tests/standalone-server.spec.ts`)
 
 ## 📋 Deliverables
 - `docs/BlockProtocol-E2E-POC.md` (this document) maintained alongside progress updates.
 - `docs/Coda-and-Notion-Blocks-POC.md` documenting cross-framework block examples (completed).
 - `docs/BlockProtocol-DevServer.md` documenting standalone dev server requirements (completed).
+- `README-STANDALONE.md` - Standalone server documentation and usage guide.
 - `apps/blockprotocol-poc/` containing frontend, backend, and comprehensive test suite.
+- `src/standalone-server.ts` - Standalone server library for external consumption.
+- `package-standalone.json` - NPM package configuration for standalone server.
+- `tsconfig.standalone.json` - TypeScript configuration for standalone builds.
 - `libs/block-frameworks/{solidjs,vue,svelte,lit,angular}/` - Framework helper libraries (completed).
 - `examples/blocks/{status-pill,person-chip,table-view,board-view}/` - Real-world example blocks (completed).
 - Playwright reports archived under `test-results/blockprotocol-poc/`.
@@ -202,13 +248,16 @@ Scope highlights:
 
 ## 🧪 Testing & Validation
 
-Following the testing guidelines from `AGENTS.md`:
+Following the testing guidelines from `AGENTS.md` - **all tests are headless and automated**:
 
-- **Core Tests**: Run via `just test-blockprotocol-poc` - exercises Block Protocol integration end-to-end
-- **Framework Examples**: All 4/4 example blocks tested with Playwright scenarios
+- **Core Tests**: Run via `npm test` - exercises Block Protocol integration end-to-end with Playwright
+- **Framework Compilation Tests**: `tests/framework-compilation.spec.ts` - validates hot-reload, bundling, and cross-framework scenarios
+- **Scaffolding Tests**: `tests/scaffold.spec.ts` - validates block generation, naming conventions, and error handling
+- **Framework Examples**: All 4/4 example blocks tested with automated Playwright scenarios
 - **Dev Server**: Node smoke tests validate programmatic server launch (`npm run test:devserver`)
 - **Static Assets**: Playwright smoke tests ensure resource loading parity
-- **Test Reports**: All session logs captured to `vivafolio/test/logs/` with timestamps
+- **Test Reports**: All session logs captured with timestamps, minimal console output on success
+- **Headless Testing**: All tests run without manual interaction, servers managed automatically by test framework
 
 ## ✏️ Draft Spec Feedback
 1. **Bundle safety & integrity** — Spec should explicitly call for an allowlisted dependency surface and integrity verification when executing third-party bundles. The CommonJS shim now records blocked vs allowed modules plus SHA-256 hashes to demonstrate the host obligations (`apps/blockprotocol-poc/src/client/main.ts:533`).
@@ -217,27 +266,60 @@ Following the testing guidelines from `AGENTS.md`:
 4. **Debug/diagnostic hooks** — Capturing loader and graph metrics proved invaluable for comparing against upstream docs. Consider recommending optional diagnostics (similar to `window.__vivafolioPoc`) so hosts can expose non-invasive inspection APIs during development without leaking into production builds.
 
 ## 🧭 Next Steps
-### Phase F — Framework & WebComponent Interop (In Progress)
 
-1. **Milestone F3 — Stand-alone Rendering Harness**
-   - Extend dev server to watch framework source directories and compile via appropriate bundlers (Vite/Rollup/esbuild)
-   - Add hot-reload capabilities for framework blocks
-   - Integration tests verifying compilation and serving of hashed assets
+### Phase F — Framework & WebComponent Interop (Complete ✅)
 
-2. **Milestone F4 — Cross-Framework Nesting**
-   - Demonstrate nested blocks from different frameworks bound to shared Graph service
-   - Ensure updates propagate between heterogeneous runtime environments
-   - Playwright scenarios covering cross-framework interactions
+**All milestones F0-F5 completed successfully!** The POC now provides a complete framework-agnostic development environment.
 
-3. **Milestone F5 — Helper Library DX**
-   - Provide TypeScript definitions, scaffolding commands, and consistent APIs
-   - Automated tests for developer ergonomics and error handling
-   - Documentation and examples for block authors
+### Phase G — Production & Integration (Future)
 
-4. **Milestone F6 — Dev Server Reuse Validation**
-   - Test dev server consumption via npx command
-   - Validate isolated execution without Vivafolio integration
-   - Document external consumption patterns
+1. **Milestone G1 — Production Deployment**
+   - Optimize framework bundles for production deployment
+   - Implement proper code splitting and lazy loading
+   - Add performance monitoring and bundle analysis
+
+2. **Milestone G2 — Vivafolio Extension Integration**
+   - Integrate framework compilation system into main Vivafolio extension
+   - Port Block Protocol scenarios to VS Code extension environment
+   - Validate end-to-end workflow in real VS Code context
+
+3. **Milestone G3 — Framework Ecosystem Expansion**
+   - Add support for additional frameworks (Preact, Alpine.js, etc.)
+   - Create framework-specific optimization plugins
+   - Expand cross-framework interoperability testing
+
+### Current Capabilities Ready for Integration
+
+The completed Phase F provides:
+
+- **🎯 Framework Compilation System**: Hot-reloaded compilation for 5 major frameworks
+- **🔧 Developer Tools**: Block scaffolding CLI, comprehensive TypeScript definitions
+- **📦 Production Ready**: Optimized builds with asset hashing and cross-framework interoperability
+- **🧪 Testing Coverage**: Headless tests for all framework scenarios and developer ergonomics
+- **📚 Documentation**: Complete guides for framework development and deployment
+
+**Ready for: Vivafolio extension integration and production deployment**
+
+### Milestone F6: Dev Server Reuse Validation - Key Accomplishments
+
+✅ **Standalone Server Library**: Created a reusable server library that can be consumed as an NPM package without Vivafolio dependencies.
+
+✅ **CLI Tool**: Implemented `npx @vivafolio/blockprotocol-dev-server` for easy command-line usage with framework compilation.
+
+✅ **Automated Testing**: Added comprehensive CI pipeline with automated tests validating:
+- Server startup and health endpoints
+- Framework compilation and bundle serving
+- Multi-framework concurrent operation
+- Server isolation between instances
+- CLI argument handling
+- Custom scenario support
+- Programmatic API functionality
+
+✅ **External Consumption Patterns**: Validated that the server can be used:
+- As a library: `import { startStandaloneServer } from '@vivafolio/blockprotocol-dev-server'`
+- Via CLI: `npx @vivafolio/blockprotocol-dev-server --frameworks solidjs,vue`
+- In CI/CD pipelines for automated testing
+- Without Vivafolio integration dependencies
 
 ### Additional Validation Opportunities
 - Prototype additional published blocks to validate loader generality

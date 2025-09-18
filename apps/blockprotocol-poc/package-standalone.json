@@ -1,0 +1,63 @@
+{
+  "name": "@vivafolio/blockprotocol-dev-server",
+  "version": "0.1.0",
+  "description": "Standalone Block Protocol development server for framework compilation and testing",
+  "main": "dist/standalone-server.js",
+  "type": "module",
+  "bin": {
+    "blockprotocol-dev-server": "dist/standalone-server.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc --project tsconfig.standalone.json",
+    "prepublishOnly": "npm run build",
+    "test": "node -e \"console.log('Run tests with: npm test from main package')\""
+  },
+  "keywords": [
+    "block-protocol",
+    "development-server",
+    "framework-compilation",
+    "hot-reload",
+    "web-components",
+    "solidjs",
+    "vue",
+    "svelte",
+    "lit",
+    "angular"
+  ],
+  "author": "Vivafolio",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vivafolio/vivafolio-vs-code.git",
+    "directory": "apps/blockprotocol-poc"
+  },
+  "bugs": {
+    "url": "https://github.com/vivafolio/vivafolio-vs-code/issues"
+  },
+  "homepage": "https://github.com/vivafolio/vivafolio-vs-code/tree/main/apps/blockprotocol-poc#readme",
+  "peerDependencies": {
+    "vite": "^5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "vite": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "ws": "^8.17.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.12.7",
+    "@types/ws": "^8.5.10",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

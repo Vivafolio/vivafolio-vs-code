@@ -48,10 +48,105 @@ test-runtime-all: test-runtime-python test-runtime-ruby test-runtime-julia test-
 test-runtime-vivafolioblock:
 	npm run -s test:runtime:vivafolioblock | cat
 
+# -----------------------------
+# Block Protocol POC Tests
+# Based on documented test suites in docs/BlockProtocol-E2E-POC.md
+# All tests are headless and automated per AGENTS.md guidelines
+# -----------------------------
+#
+# Test Coverage Summary:
+# - test-blockprotocol-core: Block Protocol integration scenarios (hello-block.spec.ts)
+# - test-blockprotocol-frameworks: Framework compilation & cross-framework (framework-compilation.spec.ts)
+# - test-blockprotocol-scaffold: Block scaffolding & generation (scaffold.spec.ts)
+# - test-blockprotocol-standalone: Standalone server & CLI (standalone-server.spec.ts)
+# - test-blockprotocol-assets: Static asset loading (static-assets.spec.ts)
+# - test-blockprotocol-devserver: Dev server smoke tests (tests-node/dev-server-smoke.test.ts)
+# - test-blockprotocol-standalone-build: Standalone server build & distribution testing
+#
+# Use test-blockprotocol-all to run all suites individually
+# Use test-blockprotocol-poc to run all tests via npm test
+#
+# -----------------------------
+
+# Run all Block Protocol POC tests (via npm test)
 test-blockprotocol-poc:
 	cd apps/blockprotocol-poc && \
 	  PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH:-$(command -v chromium)}" \
 	  npm test | cat
+
+# Run core Block Protocol integration tests (hello-block scenarios)
+test-blockprotocol-core:
+	cd apps/blockprotocol-poc && \
+	  PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH:-$(command -v chromium)}" \
+	  npx playwright test tests/hello-block.spec.ts | cat
+
+# Run framework compilation tests (hot-reload, bundling, cross-framework scenarios)
+test-blockprotocol-frameworks:
+	cd apps/blockprotocol-poc && \
+	  PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH:-$(command -v chromium)}" \
+	  npx playwright test tests/framework-compilation.spec.ts | cat
+
+# Run block scaffolding tests (block generation, naming conventions, error handling)
+test-blockprotocol-scaffold:
+	cd apps/blockprotocol-poc && \
+	  PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH:-$(command -v chromium)}" \
+	  npx playwright test tests/scaffold.spec.ts | cat
+
+# Run standalone server tests (server startup, framework bundles, CLI, isolation)
+test-blockprotocol-standalone:
+	cd apps/blockprotocol-poc && \
+	  PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH:-$(command -v chromium)}" \
+	  npx playwright test tests/standalone-server.spec.ts | cat
+
+# Run static assets tests (resource loading parity)
+test-blockprotocol-assets:
+	cd apps/blockprotocol-poc && \
+	  PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH:-$(command -v chromium)}" \
+	  npx playwright test tests/static-assets.spec.ts | cat
+
+# Run dev server smoke tests (programmatic server launch validation)
+test-blockprotocol-devserver:
+	cd apps/blockprotocol-poc && \
+	  npm run test:devserver | cat
+
+# Run all Block Protocol POC test suites individually
+test-blockprotocol-all: test-blockprotocol-core test-blockprotocol-frameworks test-blockprotocol-scaffold test-blockprotocol-standalone test-blockprotocol-assets test-blockprotocol-devserver test-blockprotocol-standalone-build
+
+# Run Block Protocol tests in headed mode (for debugging)
+test-blockprotocol-headed:
+	cd apps/blockprotocol-poc && \
+	  PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH:-$(command -v chromium)}" \
+	  npx playwright test --headed | cat
+
+# Run specific Block Protocol test pattern (e.g., just test-blockprotocol-grep "framework")
+test-blockprotocol-grep PATTERN:
+	cd apps/blockprotocol-poc && \
+	  PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH:-$(command -v chromium)}" \
+	  npx playwright test --grep "{{PATTERN}}" | cat
+
+# Run Block Protocol tests with debug output
+test-blockprotocol-debug:
+	cd apps/blockprotocol-poc && \
+	  PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH:-$(command -v chromium)}" \
+	  DEBUG=pw:api npx playwright test | cat
+
+# Generate Block Protocol test report
+test-blockprotocol-report:
+	cd apps/blockprotocol-poc && \
+	  PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH:-$(command -v chromium)}" \
+	  npx playwright test --reporter=html | cat && \
+	  echo "Report generated in apps/blockprotocol-poc/playwright-report/index.html"
+
+# Build and test standalone server distribution
+test-blockprotocol-standalone-build:
+	cd apps/blockprotocol-poc && \
+	  echo "Building standalone server..." && \
+	  npm run build:standalone && \
+	  echo "Testing standalone server functionality..." && \
+	  timeout 10s node dist/standalone-server.js --port 3020 --no-hot-reload & \
+	  sleep 3 && \
+	  curl -s http://localhost:3020/healthz | jq .ok | grep -q true && \
+	  echo "✅ Standalone server build and startup test passed" || echo "❌ Test failed"
 
 # -----------------------------
 # Build commands
