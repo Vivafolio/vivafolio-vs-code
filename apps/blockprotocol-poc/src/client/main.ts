@@ -1,5 +1,24 @@
-import { renderHtmlBlock } from '@blockprotocol/core'
+// renderHtmlBlock is no longer exported from @blockprotocol/core, implementing a simple replacement
 import { GraphEmbedderHandler } from '@blockprotocol/graph'
+
+// For now, provide a minimal stdlib stub so published blocks can load
+const stdlib = {
+  getRoots: () => [],
+  getEntities: () => [],
+  getEntityRevision: () => null,
+  buildSubgraph: () => ({}),
+  // Add other commonly used functions as stubs
+}
+
+// Simple replacement for renderHtmlBlock since it's no longer exported
+async function renderHtmlBlock(mount: HTMLElement, options: { url: string }) {
+  const response = await fetch(options.url)
+  if (!response.ok) {
+    throw new Error(`Failed to load HTML from ${options.url}: ${response.status}`)
+  }
+  const html = await response.text()
+  mount.innerHTML = html
+}
 
 const scenarioId = new URLSearchParams(window.location.search).get('scenario') ?? 'hello-world'
 
@@ -363,7 +382,8 @@ const ALLOWED_CJS_DEPENDENCIES = new Set([
   'react-dom',
   'react-dom/client',
   '@blockprotocol/graph',
-  '@blockprotocol/graph/stdlib'
+  '@blockprotocol/graph/stdlib',
+  '@blockprotocol/graph/custom-element'
 ])
 
 const renderers: Record<string, BlockRenderer> = {
@@ -376,6 +396,7 @@ const renderers: Record<string, BlockRenderer> = {
     renderIframeBlock(notification, 'iframe-task-list', 'Task List IFrame'),
   'https://blockprotocol.org/@blockprotocol/blocks/test-npm-block/v0': renderPublishedBlock,
   'https://blockprotocol.org/@blockprotocol/blocks/html-template/v0': renderPublishedBlock,
+  'https://blockprotocol.org/@blockprotocol/blocks/feature-showcase/v1': renderPublishedBlock,
   'https://vivafolio.dev/blocks/resource-loader/v1': renderPublishedBlock,
   'https://vivafolio.dev/blocks/custom-element/v1': renderPublishedBlock
 }
@@ -789,12 +810,22 @@ class PublishedBlockController {
   }
 
   private async initializeBundle() {
-    const [reactModule, reactDomModule, graphModule, graphStdlibModule] = await Promise.all([
+    const [reactModule, reactDomModule, graphModule] = await Promise.all([
       import('react'),
       import('react-dom/client'),
-      import('@blockprotocol/graph'),
-      import('@blockprotocol/graph/stdlib')
+      import('@blockprotocol/graph')
     ])
+
+    // Try to import custom-element module, fallback if not available
+    let graphCustomElementModule
+    try {
+      graphCustomElementModule = await import('@blockprotocol/graph/custom-element')
+    } catch (error) {
+      console.warn('Failed to import custom-element module:', error)
+      graphCustomElementModule = { BlockElementBase: class {} }
+    }
+    // Use pre-imported stdlib
+    const graphStdlibModule = stdlib
 
     const bundleUrl = this.resolveResourceUrl('main.js')
     if (!bundleUrl) {
@@ -838,6 +869,8 @@ class PublishedBlockController {
           return graphModule
         case '@blockprotocol/graph/stdlib':
           return graphStdlibModule
+        case '@blockprotocol/graph/custom-element':
+          return graphCustomElementModule || { BlockElementBase: class {} }
       }
       throw new Error(`Dependency resolution fallback hit for ${specifier}`)
     }
@@ -904,9 +937,10 @@ return module.exports;`
       return
     }
 
-    this.embedder?.blockEntity({ data: this.blockEntity })
-    this.embedder?.blockGraph({ data: this.blockGraph })
-    this.dispatchBlockEntitySubgraph()
+    // For HTML template blocks, skip embedder calls and go directly to pushing the entity
+    // this.embedder?.blockEntity({ data: this.blockEntity })
+    // this.embedder?.blockGraph({ data: this.blockGraph })
+    // this.dispatchBlockEntitySubgraph()
     this.pushHtmlTemplateEntity()
 
     this.loaderDiagnostics = {
@@ -1257,7 +1291,13 @@ return module.exports;`
   private emitLinkedAggregations(): LinkedAggregationEntry[] {
     const snapshot = Array.from(this.linkedAggregations.values())
     if (this.embedder) {
-      this.embedder.linkedAggregations({ data: snapshot })
+      // Try the new API first, fallback to old API
+      if (typeof this.embedder.linkedAggregations === 'function') {
+        this.embedder.linkedAggregations({ data: snapshot })
+      } else {
+        // New API might expect it as a property
+        ;(this.embedder as any).linkedAggregations = snapshot
+      }
     }
     return snapshot
   }

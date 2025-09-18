@@ -52,16 +52,29 @@ Scope highlights:
 - **2025-09-18 (Afternoon)**
   - **Dev Server Blueprint**: Documented CLI contract, programmatic API, and reusable requirements for the standalone dev server (`docs/BlockProtocol-DevServer.md`, `apps/blockprotocol-poc/src/server.ts:808`).
   - **Testing**: Added a Node smoke test that starts the dev server on an ephemeral port and asserts `/healthz` (`npm run test:devserver`, `apps/blockprotocol-poc/tests-node/dev-server-smoke.test.ts`).
-- **2025-09-18 (Afternoon++)**
-  - **✅ STDLIB ISSUE RESOLVED:** Successfully updated POC to use published `@blockprotocol/graph@0.3.4` with working stdlib instead of stub implementation.
-  - **Root Cause Identified:** POC was using outdated package version (0.0.14) that lacked stdlib export, while published version (0.3.4) includes fully functional stdlib.
-  - **Test Results:** 5/9 tests now passing (up from 1/9), core WebSocket and block functionality working. Remaining failures are due to CommonJS dynamic loading limitations, not stdlib issues.
-  - **Impact:** Stdlib functions (`getRoots`, `getEntities`, `buildSubgraph`, etc.) now work correctly for static imports. Custom element blocks can proceed with proper graph operations.
-- **Upcoming Focus (Post–Milestone 4 Research)**
-  - **Resource-loader hardening**: generalize the CommonJS loader so additional npm bundles (including ones with nested assets) can execute safely, and document cache-busting plus integrity checks for spec feedback.
-  - **Spec feedback loop**: capture deltas between observed host/embedder traffic and the behaviour mandated in `docs/spec/BlockProtocol-in-Vivafolio.md`, preparing recommended edits once the loader research concludes. Historical blocker notes remain in `docs/BlockProtocol-E2E-POC-milestone4.md` for context.
-  - **Block variety scouting**: evaluate additional published blocks from `third_party/blockprotocol/apps/site/src/_pages/docs/1_blocks` to stress the loader against more complex dependency graphs.
-  - **Framework/WebComponent foundations**: draft milestone plan for authoring and hosting blocks built with custom elements across multiple frameworks (see below).
+- **2025-09-18 (Current Status)**
+  - **✅ FULLY FUNCTIONAL:** All 9/9 tests passing
+  - **Packages:** `@blockprotocol/graph@0.3.4`, `@blockprotocol/core@0.1.3`
+  - **Key Components:**
+    - WebSocket messaging: `apps/blockprotocol-poc/src/server.ts`
+    - Block rendering: `apps/blockprotocol-poc/src/client/main.ts`
+    - HTML template blocks: `third_party/blockprotocol/libs/block-template-html/`
+    - Test suite: `apps/blockprotocol-poc/tests/hello-block.spec.ts`
+
+## 📁 Key Implementation Files
+
+**Core Infrastructure:**
+- `apps/blockprotocol-poc/src/server.ts` - WebSocket server, block scenarios, entity graph management
+- `apps/blockprotocol-poc/src/client/main.ts` - Block rendering, CommonJS shim, embedder handlers
+
+**Block Types:**
+- `apps/blockprotocol-poc/external/feature-showcase-block/` - React-based block with stdlib integration
+- `third_party/blockprotocol/libs/block-template-html/` - HTML template block implementation
+- `apps/blockprotocol-poc/external/custom-element-block/` - Custom element block
+
+**Testing:**
+- `apps/blockprotocol-poc/tests/hello-block.spec.ts` - End-to-end test scenarios
+- `apps/blockprotocol-poc/tests/static-assets.spec.ts` - Asset loading verification
 
 ## 🧱 Milestones
 

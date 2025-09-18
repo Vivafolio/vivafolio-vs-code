@@ -74,12 +74,6 @@ const ROOT_DIR = path.resolve(__dirname, '..')
 const DIST_CLIENT_DIR = path.resolve(ROOT_DIR, 'dist/client')
 const INDEX_HTML = path.resolve(ROOT_DIR, 'index.html')
 const TEMPLATES_DIR = path.resolve(ROOT_DIR, 'templates')
-const TEST_BLOCK_DIST_DIR = path.resolve(
-  ROOT_DIR,
-  'node_modules',
-  'test-npm-block',
-  'dist'
-)
 function findRepoRoot(startDir = ROOT_DIR) {
   let current = startDir
   const { root } = path.parse(current)
@@ -125,7 +119,6 @@ const HTML_TEMPLATE_PUBLIC_METADATA_PATH = path.join(
   HTML_TEMPLATE_PUBLIC_DIR,
   'block-metadata.json'
 )
-const TEST_BLOCK_MANIFEST_PATH = path.resolve(TEST_BLOCK_DIST_DIR, 'assets-manifest.json')
 
 const RESOURCE_LOADER_BLOCK_DIR = path.resolve(
   REPO_ROOT,
@@ -210,13 +203,7 @@ const HTML_TEMPLATE_BLOCK_CLIENT_SOURCE = [
   '});'
 ].join('\n')
 
-interface TestBlockAssets {
-  bundle: string
-  icon: string
-  preview: string
-}
 
-const testBlockAssets = loadTestBlockAssets()
 console.log('[blockprotocol-poc] html template dir', HTML_TEMPLATE_BLOCK_DIR)
 
 const entityGraph: EntityGraph = {
@@ -240,34 +227,6 @@ function nextCachingTag() {
   return `v${resourceCounter}`
 }
 
-function loadTestBlockAssets(): TestBlockAssets {
-  const fallback: TestBlockAssets = {
-    bundle: '/external/test-npm-block/main.js',
-    icon: '/external/test-npm-block/public/omega.svg',
-    preview: '/external/test-npm-block/public/block-preview.svg'
-  }
-
-  try {
-    if (!existsSync(TEST_BLOCK_MANIFEST_PATH)) {
-      return fallback
-    }
-
-    const manifestRaw = readFileSync(TEST_BLOCK_MANIFEST_PATH, 'utf-8')
-    const manifest = JSON.parse(manifestRaw) as Record<string, string>
-    const bundleName = manifest['main.js'] ?? 'main.js'
-    const iconName = manifest['public/omega.svg'] ?? 'public/omega.svg'
-    const previewName = manifest['public/block-preview.svg'] ?? 'public/block-preview.svg'
-
-    return {
-      bundle: `/external/test-npm-block/${bundleName}`,
-      icon: `/external/test-npm-block/${iconName}`,
-      preview: `/external/test-npm-block/${previewName}`
-    }
-  } catch (error) {
-    console.warn('[blockprotocol-poc] Failed to load test-npm-block manifest', error)
-    return fallback
-  }
-}
 
 function createHelloWorldGraph(): EntityGraph {
   const blockEntity: Entity = {
@@ -524,17 +483,17 @@ const scenarios: Record<string, ScenarioDefinition> = {
       }
     }
   },
-  'real-test-block': {
-    id: 'real-test-block',
-    title: 'Milestone 4 – Published Block Snapshot',
+  'feature-showcase-block': {
+    id: 'feature-showcase-block',
+    title: 'Milestone 4 – Block Protocol Feature Showcase',
     description:
-      'Loads metadata from the published test-npm-block package and exposes its bundle assets.',
-    createState: () => ({ graph: createTestBlockGraph() }),
+      'Demonstrates the Block Protocol graph module with @blockprotocol/graph@0.3.4 and stdlib integration.',
+    createState: () => ({ graph: createFeatureShowcaseGraph() }),
     buildNotifications: (state) => [
       {
-        blockId: 'test-npm-block',
-        blockType: 'https://blockprotocol.org/@blockprotocol/blocks/test-npm-block/v0',
-        entityId: state.graph.entities[0]?.entityId ?? 'test-npm-block',
+        blockId: 'feature-showcase-block',
+        blockType: 'https://blockprotocol.org/@blockprotocol/blocks/feature-showcase/v1',
+        entityId: state.graph.entities[0]?.entityId ?? 'feature-showcase-block',
         displayMode: 'multi-line',
         initialGraph: state.graph,
         supportsHotReload: false,
@@ -542,43 +501,17 @@ const scenarios: Record<string, ScenarioDefinition> = {
         resources: [
           {
             logicalName: 'block-metadata.json',
-            physicalPath: '/external/test-npm-block/block-metadata.json',
+            physicalPath: '/external/feature-showcase-block/block-metadata.json',
             cachingTag: nextCachingTag()
           },
           {
             logicalName: 'main.js',
-            physicalPath: testBlockAssets.bundle,
+            physicalPath: '/external/feature-showcase-block/main.js',
             cachingTag: nextCachingTag()
           },
           {
             logicalName: 'icon.svg',
-            physicalPath: testBlockAssets.icon,
-            cachingTag: nextCachingTag()
-          }
-        ]
-      },
-      {
-        blockId: 'test-npm-block-secondary',
-        blockType: 'https://blockprotocol.org/@blockprotocol/blocks/test-npm-block/v0',
-        entityId: state.graph.entities[0]?.entityId ?? 'test-npm-block',
-        displayMode: 'multi-line',
-        initialGraph: state.graph,
-        supportsHotReload: false,
-        initialHeight: 280,
-        resources: [
-          {
-            logicalName: 'block-metadata.json',
-            physicalPath: '/external/test-npm-block/block-metadata.json',
-            cachingTag: nextCachingTag()
-          },
-          {
-            logicalName: 'main.js',
-            physicalPath: testBlockAssets.bundle,
-            cachingTag: nextCachingTag()
-          },
-          {
-            logicalName: 'icon.svg',
-            physicalPath: testBlockAssets.icon,
+            physicalPath: '/external/feature-showcase-block/public/icon.svg',
             cachingTag: nextCachingTag()
           }
         ]
@@ -723,35 +656,6 @@ const scenarios: Record<string, ScenarioDefinition> = {
   }
 }
 
-function createTestBlockGraph(): EntityGraph {
-  try {
-    const metadataPath = path.join(TEST_BLOCK_DIST_DIR, 'block-metadata.json')
-    if (!existsSync(metadataPath)) throw new Error('metadata missing')
-    const metadata = JSON.parse(readFileSync(metadataPath, 'utf-8'))
-    return {
-      entities: [
-        {
-          entityId: 'test-npm-block',
-          entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
-          properties: metadata
-        }
-      ],
-      links: []
-    }
-  } catch (error) {
-    console.error('[blockprotocol-poc] Failed to load test-npm-block metadata', error)
-    return {
-      entities: [
-        {
-          entityId: 'test-npm-block',
-          entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
-          properties: { error: 'Unable to load metadata' }
-        }
-      ],
-      links: []
-    }
-  }
-}
 
 async function ensureHtmlTemplateAssets() {
   await fs.mkdir(HTML_TEMPLATE_PUBLIC_SRC_DIR, { recursive: true })
@@ -785,6 +689,23 @@ function createHtmlTemplateGraph(): EntityGraph {
     properties: {
       [namePropertyBase]: 'Vivafolio Template Block',
       [namePropertyVersioned]: 'Vivafolio Template Block'
+    }
+  }
+
+  return { entities: [entity], links: [] }
+}
+
+function createFeatureShowcaseGraph(): EntityGraph {
+  const namePropertyBase = 'https://blockprotocol.org/@blockprotocol/types/property-type/name/'
+  const namePropertyVersioned = `${namePropertyBase}v/1`
+  const entity: Entity = {
+    entityId: 'feature-showcase-block',
+    entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
+    properties: {
+      [namePropertyBase]: 'Block Protocol Feature Showcase',
+      [namePropertyVersioned]: 'Block Protocol Feature Showcase',
+      version: '0.1.0',
+      description: 'Demonstrates the Block Protocol graph module with stdlib integration'
     }
   }
 
@@ -889,8 +810,8 @@ export async function startServer(options: StartServerOptions = {}) {
     })
   )
 
-  app.use('/external/test-npm-block', express.static(TEST_BLOCK_DIST_DIR))
   app.use('/external/resource-loader-block', express.static(RESOURCE_LOADER_BLOCK_DIR))
+  app.use('/external/feature-showcase-block', express.static(path.resolve(ROOT_DIR, 'external/feature-showcase-block')))
   app.use('/templates', express.static(TEMPLATES_DIR))
 
   dumpExpressStack(app)

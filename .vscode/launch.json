@@ -2,6 +2,21 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Launch VS Code E2E",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/vscode-e2e.sh",
+      "args": [],
+      "env": {
+        "VIVAFOLIO_DEBUG": "1",
+        "VIVAFOLIO_CAPTURE_WEBVIEW_LOGS": "1"
+      },
+      "console": "integratedTerminal",
+      "presentation": {
+        "hidden": true
+      }
+    },
+    {
       "name": "Attach to Extension Host",
       "type": "node",
       "request": "attach",
@@ -37,7 +52,7 @@
       "preLaunchTask": "npm: compile",
       "presentation": {
         "group": "extension",
-        "order": 2
+        "order": 3
       }
     },
     {
@@ -75,11 +90,27 @@
       "type": "node",
       "request": "attach",
       "port": 6009,
+      "timeout": 30000,
       "restart": true,
       "presentation": {
         "group": "lsp",
         "order": 1
       }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Debug Extension + LSP (Launch)",
+      "configurations": [
+        "Launch VS Code E2E",
+        "Attach to Extension Host",
+        "Attach to Mock LSP Server"
+      ],
+      "presentation": {
+        "group": "extension",
+        "order": 2
+      },
+      "stopAll": true
     }
   ]
 }

@@ -1,0 +1,12 @@
+{
+  "name": "feature-showcase-block",
+  "version": "0.1.0",
+  "description": "Block Protocol Feature Showcase demonstrating stdlib integration",
+  "author": "Block Protocol",
+  "blockType": {
+    "entryPoint": "react"
+  },
+  "displayName": "Block Protocol Feature Showcase",
+  "protocol": "0.3",
+  "blockEntityType": "https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2"
+}

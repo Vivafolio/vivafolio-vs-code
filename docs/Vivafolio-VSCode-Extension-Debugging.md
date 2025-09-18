@@ -40,12 +40,38 @@ The launch configuration is stored in `.vscode/launch.json` and includes:
 ### Launch Configuration Options
 
 - **Attach to Extension Host**: Connects to a running extension instance (use with `just vscode-e2e`)
+- **Debug Extension + LSP (Launch)**: 🚀 **Automated** - Launches VS Code E2E and attaches to both extension host and LSP server
 - **Debug Extension (Launch)**: Launches a new VS Code instance with the extension loaded
 - **Debug Webview (Attach)**: Alternative configuration for webview debugging
 - **Debug Tests (Attach)**: Connect to test processes running with debugging enabled
 - **Attach to Mock LSP Server**: Debug the mock LSP server process (port 6009)
 
 ## Debugging Workflow
+
+### Method 0: Automated Launch + Debug (Easiest) 🚀
+
+The **"Debug Extension + LSP (Launch)"** configuration provides the most automated experience:
+
+1. **Select the configuration** in Run and Debug panel (Ctrl+Shift+D)
+2. **Click the green play button** or press F5
+3. **VS Code will automatically:**
+   - Launch the E2E environment with `just vscode-e2e`
+   - Set debug environment variables (`VIVAFOLIO_DEBUG=1`, `VIVAFOLIO_CAPTURE_WEBVIEW_LOGS=1`)
+   - Open VS Code with the vivafolioblock test project
+   - Attach debuggers to both the extension host (port 9229) and LSP server (port 6009)
+
+4. **You're ready to debug!** Both processes will be paused:
+   - **Extension Host**: At extension activation (if breakpoints set)
+   - **LSP Server**: At startup (due to `--inspect-brk`)
+
+5. **Set breakpoints** in both processes as needed and continue execution
+
+**Benefits:**
+- ✅ Single-click debugging setup
+- ✅ No timing windows to miss
+- ✅ Both processes debugged simultaneously
+- ✅ Environment variables automatically set
+- ✅ Test project automatically opened
 
 ### Method 1: Attach to Running Instance (Recommended)
 
@@ -274,11 +300,12 @@ The mock LSP server (used for Vivafolio language features) can also be debugged 
 
 #### LSP Server Debug Configuration
 
-The mock language extension is already configured to start the LSP server with debugging enabled. When you run `just vscode-e2e`, the LSP server starts with:
+The mock language extension is configured to start the LSP server with debugging enabled that breaks immediately on startup. When you run `just vscode-e2e`, the LSP server starts with:
 
 - **Debug Port**: 6009
-- **Command Line**: `--nolazy --inspect=6009`
+- **Command Line**: `--nolazy --inspect-brk=6009`
 - **Transport**: stdio (standard input/output)
+- **Behavior**: Breaks immediately on startup, waiting for debugger attachment
 
 #### Attaching to LSP Server
 
@@ -287,9 +314,13 @@ The mock language extension is already configured to start the LSP server with d
    just vscode-e2e
    ```
 
+   ⚠️ **Important**: The LSP server will start and immediately break, waiting for debugger attachment. You have a short window to attach the debugger before it times out.
+
 2. **In your main VS Code window**, open the Run and Debug panel (Ctrl+Shift+D)
 
 3. **Select "Attach to Mock LSP Server"** from the configuration dropdown and click the green play button
+
+   Once attached, you can step through the entire LSP server startup process, including initialization and the first LSP requests.
 
 5. **Set breakpoints** in `test/mock-lsp-server.js`:
    - `connection.onRequest('initialize', ...)` - Server initialization
@@ -307,6 +338,26 @@ The mock language extension is already configured to start the LSP server with d
 - **Breakpoint Locations**: Focus on the main event handlers and parsing functions
 - **Debug Timing**: LSP requests are asynchronous - use the debugger to step through the request/response flow
 - **State Inspection**: Check the `uriState` Map for document state and `initialized` flag
+
+#### Break-on-Startup Troubleshooting
+
+If the LSP server fails to start with `--inspect-brk`:
+
+1. **Timeout Issues**: The LSP server waits ~30 seconds for debugger attachment. If you miss this window:
+   - Restart the VS Code instance with `just vscode-e2e`
+   - Attach the debugger immediately after launch
+
+2. **Port Conflicts**: If port 6009 is already in use:
+   - Change the port in both the extension (`extension.ts`) and launch configuration (`launch.json`)
+   - Example: `--inspect-brk=6010`
+
+3. **Alternative Approach**: If you prefer attach-after-startup:
+   - Temporarily change `--inspect-brk` back to `--inspect` in `mock-language-extension/src/extension.ts`
+   - This allows the server to start normally, then attach the debugger when ready
+
+4. **Debugging the Extension Startup**: To debug the mock language extension itself:
+   - Use the "Attach to Extension Host" configuration
+   - Set breakpoints in `mock-language-extension/src/extension.ts`
 
 ### Performance Profiling
 

@@ -9,7 +9,7 @@ export async function activate(_context: vscode.ExtensionContext) {
     const serverModule = path.resolve(__dirname, '../../test/mock-lsp-server.js')
     const serverOptions: ServerOptions = {
       run:   { module: serverModule, transport: TransportKind.stdio },
-      debug: { module: serverModule, transport: TransportKind.stdio, options: { execArgv: ['--nolazy', '--inspect=6009'] } }
+      debug: { module: serverModule, transport: TransportKind.stdio, options: { execArgv: ['--nolazy', '--inspect-brk=6009'] } }
     }
 
     const clientOptions: LanguageClientOptions = {

@@ -1,4 +1,28 @@
-const { GraphBlockHandler } = require('@blockprotocol/graph')
+// We'll define a simple base class instead of requiring the external module
+class BlockElementBase extends HTMLElement {
+  constructor() {
+    super()
+    this.attachShadow({ mode: 'open' })
+    this.entity = null
+    this.graphModule = null
+  }
+
+  connectedCallback() {
+    // Override in subclass
+  }
+
+  disconnectedCallback() {
+    // Override in subclass
+  }
+
+  setEntity(entity) {
+    this.entity = entity
+  }
+
+  getBlockEntity() {
+    return this.entity
+  }
+}
 
 function registerBlockElement(tagName, renderCallback) {
   if (customElements.get(tagName)) {
@@ -12,20 +36,7 @@ function registerBlockElement(tagName, renderCallback) {
       this.renderCallback = renderCallback
       this.entity = null
       this.readonly = false
-      this.graphHandler = new GraphBlockHandler({
-        element: this,
-        callbacks: {
-          blockEntity: ({ data }) => {
-            if (data) {
-              this.setEntity(data)
-            }
-          },
-          readonly: ({ data }) => {
-            this.readonly = Boolean(data)
-            this.render()
-          }
-        }
-      })
+      this.updateEntityCallback = null
     }
 
     setEntity(entity) {
@@ -34,19 +45,8 @@ function registerBlockElement(tagName, renderCallback) {
     }
 
     async updateEntity(properties) {
-      if (!this.entity) return
-      const entityId = this.entity.metadata?.recordId?.entityId ?? this.entity.entityId
-      const entityTypeId = this.entity.metadata?.entityTypeId ?? this.entity.entityTypeId
-      const response = await this.graphHandler.updateEntity({
-        data: {
-          entityId,
-          entityTypeId,
-          properties
-        }
-      })
-      if (response?.data) {
-        this.entity = response.data
-        this.render()
+      if (this.updateEntityCallback) {
+        await this.updateEntityCallback(properties)
       }
     }
 
@@ -62,8 +62,8 @@ function registerBlockElement(tagName, renderCallback) {
       }
     }
 
-    disconnectedCallback() {
-      this.graphHandler.destroy()
+    connectedCallback() {
+      this.render()
     }
   }
 
