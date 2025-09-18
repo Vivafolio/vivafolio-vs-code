@@ -53,6 +53,7 @@ Scope highlights:
   - **Resource-loader hardening**: generalize the CommonJS loader so additional npm bundles (including ones with nested assets) can execute safely, and document cache-busting plus integrity checks for spec feedback.
   - **Spec feedback loop**: capture deltas between observed host/embedder traffic and the behaviour mandated in `docs/spec/BlockProtocol-in-Vivafolio.md`, preparing recommended edits once the loader research concludes. Historical blocker notes remain in `docs/BlockProtocol-E2E-POC-milestone4.md` for context.
   - **Block variety scouting**: evaluate additional published blocks from `third_party/blockprotocol/apps/site/src/_pages/docs/1_blocks` to stress the loader against more complex dependency graphs.
+  - **Framework/WebComponent foundations**: draft milestone plan for authoring and hosting blocks built with custom elements across multiple frameworks (see below).
 
 ## 🧱 Milestones
 
@@ -125,6 +126,22 @@ Scope highlights:
 ### Phase E — Stretch Goals
 - Integrate hot-reload simulation for blocks.
 - Evaluate optional CRDT layer to explore multi-client concurrency (outside initial milestones).
+
+### Phase F — Framework & WebComponent Interop (Upcoming)
+1. **Milestone F0 — Host Dev Server Blueprint**  
+   Capture requirements for a reusable development server that can expose block manifests, hot-reload resources, and stream VivafolioBlock notifications independently from Vivafolio integration (`apps/blockprotocol-poc/src/server.ts`). Define CLI flags, file layout, and test entrypoints. Add a smoke test ensuring the server can be launched/terminated under Playwright or Jest.
+2. **Milestone F1 — Custom Element Baseline**  
+   Implement a minimal WebComponent block authored with vanilla Custom Elements. Provide helper utilities for registering blocks, loading HTML/JS assets, and mapping graph updates. Add Playwright coverage proving Graph service round-trips through the dev server.
+3. **Milestone F2 — Framework Starter Kits**  
+   For SolidJS, Svelte, Vue, Lit, and Angular, scaffold TypeScript helper libraries that wrap each framework’s component lifecycle to produce Block Protocol custom elements. Each helper library should include unit tests for component registration and a sample block exporting a WebComponent bundle.
+4. **Milestone F3 — Stand-alone Rendering Harness**  
+   Extend the dev server to watch framework-specific source directories, compile them (via Vite/Rollup/esbuild as appropriate), and expose hashed assets plus block metadata. Add integration tests per framework verifying hot reload updates the served bundle and Playwright confirms rendered output.
+5. **Milestone F4 — Cross-Framework Nesting**  
+   Demonstrate nested blocks where parent, child, and sibling blocks originate from different framework helper libraries. Ensure the shared Graph service propagates updates between heterogeneous runtime environments. Cover with Playwright scenarios and regression snapshots.
+6. **Milestone F5 — Helper Library DX**  
+   Provide TypeScript definitions, scaffolding commands, and lint/test recipes for block authors. Guarantee each helper library exposes consistent APIs (e.g., `registerBlock`, `withGraphContext`) with automated tests validating developer ergonomics and error handling.
+7. **Milestone F6 — Dev Server Reuse Validation**  
+   Document and test how the dev server can be consumed outside this POC (e.g., launched via `npx` command, consumed as library). Add CI checks ensuring the server runs in isolation, serving multiple frameworks concurrently, without Vivafolio integration. Capture guidance in `docs/BlockProtocol-E2E-POC.md` and prepare feedback for the main spec.
 
 ## 📋 Deliverables
 - `docs/BlockProtocol-E2E-POC.md` (this document) maintained alongside progress updates.
