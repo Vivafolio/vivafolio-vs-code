@@ -1,0 +1,74 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Attach to Extension Host",
+      "type": "node",
+      "request": "attach",
+      "port": 9229,
+      "restart": true,
+      "outFiles": [
+        "${workspaceFolder}/out/**/*.js"
+      ],
+      "sourceMaps": true,
+      "skipFiles": [
+        "<node_internals>/**",
+        "node_modules/**"
+      ],
+      "presentation": {
+        "group": "extension",
+        "order": 1
+      }
+    },
+    {
+      "name": "Debug Extension (Launch)",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}",
+        "--extensionDevelopmentPath=${workspaceFolder}/mock-language-extension",
+        "--enable-proposed-api local.vivafolio",
+        "--disable-workspace-trust"
+      ],
+      "outFiles": [
+        "${workspaceFolder}/out/**/*.js"
+      ],
+      "sourceMaps": true,
+      "preLaunchTask": "npm: compile",
+      "presentation": {
+        "group": "extension",
+        "order": 2
+      }
+    },
+    {
+      "name": "Debug Webview (Attach)",
+      "type": "node",
+      "request": "attach",
+      "port": 9229,
+      "restart": true,
+      "outFiles": [
+        "${workspaceFolder}/out/**/*.js"
+      ],
+      "sourceMaps": true,
+      "presentation": {
+        "group": "webview",
+        "order": 1
+      }
+    },
+    {
+      "name": "Debug Tests (Attach)",
+      "type": "node",
+      "request": "attach",
+      "port": 9229,
+      "restart": true,
+      "outFiles": [
+        "${workspaceFolder}/out/**/*.js"
+      ],
+      "sourceMaps": true,
+      "presentation": {
+        "group": "test",
+        "order": 1
+      }
+    }
+  ]
+}
