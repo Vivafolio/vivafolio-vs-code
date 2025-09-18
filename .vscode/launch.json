@@ -69,6 +69,17 @@
         "group": "test",
         "order": 1
       }
+    },
+    {
+      "name": "Attach to Mock LSP Server",
+      "type": "node",
+      "request": "attach",
+      "port": 6009,
+      "restart": true,
+      "presentation": {
+        "group": "lsp",
+        "order": 1
+      }
     }
   ]
 }

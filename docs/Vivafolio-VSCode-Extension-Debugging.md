@@ -35,13 +35,15 @@ The launched instance includes:
 
 ### Launch Configurations
 
-The launch configuration is stored `.vscode/launch.json`
+The launch configuration is stored in `.vscode/launch.json` and includes:
 
 ### Launch Configuration Options
 
 - **Attach to Extension Host**: Connects to a running extension instance (use with `just vscode-e2e`)
 - **Debug Extension (Launch)**: Launches a new VS Code instance with the extension loaded
 - **Debug Webview (Attach)**: Alternative configuration for webview debugging
+- **Debug Tests (Attach)**: Connect to test processes running with debugging enabled
+- **Attach to Mock LSP Server**: Debug the mock LSP server process (port 6009)
 
 ## Debugging Workflow
 
@@ -265,6 +267,46 @@ Debug multiple extensions simultaneously:
 1. Launch VS Code with multiple `--extensionDevelopmentPath` flags
 2. Attach debugger to each extension host process
 3. Use different ports for each extension
+
+### Debugging the Mock LSP Server
+
+The mock LSP server (used for Vivafolio language features) can also be debugged when started from VS Code:
+
+#### LSP Server Debug Configuration
+
+The mock language extension is already configured to start the LSP server with debugging enabled. When you run `just vscode-e2e`, the LSP server starts with:
+
+- **Debug Port**: 6009
+- **Command Line**: `--nolazy --inspect=6009`
+- **Transport**: stdio (standard input/output)
+
+#### Attaching to LSP Server
+
+1. **Launch VS Code with debugging:**
+   ```bash
+   just vscode-e2e
+   ```
+
+2. **In your main VS Code window**, open the Run and Debug panel (Ctrl+Shift+D)
+
+3. **Select "Attach to Mock LSP Server"** from the configuration dropdown and click the green play button
+
+5. **Set breakpoints** in `test/mock-lsp-server.js`:
+   - `connection.onRequest('initialize', ...)` - Server initialization
+   - `connection.onNotification('textDocument/didOpen', ...)` - Document opening
+   - `connection.onNotification('textDocument/didChange', ...)` - Document changes
+   - `extractVivafolioBlocks()` - Block parsing logic
+
+6. **Trigger LSP activity** in the debugged VS Code window:
+   - Open or edit a `.viv` file (like `two_blocks.viv`)
+   - The LSP server will process the file and send diagnostics
+
+#### LSP Server Debugging Tips
+
+- **Console Logging**: The LSP server logs to stderr, which appears in VS Code's Output panel under "Log (Window)"
+- **Breakpoint Locations**: Focus on the main event handlers and parsing functions
+- **Debug Timing**: LSP requests are asynchronous - use the debugger to step through the request/response flow
+- **State Inspection**: Check the `uriState` Map for document state and `initialized` flag
 
 ### Performance Profiling
 
