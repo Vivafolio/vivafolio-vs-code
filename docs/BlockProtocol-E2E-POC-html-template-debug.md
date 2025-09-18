@@ -67,3 +67,8 @@
 
 ---
 Please let me know if more runtime logs or stack traces would be helpful. The failing test artifact (Playwright HTML report) remains in `apps/blockprotocol-poc/test-results/hello-block-Milestone-0-–--17c79-lock-and-propagates-updates/`.
+
+## Follow-up (2025-09-18)
+- Implemented a host-managed bridge (`window.__vivafolioHtmlTemplateHost`) so the inline HTML block can register DOM mutators and push updates without relying on the upstream Graph runtime (`apps/blockprotocol-poc/src/client/main.ts:610`, generated script in `external/html-template-block/src/app.js`).
+- Assets are now written into `apps/blockprotocol-poc/external/html-template-block/` during server bootstrap, eliminating the stale `/apps/third_party/...` path (`apps/blockprotocol-poc/src/server.ts:125`).
+- Playwright scenario `renders HTML entry block and propagates updates` passes via `just test-blockprotocol-poc`, confirming end-to-end updates.

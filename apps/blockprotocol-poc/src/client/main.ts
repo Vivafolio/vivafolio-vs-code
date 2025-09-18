@@ -20,10 +20,19 @@ let liveSocket: WebSocket | undefined
 const latestPayloads = new Map<string, VivafolioBlockNotification>()
 const iframeControllers = new Map<string, { iframe: HTMLIFrameElement; ready: boolean }>()
 
+interface EntityMetadata {
+  recordId: {
+    entityId: string
+    editionId: string
+  }
+  entityTypeId: string
+}
+
 interface Entity {
   entityId: string
   properties: Record<string, unknown>
   entityTypeId?: string
+  metadata?: EntityMetadata
 }
 
 interface EntityGraph {
@@ -57,6 +66,166 @@ interface BlockGraphState {
   depth: number
   linkedEntities: Entity[]
   linkGroups: Array<Record<string, unknown>>
+}
+
+const DEFAULT_ENTITY_TYPE_ID =
+  'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2'
+const DEFAULT_ENTITY_EDITION_ID = 'initial'
+
+interface BlockEntitySubgraphVertex {
+  kind: 'entity'
+  inner: {
+    metadata: EntityMetadata
+    properties: Record<string, unknown>
+  }
+}
+
+type BlockEntitySubgraph = {
+  roots: Array<{ baseId: string; revisionId: string }>
+  vertices: Record<string, Record<string, BlockEntitySubgraphVertex>>
+  edges: Record<string, Record<string, unknown[]>>
+  depths: {
+    hasLeftEntity: { incoming: number; outgoing: number }
+    hasRightEntity: { incoming: number; outgoing: number }
+    constrainsLinkDestinationsOn: { outgoing: number }
+    constrainsLinksOn: { outgoing: number }
+    constrainsPropertiesOn: { outgoing: number }
+    constrainsValuesOn: { outgoing: number }
+    inheritsFrom: { outgoing: number }
+    isOfType: { outgoing: number }
+  }
+}
+
+function createDefaultDepths(): BlockEntitySubgraph['depths'] {
+  return {
+    hasLeftEntity: { incoming: 0, outgoing: 0 },
+    hasRightEntity: { incoming: 0, outgoing: 0 },
+    constrainsLinkDestinationsOn: { outgoing: 0 },
+    constrainsLinksOn: { outgoing: 0 },
+    constrainsPropertiesOn: { outgoing: 0 },
+    constrainsValuesOn: { outgoing: 0 },
+    inheritsFrom: { outgoing: 0 },
+    isOfType: { outgoing: 0 }
+  }
+}
+
+function normalizeEntity(entity: Entity): Entity {
+  const entityId = entity.entityId
+  const entityTypeId = entity.entityTypeId ?? entity.metadata?.entityTypeId ?? DEFAULT_ENTITY_TYPE_ID
+  const editionId = entity.metadata?.recordId.editionId ?? DEFAULT_ENTITY_EDITION_ID
+  return {
+    entityId,
+    entityTypeId,
+    properties: { ...(entity.properties ?? {}) },
+    metadata: {
+      recordId: {
+        entityId,
+        editionId
+      },
+      entityTypeId
+    }
+  }
+}
+
+function buildBlockEntitySubgraph(blockEntity: Entity, graph: BlockGraphState): BlockEntitySubgraph {
+  const normalizedRoot = normalizeEntity(blockEntity)
+  const vertices: BlockEntitySubgraph['vertices'] = {}
+  const collect = (candidate: Entity) => {
+    const normalized = normalizeEntity(candidate)
+    const revisionId = normalized.metadata?.recordId.editionId ?? DEFAULT_ENTITY_EDITION_ID
+    const baseId = normalized.entityId
+    vertices[baseId] ??= {}
+    vertices[baseId][revisionId] = {
+      kind: 'entity',
+      inner: {
+        metadata: normalized.metadata!,
+        properties: { ...normalized.properties }
+      }
+    }
+  }
+
+  collect(normalizedRoot)
+  for (const linked of graph.linkedEntities) {
+    collect(linked)
+  }
+
+  const roots: BlockEntitySubgraph['roots'] = [
+    {
+      baseId: normalizedRoot.entityId,
+      revisionId: normalizedRoot.metadata?.recordId.editionId ?? DEFAULT_ENTITY_EDITION_ID
+    }
+  ]
+
+  return {
+    roots,
+    vertices,
+    edges: {},
+    depths: createDefaultDepths()
+  }
+}
+
+function deriveBlockEntity(notification: VivafolioBlockNotification): Entity {
+  const entity =
+    notification.initialGraph.entities.find((item) => item.entityId === notification.entityId) ??
+    notification.initialGraph.entities[0] ?? {
+      entityId: notification.entityId,
+      entityTypeId: DEFAULT_ENTITY_TYPE_ID,
+      properties: {}
+    }
+
+  return normalizeEntity(entity)
+}
+
+function deriveBlockGraph(notification: VivafolioBlockNotification): BlockGraphState {
+  return {
+    depth: 1,
+    linkedEntities: notification.initialGraph.entities.map((entity) => normalizeEntity(entity)),
+    linkGroups: []
+  }
+}
+
+function mergeLinkedEntities(collection: Entity[], entity: Entity): Entity[] {
+  const normalized = normalizeEntity(entity)
+  const index = collection.findIndex((item) => item.entityId === normalized.entityId)
+  if (index === -1) {
+    return [...collection, normalized]
+  }
+  const next = collection.slice()
+  next[index] = normalized
+  return next
+}
+
+type GraphEmbedderOptions = ConstructorParameters<typeof GraphEmbedderHandler>[0]
+
+class VivafolioGraphEmbedderHandler extends GraphEmbedderHandler {
+  private currentSubgraph: BlockEntitySubgraph
+
+  constructor(options: GraphEmbedderOptions & { blockEntitySubgraph: BlockEntitySubgraph }) {
+    const { blockEntitySubgraph, ...rest } = options
+    super(rest)
+    this.currentSubgraph = blockEntitySubgraph
+  }
+
+  override getInitPayload() {
+    const payload = super.getInitPayload() as Record<string, unknown>
+    return {
+      ...payload,
+      blockEntitySubgraph: this.currentSubgraph
+    }
+  }
+
+  setBlockEntitySubgraph(subgraph: BlockEntitySubgraph) {
+    this.currentSubgraph = subgraph
+  }
+
+  emitBlockEntitySubgraph() {
+    void this.sendMessage({
+      message: {
+        messageName: 'blockEntitySubgraph',
+        data: this.currentSubgraph
+      }
+    })
+  }
 }
 
 type AggregateEntitiesDebugResult = {
@@ -434,21 +603,21 @@ class PublishedBlockController {
   private readonly metadataPanel: HTMLPreElement
   private blockEntity: Entity
   private blockGraph: BlockGraphState
+  private blockSubgraph: BlockEntitySubgraph
   private resources: VivafolioBlockNotification['resources']
   private reactModule: typeof import('react') | undefined
   private reactRoot: ReturnType<typeof import('react-dom/client')['createRoot']> | undefined
   private blockComponent: unknown
-  private embedder: GraphEmbedderHandler | undefined
+  private embedder: VivafolioGraphEmbedderHandler | undefined
   private destroyed = false
   private readonly linkedAggregations = new Map<string, LinkedAggregationEntry>()
   private loaderDiagnostics: PublishedBlockLoaderDiagnostics | null = null
   private readonly mode: 'bundle' | 'html'
   private blockMount: HTMLDivElement | undefined
+  private htmlTemplateHandlers: HtmlTemplateHandlers | undefined
   public readonly debug: PublishedBlockDebug
 
   constructor(private notification: VivafolioBlockNotification) {
-    this.blockEntity = deriveBlockEntity(notification)
-    this.blockGraph = deriveBlockGraph(notification)
     this.resources = notification.resources
 
     const mainResource = this.findResource('main.js')
@@ -459,6 +628,15 @@ class PublishedBlockController {
       this.mode = 'html'
     } else {
       this.mode = 'bundle'
+    }
+
+    this.blockEntity = deriveBlockEntity(notification)
+    this.blockGraph = deriveBlockGraph(notification)
+    this.blockSubgraph = buildBlockEntitySubgraph(this.blockEntity, this.blockGraph)
+
+    if (this.mode === 'html') {
+      ensureHtmlTemplateHostBridge()
+      htmlTemplateControllerRegistry.set(this.notification.blockId, this)
     }
 
     this.element = createElement(
@@ -542,14 +720,17 @@ class PublishedBlockController {
     this.notification = notification
     this.blockEntity = deriveBlockEntity(notification)
     this.blockGraph = deriveBlockGraph(notification)
+    this.blockSubgraph = buildBlockEntitySubgraph(this.blockEntity, this.blockGraph)
     this.resources = notification.resources
     this.updateResourceList()
     this.updateMetadataPanel()
     if (this.embedder) {
       this.embedder.blockEntity({ data: this.blockEntity as Entity })
       this.embedder.blockGraph({ data: this.blockGraph })
+      this.dispatchBlockEntitySubgraph()
       this.emitLinkedAggregations()
     }
+    this.pushHtmlTemplateEntity()
     this.render()
   }
 
@@ -560,6 +741,9 @@ class PublishedBlockController {
     const registry = getDebugRegistry()
     if (registry) {
       delete registry.publishedBlocks[this.notification.blockId]
+    }
+    if (this.mode === 'html') {
+      htmlTemplateControllerRegistry.delete(this.notification.blockId)
     }
   }
 
@@ -660,6 +844,7 @@ return module.exports;`
 
   private async initializeHtml() {
     const mount = createElement('div', 'html-block__container')
+    mount.dataset.blockId = this.notification.blockId
     this.blockMount = mount
     this.runtime.innerHTML = ''
     this.runtime.appendChild(mount)
@@ -676,6 +861,11 @@ return module.exports;`
       return
     }
 
+    this.embedder?.blockEntity({ data: this.blockEntity })
+    this.embedder?.blockGraph({ data: this.blockGraph })
+    this.dispatchBlockEntitySubgraph()
+    this.pushHtmlTemplateEntity()
+
     this.loaderDiagnostics = {
       bundleUrl: htmlUrl,
       evaluatedAt: new Date().toISOString(),
@@ -690,13 +880,14 @@ return module.exports;`
   }
 
   private createEmbedder(element: HTMLElement) {
-    this.embedder = new GraphEmbedderHandler({
+    this.embedder = new VivafolioGraphEmbedderHandler({
       element,
       blockEntity: this.blockEntity as Entity,
       blockGraph: this.blockGraph,
       entityTypes: [],
       linkedAggregations: [],
       readonly: false,
+      blockEntitySubgraph: this.blockSubgraph,
       callbacks: {
         updateEntity: async ({ data }) => this.handleBlockUpdate(data),
         getEntity: async ({ data }) => this.handleGetEntity(data),
@@ -707,6 +898,39 @@ return module.exports;`
         deleteLinkedAggregation: async ({ data }) => this.handleDeleteLinkedAggregation(data)
       }
     })
+    this.dispatchBlockEntitySubgraph()
+  }
+
+  private dispatchBlockEntitySubgraph() {
+    if (!this.embedder) {
+      return
+    }
+    if (!this.blockSubgraph) {
+      this.blockSubgraph = buildBlockEntitySubgraph(this.blockEntity, this.blockGraph)
+    }
+    this.embedder.setBlockEntitySubgraph(this.blockSubgraph)
+    this.embedder.emitBlockEntitySubgraph()
+  }
+
+  attachHtmlTemplateHandlers(handlers: HtmlTemplateHandlers) {
+    this.htmlTemplateHandlers = handlers
+    this.pushHtmlTemplateEntity()
+  }
+
+  receiveHtmlTemplateUpdate(payload: { entityId?: string; properties?: Record<string, unknown> }) {
+    void this.handleBlockUpdate(payload)
+  }
+
+  private pushHtmlTemplateEntity() {
+    if (this.mode !== 'html') {
+      return
+    }
+    const handlers = this.htmlTemplateHandlers
+    if (!handlers) {
+      return
+    }
+    handlers.setEntity?.(this.blockEntity)
+    handlers.setReadonly?.(false)
   }
 
   private async handleBlockUpdate(
@@ -720,11 +944,30 @@ return module.exports;`
       ...(this.blockEntity.properties ?? {}),
       ...(data.properties ?? {})
     }
-    this.blockEntity = { ...this.blockEntity, entityId: data.entityId, properties: nextProperties }
+    const updatedEntity = normalizeEntity({
+      ...this.blockEntity,
+      entityId: data.entityId,
+      entityTypeId: data.entityTypeId ?? this.blockEntity.entityTypeId,
+      properties: nextProperties,
+      metadata: {
+        recordId: {
+          entityId: data.entityId,
+          editionId: this.blockEntity.metadata?.recordId.editionId ?? DEFAULT_ENTITY_EDITION_ID
+        },
+        entityTypeId:
+          data.entityTypeId ??
+          this.blockEntity.metadata?.entityTypeId ??
+          this.blockEntity.entityTypeId ??
+          DEFAULT_ENTITY_TYPE_ID
+      }
+    })
+
+    this.blockEntity = updatedEntity
     this.blockGraph = {
       ...this.blockGraph,
-      linkedEntities: mergeLinkedEntities(this.blockGraph.linkedEntities, this.blockEntity)
+      linkedEntities: mergeLinkedEntities(this.blockGraph.linkedEntities, updatedEntity)
     }
+    this.blockSubgraph = buildBlockEntitySubgraph(this.blockEntity, this.blockGraph)
 
     this.updateMetadataPanel()
     sendGraphUpdateMessage({
@@ -732,6 +975,8 @@ return module.exports;`
       entityId: data.entityId,
       properties: data.properties ?? {}
     })
+    this.dispatchBlockEntitySubgraph()
+    this.pushHtmlTemplateEntity()
     this.render()
     return { data: this.blockEntity }
   }
@@ -909,6 +1154,53 @@ return module.exports;`
 }
 const publishedControllers = new Map<string, PublishedBlockController>()
 
+type HtmlTemplateHandlers = {
+  setEntity: (entity: Entity) => void
+  setReadonly: (readonly: boolean) => void
+}
+
+const htmlTemplateControllerRegistry = new Map<string, PublishedBlockController>()
+
+function ensureHtmlTemplateHostBridge() {
+  const win = window as typeof window & {
+    __vivafolioHtmlTemplateHost?: {
+      register: (
+        blockId: string,
+        handlers: HtmlTemplateHandlers
+      ) => {
+        updateEntity: (payload: { entityId: string; properties: Record<string, unknown> }) => void
+      }
+    }
+  }
+
+  if (win.__vivafolioHtmlTemplateHost) {
+    return
+  }
+
+  win.__vivafolioHtmlTemplateHost = {
+    register(blockId, handlers) {
+      const controller = htmlTemplateControllerRegistry.get(blockId)
+      if (!controller) {
+        console.warn('[published-block] missing html template controller', blockId)
+        return {
+          updateEntity() {
+            console.warn(
+              '[published-block] dropping html template update – controller missing',
+              blockId
+            )
+          }
+        }
+      }
+      controller.attachHtmlTemplateHandlers(handlers)
+      return {
+        updateEntity(payload) {
+          controller.receiveHtmlTemplateUpdate(payload)
+        }
+      }
+    }
+  }
+}
+
 function cleanupPublishedControllers() {
   publishedControllers.forEach((controller) => controller.destroy())
   publishedControllers.clear()
@@ -945,44 +1237,6 @@ function getDebugRegistry() {
     __vivafolioPoc?: { publishedBlocks: Record<string, PublishedBlockDebug> }
   }
   return win.__vivafolioPoc
-}
-
-function deriveBlockEntity(notification: VivafolioBlockNotification): Entity {
-  const entity =
-    notification.initialGraph.entities.find((item) => item.entityId === notification.entityId) ??
-    notification.initialGraph.entities[0] ?? {
-      entityId: notification.entityId,
-      entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v1',
-      properties: {}
-    }
-
-  return {
-    entityId: entity.entityId,
-    entityTypeId: entity.entityTypeId,
-    properties: { ...(entity.properties ?? {}) }
-  }
-}
-
-function deriveBlockGraph(notification: VivafolioBlockNotification): BlockGraphState {
-  return {
-    depth: 1,
-    linkedEntities: notification.initialGraph.entities.map((entity) => ({
-      entityId: entity.entityId,
-      entityTypeId: entity.entityTypeId,
-      properties: { ...(entity.properties ?? {}) }
-    })),
-    linkGroups: []
-  }
-}
-
-function mergeLinkedEntities(collection: Entity[], entity: Entity): Entity[] {
-  const index = collection.findIndex((item) => item.entityId === entity.entityId)
-  if (index === -1) {
-    return [...collection, entity]
-  }
-  const next = collection.slice()
-  next[index] = entity
-  return next
 }
 
 function handleEnvelope(data: ServerEnvelope) {

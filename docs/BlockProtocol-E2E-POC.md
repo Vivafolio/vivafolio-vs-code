@@ -43,6 +43,12 @@ Scope highlights:
   - **Spec Feedback Drafting**: Captured preliminary recommendations mapping POC findings to potential updates in `docs/spec/BlockProtocol-in-Vivafolio.md` (see *Draft Spec Feedback* below).
 - **2025-09-17 (Afternoon++)**
   - **Spec Updated**: Incorporated bundle safety, multi-instance sync, baseline graph services, and diagnostic guidance directly into `docs/spec/BlockProtocol-in-Vivafolio.md:448` so the spec now mirrors the validated POC behaviour.
+- **2025-09-18 (Morning)**
+  - **Static Assets**: HTML template artefacts now live under the committed `external/html-template-block` cache and are served via an Express static mount (`apps/blockprotocol-poc/src/server.ts:668`).
+  - **Smoke Coverage**: Added a Playwright smoke test that fetches every HTML template resource to guarantee hosting parity before deeper runtime checks (`apps/blockprotocol-poc/tests/static-assets.spec.ts:4`).
+  - **Tooling**: `npm run dev:once` is wrapped in a 150s foreground timeout to prevent stuck web servers during `just test-blockprotocol-poc` runs (`apps/blockprotocol-poc/package.json:8`).
+- **2025-09-18 (Midday)**
+  - **HTML Template Inline Host (Resolved)**: Introduced a lightweight bridge that exposes `window.__vivafolioHtmlTemplateHost` so HTML entry blocks can register DOM mutators and send update callbacks without relying on the upstream Graph runtime (`apps/blockprotocol-poc/src/client/main.ts:610`, `apps/blockprotocol-poc/src/server.ts:125`, generated script in `external/html-template-block/src/app.js`). The inline scenario now consumes the same VivafolioBlock graph payload as other milestones, and `just test-blockprotocol-poc` passes the end-to-end assertions (`apps/blockprotocol-poc/tests/hello-block.spec.ts:203`).
 - **Upcoming Focus (Post–Milestone 4 Research)**
   - **Resource-loader hardening**: generalize the CommonJS loader so additional npm bundles (including ones with nested assets) can execute safely, and document cache-busting plus integrity checks for spec feedback.
   - **Spec feedback loop**: capture deltas between observed host/embedder traffic and the behaviour mandated in `docs/spec/BlockProtocol-in-Vivafolio.md`, preparing recommended edits once the loader research concludes. Historical blocker notes remain in `docs/BlockProtocol-E2E-POC-milestone4.md` for context.

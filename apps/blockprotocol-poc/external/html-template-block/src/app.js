@@ -1,15 +1,8 @@
-/* global blockprotocol */
-import {
-  extractBaseUrl,
-  GraphBlockHandler,
-} from "https://esm.sh/@blockprotocol/graph@0.1.0";
-import { getRoots } from "https://esm.sh/@blockprotocol/graph@0.1.0/stdlib";
+const NAME_PROPERTY_BASE = "https://blockprotocol.org/@blockprotocol/types/property-type/name/";
+const NAME_PROPERTY_VERSIONED = "https://blockprotocol.org/@blockprotocol/types/property-type/name/v/1";
 
-const propertyTypeIds = {
-  name: "https://blockprotocol.org/@blockprotocol/types/property-type/name/v/1",
-};
-
-const element = blockprotocol.getBlockContainer(import.meta.url);
+const element = window.blockprotocol.getBlockContainer(import.meta.url);
+const blockId = element.dataset.blockId ?? "html-template-block-1";
 
 const title = element.querySelector("[data-title]");
 const paragraph = element.querySelector("[data-paragraph]");
@@ -17,73 +10,56 @@ const input = element.querySelector("[data-input]");
 const readonlyParagraph = element.querySelector("[data-readonly]");
 
 let entity;
+let hostApi;
 
-const handler = new GraphBlockHandler({
-  element,
-  /**
-   * Here you can register functions will be called when your block receives specific messages from the application.
-   * The example here is handling 'blockEntitySubgraph', which is the subgraph rooted at the entity associated directly
-   * with this instance of the block.
-   * @see https://blockprotocol.org/spec/graph-module#message-definitions for other such messages
-   */
-  callbacks: {
-    blockEntitySubgraph: ({ data: entitySubgraph }) => {
-      // Here we set entity to the blockEntitySubgraph's root, so we can use it to update the entity later (in the 'change' listener below)
-      entity = getRoots(entitySubgraph)[0];
-      if (!entity) {
-        throw new Error(
-          "Couldn't find block entity in the roots of the subgraph",
-        );
-      }
+const applyEntity = (nextEntity) => {
+  if (!nextEntity) {
+    return;
+  }
+  entity = nextEntity;
+  const baseName =
+    entity.properties?.[NAME_PROPERTY_BASE] ??
+    entity.properties?.[NAME_PROPERTY_VERSIONED] ??
+    entity.properties?.name ??
+    "Vivafolio Template Block";
 
-      title.innerText = `Hello, ${
-        entity.properties[extractBaseUrl(propertyTypeIds.name)]
-      }`;
-      paragraph.innerText = `The entityId of this block is ${entity.metadata.recordId.entityId}. Use it to update its data when calling updateEntity`;
-      input.value = entity.properties[extractBaseUrl(propertyTypeIds.name)];
-      readonlyParagraph.innerText = input.value;
-    },
-    readonly: ({ data: readonly }) => {
-      if (!readonly) {
-        readonlyParagraph.style.display = "none";
-        input.style.display = "block";
-      }
+  const recordId = entity.metadata?.recordId?.entityId ?? entity.entityId ?? "unknown";
+  title.textContent = `Hello, ${baseName}`;
+  paragraph.textContent = `The entityId of this block is ${recordId}. Use it to update its data when calling updateEntity`;
+  input.value = baseName;
+  readonlyParagraph.textContent = baseName;
+};
 
-      if (readonly) {
-        input.style.display = "none";
-        readonlyParagraph.style.display = "block";
-      }
-    },
-  },
-});
+const setReadonly = (readonly) => {
+  if (readonly) {
+    input.style.display = "none";
+    readonlyParagraph.style.display = "block";
+  } else {
+    input.style.display = "block";
+    readonlyParagraph.style.display = "none";
+  }
+};
+
+const bridge = window.__vivafolioHtmlTemplateHost;
+if (bridge && typeof bridge.register === "function") {
+  hostApi = bridge.register(blockId, {
+    setEntity: applyEntity,
+    setReadonly
+  });
+}
+
+setReadonly(false);
 
 input.addEventListener("change", (event) => {
-  if (entity) {
-    /**
-     * This is an example of using the graph module to send a message to the embedding application
-     * – this particular message asks the application update an entity's data.
-     * The specific entity to update is identified by its 'entityId'
-     * – we want to update the block entity, so we are passing the 'entityId' we retrieved earlier from the roots of the
-     *  blockEntitySubgraph
-     *
-     * Many other messages are available for your block to:
-     *  - read and update entities
-     *  - create link entities
-     *  - and more
-     * @see https://blockprotocol.org/spec/graph-module#message-definitions
-     */
-    handler
-      .updateEntity({
-        data: {
-          entityId: entity.metadata.recordId.entityId,
-          entityTypeId: entity.metadata.entityTypeId,
-          properties: {
-            [extractBaseUrl(propertyTypeIds.name)]: event.target.value,
-          },
-        },
-      })
-      .catch((err) => {
-        console.error(`Error calling updateEntity: ${err}`);
-      });
+  if (!entity || !hostApi || typeof hostApi.updateEntity !== "function") {
+    return;
   }
+  const value = event.target.value;
+  hostApi.updateEntity({
+    entityId: entity.metadata?.recordId?.entityId ?? entity.entityId,
+    properties: {
+      [NAME_PROPERTY_BASE]: value,
+      [NAME_PROPERTY_VERSIONED]: value
+    }
+  });
 });

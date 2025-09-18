@@ -127,6 +127,74 @@ const HTML_TEMPLATE_PUBLIC_METADATA_PATH = path.join(
 )
 const TEST_BLOCK_MANIFEST_PATH = path.resolve(TEST_BLOCK_DIST_DIR, 'assets-manifest.json')
 
+const HTML_TEMPLATE_BLOCK_CLIENT_SOURCE = [
+  'const NAME_PROPERTY_BASE = "https://blockprotocol.org/@blockprotocol/types/property-type/name/";',
+  'const NAME_PROPERTY_VERSIONED = "https://blockprotocol.org/@blockprotocol/types/property-type/name/v/1";',
+  '',
+  'const element = window.blockprotocol.getBlockContainer(import.meta.url);',
+  'const blockId = element.dataset.blockId ?? "html-template-block-1";',
+  '',
+  'const title = element.querySelector("[data-title]");',
+  'const paragraph = element.querySelector("[data-paragraph]");',
+  'const input = element.querySelector("[data-input]");',
+  'const readonlyParagraph = element.querySelector("[data-readonly]");',
+  '',
+  'let entity;',
+  'let hostApi;',
+  '',
+  'const applyEntity = (nextEntity) => {',
+  '  if (!nextEntity) {',
+  '    return;',
+  '  }',
+  '  entity = nextEntity;',
+  '  const baseName =',
+  '    entity.properties?.[NAME_PROPERTY_BASE] ??',
+  '    entity.properties?.[NAME_PROPERTY_VERSIONED] ??',
+  '    entity.properties?.name ??',
+  '    "Vivafolio Template Block";',
+  '',
+  '  const recordId = entity.metadata?.recordId?.entityId ?? entity.entityId ?? "unknown";',
+  '  title.textContent = `Hello, ${baseName}`;',
+  '  paragraph.textContent = `The entityId of this block is ${recordId}. Use it to update its data when calling updateEntity`;',
+  '  input.value = baseName;',
+  '  readonlyParagraph.textContent = baseName;',
+  '};',
+  '',
+  'const setReadonly = (readonly) => {',
+  '  if (readonly) {',
+  '    input.style.display = "none";',
+  '    readonlyParagraph.style.display = "block";',
+  '  } else {',
+  '    input.style.display = "block";',
+  '    readonlyParagraph.style.display = "none";',
+  '  }',
+  '};',
+  '',
+  'const bridge = window.__vivafolioHtmlTemplateHost;',
+  'if (bridge && typeof bridge.register === "function") {',
+  '  hostApi = bridge.register(blockId, {',
+  '    setEntity: applyEntity,',
+  '    setReadonly',
+  '  });',
+  '}',
+  '',
+  'setReadonly(false);',
+  '',
+  'input.addEventListener("change", (event) => {',
+  '  if (!entity || !hostApi || typeof hostApi.updateEntity !== "function") {',
+  '    return;',
+  '  }',
+  '  const value = event.target.value;',
+  '  hostApi.updateEntity({',
+  '    entityId: entity.metadata?.recordId?.entityId ?? entity.entityId,',
+  '    properties: {',
+  '      [NAME_PROPERTY_BASE]: value,',
+  '      [NAME_PROPERTY_VERSIONED]: value',
+  '    }',
+  '  });',
+  '});'
+].join('\n')
+
 interface TestBlockAssets {
   bundle: string
   icon: string
@@ -591,7 +659,6 @@ async function ensureHtmlTemplateAssets() {
   const copies = [
     { from: HTML_TEMPLATE_BLOCK_METADATA_PATH, to: HTML_TEMPLATE_PUBLIC_METADATA_PATH },
     { from: path.join(HTML_TEMPLATE_BLOCK_SRC_DIR, 'app.html'), to: path.join(HTML_TEMPLATE_PUBLIC_SRC_DIR, 'app.html') },
-    { from: path.join(HTML_TEMPLATE_BLOCK_SRC_DIR, 'app.js'), to: path.join(HTML_TEMPLATE_PUBLIC_SRC_DIR, 'app.js') },
     { from: path.join(HTML_TEMPLATE_BLOCK_PUBLIC_DIR, 'omega.svg'), to: path.join(HTML_TEMPLATE_PUBLIC_ASSETS_DIR, 'omega.svg') }
   ]
 
@@ -599,6 +666,12 @@ async function ensureHtmlTemplateAssets() {
     copies.map(async ({ from, to }) => {
       await fs.copyFile(from, to)
     })
+  )
+
+  await fs.writeFile(
+    path.join(HTML_TEMPLATE_PUBLIC_SRC_DIR, 'app.js'),
+    HTML_TEMPLATE_BLOCK_CLIENT_SOURCE,
+    'utf8'
   )
 }
 
@@ -665,24 +738,22 @@ async function bootstrap() {
 
   await ensureHtmlTemplateAssets()
 
+  app.use(
+    '/external/html-template-block',
+    express.static(HTML_TEMPLATE_PUBLIC_DIR, {
+      fallthrough: false,
+      index: false,
+      cacheControl: false,
+      etag: true,
+      setHeaders(res, servedPath) {
+        if (servedPath.endsWith('.json')) {
+          res.type('application/json')
+        }
+      }
+    })
+  )
+
   app.use('/external/test-npm-block', express.static(TEST_BLOCK_DIST_DIR))
-  app.get('/external/html-template-block/block-metadata.json', (req, res, next) => {
-    res.sendFile(HTML_TEMPLATE_PUBLIC_METADATA_PATH, (err) => {
-      if (err) next(err)
-    })
-  })
-  app.get('/external/html-template-block/src/:asset', (req, res, next) => {
-    const filePath = path.join(HTML_TEMPLATE_PUBLIC_SRC_DIR, req.params.asset)
-    res.sendFile(filePath, (err) => {
-      if (err) next(err)
-    })
-  })
-  app.get('/external/html-template-block/public/:asset', (req, res, next) => {
-    const filePath = path.join(HTML_TEMPLATE_PUBLIC_ASSETS_DIR, req.params.asset)
-    res.sendFile(filePath, (err) => {
-      if (err) next(err)
-    })
-  })
   app.use('/templates', express.static(TEMPLATES_DIR))
 
   dumpExpressStack(app)
