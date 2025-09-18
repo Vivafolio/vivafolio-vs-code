@@ -3,14 +3,20 @@
 
 const rpc = require('vscode-jsonrpc/node')
 
+// Create a JSON-RPC connection over stdio to act as a minimal LSP server
 const connection = rpc.createMessageConnection(
   new rpc.StreamMessageReader(process.stdin),
   new rpc.StreamMessageWriter(process.stdout)
 )
 
 let initialized = false
+// Tracks per-document derived state (e.g., last parsed color): uri -> { color: string }
 const uriState = new Map() // uri -> { color: string }
 
+/**
+ * Handle the LSP initialize request.
+ * Marks the server as initialized and reports basic capabilities (full text sync).
+ */
 connection.onRequest('initialize', (params) => {
   console.error('LSP initialize: received initialize request')
   console.error('LSP initialize: params =', JSON.stringify(params, null, 2))
@@ -24,12 +30,25 @@ connection.onRequest('initialize', (params) => {
   }
 })
 
+/**
+ * Observe the LSP "initialized" notification from the client.
+ * Useful for logging and ensuring we only process documents after init.
+ */
 connection.onNotification('initialized', () => {
   try {
     console.error('LSP initialized: received initialized notification')
   } catch {}
 })
 
+/**
+ * Build a Vivafolio block payload object that the VS Code extension expects
+ * to find in a Hint diagnostic message. The payload provides block identity,
+ * an initial graph (entities/links), and a resource to render (HTML file).
+ *
+ * @param {string} blockId  Unique id for the block instance on a given line
+ * @param {string} entityId Application-level id used inside the graph payload
+ * @returns {object}        Structured payload serialized into a diagnostic message
+ */
 function createVivafolioBlockPayload(blockId, entityId) {
   return {
     blockId: blockId,
@@ -56,6 +75,17 @@ function createVivafolioBlockPayload(blockId, entityId) {
   }
 }
 
+/**
+ * Parse the document text to detect a Vivafolio GUI state adjacent to
+ * a color picker declaration. It looks for:
+ *   vivafolio_picker!() ... gui_state! r#"{...}"#
+ * and attempts to JSON.parse the r-string body to extract a hex color.
+ *
+ * Returns a small struct:
+ *   { present: false }                      // no picker/gui_state found
+ *   { present: true, color: "#rrggbb" }     // valid color extracted
+ *   { present: true, error: string }        // found but invalid JSON or value
+ */
 function parseGuiStateFromText(text) {
   try {
     const lines = text.split('\n')
@@ -78,6 +108,16 @@ function parseGuiStateFromText(text) {
   } catch { return { present: false } }
 }
 
+/**
+ * Scan the document text and enumerate all Vivafolio blocks to render.
+ * Supports three syntaxes on individual lines:
+ *   - vivafolio_block!("entity")  -> generic block
+ *   - vivafolio_picker!()          -> color picker block (kind: 'picker')
+ *   - vivafolio_square!()          -> color square preview (kind: 'square')
+ *
+ * Returns an array of { line, blockId, entityId, kind? } where blockId is
+ * stable per line to help the extension reuse existing insets.
+ */
 function extractVivafolioBlocks(text) {
   const blocks = []
   const lines = text.split('\n')
@@ -107,6 +147,12 @@ function extractVivafolioBlocks(text) {
   return blocks
 }
 
+/**
+ * Handle textDocument/didOpen: perform a full analysis pass and publish
+ * a complete set of diagnostics for the document (complete-state semantics).
+ * Each detected block yields a Hint diagnostic whose message embeds the
+ * Vivafolio payload. The client extension will render insets accordingly.
+ */
 connection.onNotification('textDocument/didOpen', (p) => {
   try {
     console.error('LSP didOpen uri=', p?.textDocument?.uri)
@@ -199,6 +245,12 @@ connection.onNotification('textDocument/didOpen', (p) => {
   }
 })
 
+/**
+ * Handle textDocument/didChange: re-run full analysis on the new document
+ * contents and republish diagnostics (still complete-state, not incremental).
+ * Updates color-related state from gui_state and adjusts picker/square payloads.
+ * Clears diagnostics when no blocks remain.
+ */
 connection.onNotification('textDocument/didChange', (p) => {
   try {
     console.error('LSP didChange uri=', p?.textDocument?.uri, 'version=', p?.textDocument?.version)
@@ -290,6 +342,10 @@ connection.onNotification('textDocument/didChange', (p) => {
   }
 })
 
+/**
+ * Handle textDocument/didSave: currently a no-op because the change content
+ * is not provided by this notification; analysis happens in didChange instead.
+ */
 connection.onNotification('textDocument/didSave', (p) => {
   // Re-analyze on save (the test calls doc.save())
   if (!initialized || !p?.textDocument?.uri) return
@@ -303,4 +359,5 @@ connection.onNotification('textDocument/didSave', (p) => {
   }
 })
 
+// Start processing the JSON-RPC message loop
 connection.listen()
