@@ -1,0 +1,9 @@
+{
+  "name": "status-pill-block",
+  "version": "0.1.0",
+  "description": "Status pill property renderer block - mimics Notion/Coda status properties",
+  "protocol": "0.3",
+  "blockType": {
+    "entryPoint": "bundle"
+  }
+}

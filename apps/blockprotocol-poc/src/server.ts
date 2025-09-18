@@ -611,9 +611,8 @@ const scenarios: Record<string, ScenarioDefinition> = {
   },
   'custom-element-baseline': {
     id: 'custom-element-baseline',
-    title: 'Custom Element Baseline',
-    description:
-      'Renders a vanilla custom element block using the helper API to wire Graph services.',
+    title: 'F1 – Custom Element Baseline',
+    description: 'Minimal WebComponent block demonstrating Graph service integration and entity updates.',
     createState: () => ({ graph: createCustomElementGraph() }),
     buildNotifications: (state) => [
       {
@@ -623,26 +622,215 @@ const scenarios: Record<string, ScenarioDefinition> = {
         displayMode: 'multi-line',
         initialGraph: state.graph,
         supportsHotReload: true,
-        initialHeight: 260,
+        initialHeight: 300,
         resources: [
-          {
-            logicalName: 'block-metadata.json',
-            physicalPath: '/external/custom-element-block/block-metadata.json',
-            cachingTag: nextCachingTag()
-          },
           {
             logicalName: 'main.js',
             physicalPath: '/external/custom-element-block/main.js',
             cachingTag: nextCachingTag()
           },
           {
-            logicalName: 'helper.js',
-            physicalPath: '/external/custom-element-block/helper.js',
-            cachingTag: nextCachingTag()
-          },
-          {
             logicalName: 'style.css',
             physicalPath: '/external/custom-element-block/style.css',
+            cachingTag: nextCachingTag()
+          }
+        ]
+      }
+    ],
+    applyUpdate: ({ state, update }) => {
+      const entity = state.graph.entities.find((item) => item.entityId === update.entityId)
+      if (!entity) return
+      entity.properties = { ...entity.properties, ...update.properties }
+      // Add timestamp for tracking updates
+      entity.properties.lastModified = new Date().toISOString()
+    }
+  },
+  'solidjs-task-baseline': {
+    id: 'solidjs-task-baseline',
+    title: 'F2 – SolidJS Task Baseline',
+    description: 'Task management block demonstrating SolidJS helper library integration with Block Protocol.',
+    createState: () => ({ graph: createCustomElementGraph() }),
+    buildNotifications: (state) => [
+      {
+        blockId: 'solidjs-task-block-1',
+        blockType: 'https://vivafolio.dev/blocks/solidjs-task/v1',
+        entityId: state.graph.entities[0]?.entityId ?? 'solidjs-task-entity',
+        displayMode: 'multi-line',
+        initialGraph: state.graph,
+        supportsHotReload: true,
+        initialHeight: 300,
+        resources: [
+          {
+            logicalName: 'main.js',
+            physicalPath: '/external/solidjs-task-block/main.js',
+            cachingTag: nextCachingTag()
+          }
+        ]
+      }
+    ],
+    applyUpdate: ({ state, update }) => {
+      const entity = state.graph.entities.find((item) => item.entityId === update.entityId)
+      if (!entity) return
+      entity.properties = { ...entity.properties, ...update.properties }
+      // Add timestamp for tracking updates
+      entity.properties.lastModified = new Date().toISOString()
+    }
+  },
+  'status-pill-example': {
+    id: 'status-pill-example',
+    title: 'Status Pill Block Example',
+    description: 'Demonstrates the StatusPillBlock - a property renderer for status values',
+    createState: () => ({
+      graph: {
+        entities: [{
+          entityId: 'status-pill-entity',
+          entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
+          properties: {
+            'https://blockprotocol.org/@blockprotocol/types/property-type/name/': 'Status Pill Example',
+            'https://blockprotocol.org/@blockprotocol/types/property-type/name/v/1': 'Status Pill Example',
+            status: 'in-progress'
+          }
+        }],
+        links: []
+      }
+    }),
+    buildNotifications: (state) => [
+      {
+        blockId: 'status-pill-example-1',
+        blockType: 'https://vivafolio.dev/blocks/status-pill/v1',
+        entityId: state.graph.entities[0]?.entityId ?? 'status-pill-entity',
+        displayMode: 'inline',
+        initialGraph: state.graph,
+        supportsHotReload: true,
+        initialHeight: 40,
+        resources: [
+          {
+            logicalName: 'main.js',
+            physicalPath: '/examples/blocks/status-pill/main.js',
+            cachingTag: nextCachingTag()
+          }
+        ]
+      }
+    ],
+    applyUpdate: ({ state, update }) => {
+      const entity = state.graph.entities.find((item) => item.entityId === update.entityId)
+      if (!entity) return
+      entity.properties = { ...entity.properties, ...update.properties }
+    }
+  },
+  'person-chip-example': {
+    id: 'person-chip-example',
+    title: 'Person Chip Block Example',
+    description: 'Demonstrates the PersonChipBlock - shows assignees with avatars',
+    createState: () => ({
+      graph: {
+        entities: [{
+          entityId: 'person-chip-entity',
+          entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
+          properties: {
+            'https://blockprotocol.org/@blockprotocol/types/property-type/name/': 'Person Chip Example',
+            'https://blockprotocol.org/@blockprotocol/types/property-type/name/v/1': 'Person Chip Example',
+            assignees: ['alice', 'bob']
+          }
+        }],
+        links: []
+      }
+    }),
+    buildNotifications: (state) => [
+      {
+        blockId: 'person-chip-example-1',
+        blockType: 'https://vivafolio.dev/blocks/person-chip/v1',
+        entityId: state.graph.entities[0]?.entityId ?? 'person-chip-entity',
+        displayMode: 'inline',
+        initialGraph: state.graph,
+        supportsHotReload: true,
+        initialHeight: 40,
+        resources: [
+          {
+            logicalName: 'main.js',
+            physicalPath: '/examples/blocks/person-chip/main.js',
+            cachingTag: nextCachingTag()
+          }
+        ]
+      }
+    ],
+    applyUpdate: ({ state, update }) => {
+      const entity = state.graph.entities.find((item) => item.entityId === update.entityId)
+      if (!entity) return
+      entity.properties = { ...entity.properties, ...update.properties }
+    }
+  },
+  'table-view-example': {
+    id: 'table-view-example',
+    title: 'Table View Block Example',
+    description: 'Demonstrates the TableViewBlock - spreadsheet-style task display',
+    createState: () => ({
+      graph: {
+        entities: [{
+          entityId: 'table-view-entity',
+          entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
+          properties: {
+            'https://blockprotocol.org/@blockprotocol/types/property-type/name/': 'Table View Example',
+            'https://blockprotocol.org/@blockprotocol/types/property-type/name/v/1': 'Table View Example'
+          }
+        }],
+        links: []
+      }
+    }),
+    buildNotifications: (state) => [
+      {
+        blockId: 'table-view-example-1',
+        blockType: 'https://vivafolio.dev/blocks/table-view/v1',
+        entityId: state.graph.entities[0]?.entityId ?? 'table-view-entity',
+        displayMode: 'multi-line',
+        initialGraph: state.graph,
+        supportsHotReload: true,
+        initialHeight: 400,
+        resources: [
+          {
+            logicalName: 'main.js',
+            physicalPath: '/examples/blocks/table-view/main.js',
+            cachingTag: nextCachingTag()
+          }
+        ]
+      }
+    ],
+    applyUpdate: ({ state, update }) => {
+      const entity = state.graph.entities.find((item) => item.entityId === update.entityId)
+      if (!entity) return
+      entity.properties = { ...entity.properties, ...update.properties }
+    }
+  },
+  'board-view-example': {
+    id: 'board-view-example',
+    title: 'Board View Block Example',
+    description: 'Demonstrates the BoardViewBlock - Kanban-style task management',
+    createState: () => ({
+      graph: {
+        entities: [{
+          entityId: 'board-view-entity',
+          entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
+          properties: {
+            'https://blockprotocol.org/@blockprotocol/types/property-type/name/': 'Board View Example',
+            'https://blockprotocol.org/@blockprotocol/types/property-type/name/v/1': 'Board View Example'
+          }
+        }],
+        links: []
+      }
+    }),
+    buildNotifications: (state) => [
+      {
+        blockId: 'board-view-example-1',
+        blockType: 'https://vivafolio.dev/blocks/board-view/v1',
+        entityId: state.graph.entities[0]?.entityId ?? 'board-view-entity',
+        displayMode: 'multi-line',
+        initialGraph: state.graph,
+        supportsHotReload: true,
+        initialHeight: 600,
+        resources: [
+          {
+            logicalName: 'main.js',
+            physicalPath: '/examples/blocks/board-view/main.js',
             cachingTag: nextCachingTag()
           }
         ]
@@ -812,6 +1000,12 @@ export async function startServer(options: StartServerOptions = {}) {
 
   app.use('/external/resource-loader-block', express.static(RESOURCE_LOADER_BLOCK_DIR))
   app.use('/external/feature-showcase-block', express.static(path.resolve(ROOT_DIR, 'external/feature-showcase-block')))
+  app.use('/external/custom-element-block', express.static(path.resolve(ROOT_DIR, 'external/custom-element-block')))
+  app.use('/external/solidjs-task-block', express.static(path.resolve(ROOT_DIR, 'external/solidjs-task-block')))
+  app.use('/examples/blocks/status-pill', express.static(path.resolve(ROOT_DIR, 'examples/blocks/status-pill')))
+  app.use('/examples/blocks/person-chip', express.static(path.resolve(ROOT_DIR, 'examples/blocks/person-chip')))
+  app.use('/examples/blocks/table-view', express.static(path.resolve(ROOT_DIR, 'examples/blocks/table-view')))
+  app.use('/examples/blocks/board-view', express.static(path.resolve(ROOT_DIR, 'examples/blocks/board-view')))
   app.use('/templates', express.static(TEMPLATES_DIR))
 
   dumpExpressStack(app)

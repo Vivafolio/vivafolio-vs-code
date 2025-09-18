@@ -1,0 +1,30 @@
+{
+  "name": "@vivafolio/block-solidjs",
+  "version": "0.1.0",
+  "description": "SolidJS helper library for Vivafolio Block Protocol blocks",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest"
+  },
+  "keywords": [
+    "block-protocol",
+    "solidjs",
+    "web-components",
+    "vivafolio"
+  ],
+  "author": "Vivafolio",
+  "license": "MIT",
+  "peerDependencies": {
+    "solid-js": "^1.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0",
+    "solid-js": "^1.8.0"
+  }
+}

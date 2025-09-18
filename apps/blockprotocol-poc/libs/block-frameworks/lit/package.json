@@ -1,0 +1,30 @@
+{
+  "name": "@vivafolio/block-lit",
+  "version": "0.1.0",
+  "description": "Lit helper library for Vivafolio Block Protocol blocks",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest"
+  },
+  "keywords": [
+    "block-protocol",
+    "lit",
+    "web-components",
+    "vivafolio"
+  ],
+  "author": "Vivafolio",
+  "license": "MIT",
+  "peerDependencies": {
+    "lit": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0",
+    "lit": "^3.0.0"
+  }
+}

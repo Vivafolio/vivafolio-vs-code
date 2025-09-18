@@ -133,20 +133,6 @@ test.describe('Milestone 0 – Hello Block', () => {
     expect(borderColor).toMatch(/59, 130, 246/)
   })
 
-  test('renders custom element block with helper wiring', async ({ page }) => {
-    page.on('console', (message) => {
-      console.log('[browser]', message.type(), message.text())
-    })
-
-    await page.goto('/?scenario=custom-element-baseline')
-
-    const block = page.locator('.custom-element-placeholder')
-    await expect(block).toBeVisible()
-
-    await expect(block).toContainText('Custom Element Block - Coming Soon!')
-
-    // TODO: Add interactive tests once the custom element is fully implemented
-  })
 
   test('renders HTML entry block and loads content', async ({ page }) => {
     await page.goto('/?scenario=html-template-block')
@@ -185,5 +171,156 @@ test.describe('Milestone 0 – Hello Block', () => {
     expect(debugResults?.aggregate.results.length).toBeGreaterThanOrEqual(0)
     expect(debugResults?.diagnostics?.bundleUrl).toContain('app.html')
     expect(debugResults?.diagnostics?.integritySha256).toBeNull()
+  })
+
+  test.describe('F1 – Custom Element Baseline', () => {
+    test('custom element block is instantiated and has basic structure', async ({ page }) => {
+      await page.goto('/?scenario=custom-element-baseline')
+
+      // Check that the custom element exists in the DOM
+      const customElement = page.locator('custom-element-block')
+      await expect(customElement).toHaveCount(1)
+
+      // Check that it has the expected data attribute
+      await expect(customElement).toHaveAttribute('data-block-id', 'custom-element-block-1')
+
+      // Use JavaScript to check the element's content directly
+      const elementContent = await customElement.evaluate(el => ({
+        tagName: el.tagName,
+        childElementCount: el.children.length,
+        hasHeading: el.querySelector('.block-heading') !== null,
+        hasInputs: el.querySelectorAll('input').length,
+        hasSelect: el.querySelector('select') !== null,
+        hasButton: el.querySelector('button') !== null
+      }))
+
+      expect(elementContent.tagName).toBe('CUSTOM-ELEMENT-BLOCK')
+      expect(elementContent.childElementCount).toBeGreaterThan(0)
+      expect(elementContent.hasHeading).toBe(true)
+      expect(elementContent.hasInputs).toBe(2) // title and description
+      expect(elementContent.hasSelect).toBe(true)
+      expect(elementContent.hasButton).toBe(true)
+    })
+
+    test('custom element block can be interacted with', async ({ page }) => {
+      await page.goto('/?scenario=custom-element-baseline')
+
+      // Get the custom element
+      const customElement = page.locator('custom-element-block')
+
+      // Use JavaScript to interact with the element directly
+      await customElement.evaluate(el => {
+        const inputs = el.querySelectorAll('input')
+        const select = el.querySelector('select')
+        const button = el.querySelector('button')
+
+        if (inputs[0]) inputs[0].value = 'Test Title'
+        if (select) select.value = 'in-progress'
+        if (button) button.click()
+      })
+
+      // Verify the changes were made
+      const elementState = await customElement.evaluate(el => {
+        const inputs = el.querySelectorAll('input')
+        const select = el.querySelector('select')
+
+        return {
+          titleValue: inputs[0]?.value || '',
+          selectValue: select?.value || ''
+        }
+      })
+
+      expect(elementState.titleValue).toBe('Test Title')
+      expect(elementState.selectValue).toBe('in-progress')
+    })
+
+    test('custom element block shows entity information', async ({ page }) => {
+      await page.goto('/?scenario=custom-element-baseline')
+
+      // Get the custom element
+      const customElement = page.locator('custom-element-block')
+
+      // Check that the element contains entity information
+      const footnoteText = await customElement.evaluate(el => {
+        const footnote = el.querySelector('.block-footnote')
+        return footnote ? footnote.textContent : ''
+      })
+
+      expect(footnoteText).toContain('Entity ID:')
+      expect(footnoteText).toContain('Read-only:')
+    })
+  })
+
+  test.describe('F2 – SolidJS Task Baseline', () => {
+    test('renders SolidJS task block with form controls', async ({ page }) => {
+      await page.goto('/?scenario=solidjs-task-baseline')
+
+      const block = page.locator('.solidjs-task-block')
+      await expect(block).toBeVisible()
+
+      await expect(block.locator('h3')).toHaveText('SolidJS Task Block')
+
+      // Check that form controls are present
+      const titleInput = block.locator('input[type="text"]')
+      await expect(titleInput).toBeVisible()
+
+      const statusSelect = block.locator('select')
+      await expect(statusSelect).toBeVisible()
+
+      const updateButton = block.locator('button')
+      await expect(updateButton).toBeVisible()
+      await expect(updateButton).toHaveText('Update Task')
+    })
+
+    test('SolidJS task block shows framework info', async ({ page }) => {
+      await page.goto('/?scenario=solidjs-task-baseline')
+
+      const block = page.locator('.solidjs-task-block')
+      await expect(block).toBeVisible()
+
+      const footer = block.locator('div').last()
+      await expect(footer).toContainText('Entity ID:')
+      await expect(footer).toContainText('Framework: SolidJS')
+    })
+  })
+
+  test.describe('Example Blocks from Coda/Notion Patterns', () => {
+    test('status pill example block renders with correct styling', async ({ page }) => {
+      await page.goto('/?scenario=status-pill-example')
+
+      // The published block should load and display
+      const block = page.locator('.published-block')
+      await expect(block).toBeVisible()
+
+      await expect(block.locator('.published-block__header')).toContainText('Published Block Runtime')
+      await expect(block.locator('.published-block__description')).toContainText('Loaded from npm package Status Pill Example')
+    })
+
+    test('person chip example block renders with assignee data', async ({ page }) => {
+      await page.goto('/?scenario=person-chip-example')
+
+      const block = page.locator('.published-block')
+      await expect(block).toBeVisible()
+
+      await expect(block.locator('.published-block__header')).toContainText('Published Block Runtime')
+    })
+
+    test('table view example block renders table structure', async ({ page }) => {
+      await page.goto('/?scenario=table-view-example')
+
+      const block = page.locator('.published-block')
+      await expect(block).toBeVisible()
+
+      await expect(block.locator('.published-block__header')).toContainText('Published Block Runtime')
+    })
+
+    test('board view example block renders kanban layout', async ({ page }) => {
+      await page.goto('/?scenario=board-view-example')
+
+      const block = page.locator('.published-block')
+      await expect(block).toBeVisible()
+
+      await expect(block.locator('.published-block__header')).toContainText('Published Block Runtime')
+    })
   })
 })

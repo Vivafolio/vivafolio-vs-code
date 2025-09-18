@@ -1,0 +1,9 @@
+{
+  "name": "person-chip-block",
+  "version": "0.1.0",
+  "description": "Person chip property renderer block - shows assignees with avatars",
+  "protocol": "0.3",
+  "blockType": {
+    "entryPoint": "bundle"
+  }
+}

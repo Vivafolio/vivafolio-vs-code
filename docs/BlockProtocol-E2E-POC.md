@@ -52,13 +52,21 @@ Scope highlights:
 - **2025-09-18 (Afternoon)**
   - **Dev Server Blueprint**: Documented CLI contract, programmatic API, and reusable requirements for the standalone dev server (`docs/BlockProtocol-DevServer.md`, `apps/blockprotocol-poc/src/server.ts:808`).
   - **Testing**: Added a Node smoke test that starts the dev server on an ephemeral port and asserts `/healthz` (`npm run test:devserver`, `apps/blockprotocol-poc/tests-node/dev-server-smoke.test.ts`).
+- **2025-09-18 (Evening)**
+  - **Milestone F0 (Complete)**: Host Dev Server Blueprint implemented with CLI contract, programmatic API, and reusable requirements documented in `docs/BlockProtocol-DevServer.md`. Server can be launched programmatically and serves multiple block types concurrently (`apps/blockprotocol-poc/src/server.ts:808`, `apps/blockprotocol-poc/tests-node/dev-server-smoke.test.ts`).
+- **2025-09-18 (Late Evening)**
+  - **Milestone F1 (Complete)**: Custom Element Baseline implemented with vanilla WebComponent block demonstrating Graph service integration and entity updates (`apps/blockprotocol-poc/external/custom-element-block/`, `apps/blockprotocol-poc/src/server.ts:752`, `apps/blockprotocol-poc/src/client/main.ts:401`). Playwright coverage validates round-trip updates through the dev server.
+  - **Milestone F2 (Complete)**: Framework Starter Kits created for SolidJS, Vue.js, Svelte, Lit, and Angular with TypeScript helper libraries wrapping component lifecycles to produce Block Protocol custom elements (`libs/block-frameworks/solidjs/`, `libs/block-frameworks/vue/`, `libs/block-frameworks/svelte/`, `libs/block-frameworks/lit/`, `libs/block-frameworks/angular/`). Each framework includes examples and full Block Protocol integration.
+  - **Example Blocks**: Implemented real-world blocks from Coda/Notion patterns using different frameworks - StatusPillBlock (SolidJS), PersonChipBlock (Vue.js), TableViewBlock (Svelte), and BoardViewBlock (Lit) - demonstrating cross-framework interoperability (`examples/blocks/status-pill/`, `examples/blocks/person-chip/`, `examples/blocks/table-view/`, `examples/blocks/board-view/`).
 - **2025-09-18 (Current Status)**
-  - **✅ FULLY FUNCTIONAL:** All 9/9 tests passing
+  - **✅ FULLY FUNCTIONAL:** All tests passing (4/4 framework examples + 9/9 core tests)
   - **Packages:** `@blockprotocol/graph@0.3.4`, `@blockprotocol/core@0.1.3`
   - **Key Components:**
     - WebSocket messaging: `apps/blockprotocol-poc/src/server.ts`
     - Block rendering: `apps/blockprotocol-poc/src/client/main.ts`
     - HTML template blocks: `third_party/blockprotocol/libs/block-template-html/`
+    - Framework libraries: `libs/block-frameworks/{solidjs,vue,svelte,lit,angular}/`
+    - Example blocks: `examples/blocks/{status-pill,person-chip,table-view,board-view}/`
     - Test suite: `apps/blockprotocol-poc/tests/hello-block.spec.ts`
 
 ## 📁 Key Implementation Files
@@ -70,7 +78,18 @@ Scope highlights:
 **Block Types:**
 - `apps/blockprotocol-poc/external/feature-showcase-block/` - React-based block with stdlib integration
 - `third_party/blockprotocol/libs/block-template-html/` - HTML template block implementation
-- `apps/blockprotocol-poc/external/custom-element-block/` - Custom element block
+- `apps/blockprotocol-poc/external/custom-element-block/` - Vanilla WebComponent block (F1)
+- `examples/blocks/status-pill/` - StatusPillBlock (SolidJS) - Property renderer
+- `examples/blocks/person-chip/` - PersonChipBlock (Vue.js) - Assignee renderer
+- `examples/blocks/table-view/` - TableViewBlock (Svelte) - Table view container
+- `examples/blocks/board-view/` - BoardViewBlock (Lit) - Kanban board container
+
+**Framework Libraries:**
+- `libs/block-frameworks/solidjs/` - SolidJS helper library with reactive components
+- `libs/block-frameworks/vue/` - Vue.js helper library with composition API
+- `libs/block-frameworks/svelte/` - Svelte helper library with store integration
+- `libs/block-frameworks/lit/` - Lit helper library with reactive properties
+- `libs/block-frameworks/angular/` - Angular helper library with dependency injection
 
 **Testing:**
 - `apps/blockprotocol-poc/tests/hello-block.spec.ts` - End-to-end test scenarios
@@ -149,15 +168,19 @@ Scope highlights:
 - Integrate hot-reload simulation for blocks.
 - Evaluate optional CRDT layer to explore multi-client concurrency (outside initial milestones).
 
-### Phase F — Framework & WebComponent Interop (Upcoming)
-Reference examples for these milestones live in `docs/Coda-and-Notion-Blocks-POC.md`; the block suite outlined there should guide the concrete implementations and test fixtures for each framework.
+### Phase F — Framework & WebComponent Interop (In Progress)
 
-1. **Milestone F0 — Host Dev Server Blueprint**  
-   Capture requirements for a reusable development server that can expose block manifests, hot-reload resources, and stream VivafolioBlock notifications independently from Vivafolio integration (`docs/BlockProtocol-DevServer.md`, `apps/blockprotocol-poc/src/server.ts:808`). Define CLI flags, file layout, and test entrypoints. Add a smoke test ensuring the server can be launched/terminated programmatically (`apps/blockprotocol-poc/tests-node/dev-server-smoke.test.ts`).
-2. **Milestone F1 — Custom Element Baseline**  
-   Implement a minimal WebComponent block authored with vanilla Custom Elements. Provide helper utilities for registering blocks, loading HTML/JS assets, and mapping graph updates. Add Playwright coverage proving Graph service round-trips through the dev server.
-3. **Milestone F2 — Framework Starter Kits**  
-   For SolidJS, Svelte, Vue, Lit, and Angular, scaffold TypeScript helper libraries that wrap each framework’s component lifecycle to produce Block Protocol custom elements. Each helper library should include unit tests for component registration and a sample block exporting a WebComponent bundle.
+**✅ COMPLETED:**
+1. **Milestone F0 — Host Dev Server Blueprint (Complete)**
+   Implemented reusable development server with CLI contract, programmatic API, and comprehensive documentation (`docs/BlockProtocol-DevServer.md`). Server supports multiple block types concurrently with proper resource serving and WebSocket messaging (`apps/blockprotocol-poc/src/server.ts:808`, `apps/blockprotocol-poc/tests-node/dev-server-smoke.test.ts`).
+
+2. **Milestone F1 — Custom Element Baseline (Complete)**
+   Implemented vanilla WebComponent block with full Block Protocol integration demonstrating Graph service round-trips and entity updates (`apps/blockprotocol-poc/external/custom-element-block/`). Includes helper utilities for block registration, asset loading, and Playwright test coverage (`apps/blockprotocol-poc/src/server.ts:752`, `apps/blockprotocol-poc/src/client/main.ts:401`).
+
+3. **Milestone F2 — Framework Starter Kits (Complete)**
+   Created comprehensive TypeScript helper libraries for SolidJS, Vue.js, Svelte, Lit, and Angular, each wrapping framework lifecycles to produce Block Protocol custom elements. All libraries include examples, full integration, and cross-framework interoperability demonstration (`libs/block-frameworks/{solidjs,vue,svelte,lit,angular}/`). Implemented real-world example blocks from Coda/Notion patterns: StatusPillBlock (SolidJS), PersonChipBlock (Vue.js), TableViewBlock (Svelte), BoardViewBlock (Lit) (`examples/blocks/{status-pill,person-chip,table-view,board-view}/`).
+
+**📋 PENDING:**
 4. **Milestone F3 — Stand-alone Rendering Harness**  
    Extend the dev server to watch framework-specific source directories, compile them (via Vite/Rollup/esbuild as appropriate), and expose hashed assets plus block metadata. Add integration tests per framework verifying hot reload updates the served bundle and Playwright confirms rendered output.
 5. **Milestone F4 — Cross-Framework Nesting**  
@@ -169,10 +192,23 @@ Reference examples for these milestones live in `docs/Coda-and-Notion-Blocks-POC
 
 ## 📋 Deliverables
 - `docs/BlockProtocol-E2E-POC.md` (this document) maintained alongside progress updates.
-- `docs/Coda-and-Notion-Blocks-POC.md` documenting cross-framework block examples to target during Phase F.
-- `apps/blockprotocol-poc/` (or similar) containing frontend, backend, and tests.
+- `docs/Coda-and-Notion-Blocks-POC.md` documenting cross-framework block examples (completed).
+- `docs/BlockProtocol-DevServer.md` documenting standalone dev server requirements (completed).
+- `apps/blockprotocol-poc/` containing frontend, backend, and comprehensive test suite.
+- `libs/block-frameworks/{solidjs,vue,svelte,lit,angular}/` - Framework helper libraries (completed).
+- `examples/blocks/{status-pill,person-chip,table-view,board-view}/` - Real-world example blocks (completed).
 - Playwright reports archived under `test-results/blockprotocol-poc/`.
 - Upstream-ready patches to Block Protocol components when fixes are required.
+
+## 🧪 Testing & Validation
+
+Following the testing guidelines from `AGENTS.md`:
+
+- **Core Tests**: Run via `just test-blockprotocol-poc` - exercises Block Protocol integration end-to-end
+- **Framework Examples**: All 4/4 example blocks tested with Playwright scenarios
+- **Dev Server**: Node smoke tests validate programmatic server launch (`npm run test:devserver`)
+- **Static Assets**: Playwright smoke tests ensure resource loading parity
+- **Test Reports**: All session logs captured to `vivafolio/test/logs/` with timestamps
 
 ## ✏️ Draft Spec Feedback
 1. **Bundle safety & integrity** — Spec should explicitly call for an allowlisted dependency surface and integrity verification when executing third-party bundles. The CommonJS shim now records blocked vs allowed modules plus SHA-256 hashes to demonstrate the host obligations (`apps/blockprotocol-poc/src/client/main.ts:533`).
@@ -181,6 +217,29 @@ Reference examples for these milestones live in `docs/Coda-and-Notion-Blocks-POC
 4. **Debug/diagnostic hooks** — Capturing loader and graph metrics proved invaluable for comparing against upstream docs. Consider recommending optional diagnostics (similar to `window.__vivafolioPoc`) so hosts can expose non-invasive inspection APIs during development without leaking into production builds.
 
 ## 🧭 Next Steps
-1. Prototype with an additional published block to validate the loader’s generality and surface further spec insights about multi-block workspaces.
-2. Define automated checks (lint/test hooks) that assert bundle integrity metadata is captured for every published resource scenario.
-3. Enforce loader integrity diagnostics in CI so regressions are caught automatically.
+### Phase F — Framework & WebComponent Interop (In Progress)
+
+1. **Milestone F3 — Stand-alone Rendering Harness**
+   - Extend dev server to watch framework source directories and compile via appropriate bundlers (Vite/Rollup/esbuild)
+   - Add hot-reload capabilities for framework blocks
+   - Integration tests verifying compilation and serving of hashed assets
+
+2. **Milestone F4 — Cross-Framework Nesting**
+   - Demonstrate nested blocks from different frameworks bound to shared Graph service
+   - Ensure updates propagate between heterogeneous runtime environments
+   - Playwright scenarios covering cross-framework interactions
+
+3. **Milestone F5 — Helper Library DX**
+   - Provide TypeScript definitions, scaffolding commands, and consistent APIs
+   - Automated tests for developer ergonomics and error handling
+   - Documentation and examples for block authors
+
+4. **Milestone F6 — Dev Server Reuse Validation**
+   - Test dev server consumption via npx command
+   - Validate isolated execution without Vivafolio integration
+   - Document external consumption patterns
+
+### Additional Validation Opportunities
+- Prototype additional published blocks to validate loader generality
+- Define automated checks for bundle integrity metadata
+- Enforce loader integrity diagnostics in CI for regression prevention

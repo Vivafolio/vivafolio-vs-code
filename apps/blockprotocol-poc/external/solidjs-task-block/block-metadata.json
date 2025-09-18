@@ -1,0 +1,9 @@
+{
+  "name": "solidjs-task-block",
+  "version": "0.1.0",
+  "description": "Task management block built with SolidJS helper library",
+  "protocol": "0.3",
+  "blockType": {
+    "entryPoint": "bundle"
+  }
+}

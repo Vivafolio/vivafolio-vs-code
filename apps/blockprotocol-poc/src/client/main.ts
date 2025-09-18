@@ -398,7 +398,11 @@ const renderers: Record<string, BlockRenderer> = {
   'https://blockprotocol.org/@blockprotocol/blocks/html-template/v0': renderPublishedBlock,
   'https://blockprotocol.org/@blockprotocol/blocks/feature-showcase/v1': renderPublishedBlock,
   'https://vivafolio.dev/blocks/resource-loader/v1': renderPublishedBlock,
-  'https://vivafolio.dev/blocks/custom-element/v1': renderPublishedBlock
+  'https://vivafolio.dev/blocks/custom-element/v1': renderCustomElementBlock,
+  'https://vivafolio.dev/blocks/status-pill/v1': renderPublishedBlock,
+  'https://vivafolio.dev/blocks/person-chip/v1': renderPublishedBlock,
+  'https://vivafolio.dev/blocks/table-view/v1': renderPublishedBlock,
+  'https://vivafolio.dev/blocks/board-view/v1': renderPublishedBlock
 }
 
 function renderHelloBlock(notification: VivafolioBlockNotification): HTMLElement {
@@ -415,6 +419,44 @@ function renderHelloBlock(notification: VivafolioBlockNotification): HTMLElement
   meta.textContent = JSON.stringify(notification, null, 2)
 
   container.append(heading, summary, meta)
+  return container
+}
+
+function renderCustomElementBlock(notification: VivafolioBlockNotification): HTMLElement {
+  // Create a wrapper container for the custom element
+  const container = createElement('article', 'published-block')
+  container.dataset.blockId = notification.blockId
+
+  const header = createElement('header', 'published-block__header', 'Custom Element Block')
+  const description = createElement('p', 'published-block__description', 'Vanilla WebComponent demonstrating Block Protocol integration')
+  const runtime = createElement('div', 'published-block__runtime')
+
+  // Create the custom element instance
+  const customElement = document.createElement('custom-element-block')
+  customElement.dataset.blockId = notification.blockId
+
+  // Initialize the custom element with Block Protocol data
+  const entity = notification.initialGraph.entities[0]
+  if (customElement && typeof customElement.setEntity === 'function') {
+    customElement.setEntity(entity)
+    customElement.setReadonly(false)
+    customElement.setUpdateEntityCallback((updates: Record<string, unknown>) => {
+      // Send update back to server
+      if (liveSocket && liveSocket.readyState === WebSocket.OPEN) {
+        liveSocket.send(JSON.stringify({
+          type: 'graph/update',
+          payload: {
+            blockId: notification.blockId,
+            entityId: entity?.entityId,
+            properties: updates
+          }
+        }))
+      }
+    })
+  }
+
+  runtime.appendChild(customElement)
+  container.append(header, description, runtime)
   return container
 }
 
