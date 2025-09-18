@@ -49,6 +49,9 @@ Scope highlights:
   - **Tooling**: `npm run dev:once` is wrapped in a 150s foreground timeout to prevent stuck web servers during `just test-blockprotocol-poc` runs (`apps/blockprotocol-poc/package.json:8`).
 - **2025-09-18 (Midday)**
   - **HTML Template Inline Host (Resolved)**: Introduced a lightweight bridge that exposes `window.__vivafolioHtmlTemplateHost` so HTML entry blocks can register DOM mutators and send update callbacks without relying on the upstream Graph runtime (`apps/blockprotocol-poc/src/client/main.ts:610`, `apps/blockprotocol-poc/src/server.ts:125`, generated script in `external/html-template-block/src/app.js`). The inline scenario now consumes the same VivafolioBlock graph payload as other milestones, and `just test-blockprotocol-poc` passes the end-to-end assertions (`apps/blockprotocol-poc/tests/hello-block.spec.ts:203`).
+- **2025-09-18 (Afternoon)**
+  - **Dev Server Blueprint**: Documented CLI contract, programmatic API, and reusable requirements for the standalone dev server (`docs/BlockProtocol-DevServer.md`, `apps/blockprotocol-poc/src/server.ts:808`).
+  - **Testing**: Added a Node smoke test that starts the dev server on an ephemeral port and asserts `/healthz` (`npm run test:devserver`, `apps/blockprotocol-poc/tests-node/dev-server-smoke.test.ts`).
 - **Upcoming Focus (Post–Milestone 4 Research)**
   - **Resource-loader hardening**: generalize the CommonJS loader so additional npm bundles (including ones with nested assets) can execute safely, and document cache-busting plus integrity checks for spec feedback.
   - **Spec feedback loop**: capture deltas between observed host/embedder traffic and the behaviour mandated in `docs/spec/BlockProtocol-in-Vivafolio.md`, preparing recommended edits once the loader research concludes. Historical blocker notes remain in `docs/BlockProtocol-E2E-POC-milestone4.md` for context.
@@ -100,6 +103,7 @@ Scope highlights:
 - Surface runtime resources and metadata in the faux editor for debugging (`apps/blockprotocol-poc/src/client/styles.css:200`).
 **Acceptance**:
 - Playwright clicks “Update Name” inside the npm block, observes heading + metadata changes, and confirms resources list matches the host-provided manifest (`apps/blockprotocol-poc/tests/hello-block.spec.ts:93`, `just test-blockprotocol-poc`).
+- Resource loader scenario asserts CommonJS bundles can `require` local chunks and styles served by the host, with diagnostics capturing integrity metadata (`apps/blockprotocol-poc/tests/hello-block.spec.ts:203`).
 
 ## 🔧 Implementation Plan
 
@@ -128,6 +132,8 @@ Scope highlights:
 - Evaluate optional CRDT layer to explore multi-client concurrency (outside initial milestones).
 
 ### Phase F — Framework & WebComponent Interop (Upcoming)
+Reference examples for these milestones live in `docs/Coda-and-Notion-Blocks-POC.md`; the block suite outlined there should guide the concrete implementations and test fixtures for each framework.
+
 1. **Milestone F0 — Host Dev Server Blueprint**  
    Capture requirements for a reusable development server that can expose block manifests, hot-reload resources, and stream VivafolioBlock notifications independently from Vivafolio integration (`apps/blockprotocol-poc/src/server.ts`). Define CLI flags, file layout, and test entrypoints. Add a smoke test ensuring the server can be launched/terminated under Playwright or Jest.
 2. **Milestone F1 — Custom Element Baseline**  
@@ -145,6 +151,7 @@ Scope highlights:
 
 ## 📋 Deliverables
 - `docs/BlockProtocol-E2E-POC.md` (this document) maintained alongside progress updates.
+- `docs/Coda-and-Notion-Blocks-POC.md` documenting cross-framework block examples to target during Phase F.
 - `apps/blockprotocol-poc/` (or similar) containing frontend, backend, and tests.
 - Playwright reports archived under `test-results/blockprotocol-poc/`.
 - Upstream-ready patches to Block Protocol components when fixes are required.

@@ -8,7 +8,8 @@
     "dev:once": "timeout --foreground 150s cross-env TSX_NO_CACHE=1 NODE_ENV=development tsx src/server.ts",
     "build": "rimraf dist && cross-env NODE_ENV=production tsc -p tsconfig.server.json && vite build",
     "start": "cross-env NODE_ENV=production node dist/server/server.js",
-    "test": "playwright test"
+    "test": "playwright test",
+    "test:devserver": "tsx --test tests-node/dev-server-smoke.test.ts"
   },
   "dependencies": {
     "@blockprotocol/core": "^0.0.14",

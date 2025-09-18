@@ -69,7 +69,7 @@ interface ScenarioDefinition {
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-const PORT = Number.parseInt(process.env.PORT || '', 10) || 4173
+const DEFAULT_PORT = Number.parseInt(process.env.PORT || '', 10) || 4173
 const ROOT_DIR = path.resolve(__dirname, '..')
 const DIST_CLIENT_DIR = path.resolve(ROOT_DIR, 'dist/client')
 const INDEX_HTML = path.resolve(ROOT_DIR, 'index.html')
@@ -126,6 +126,21 @@ const HTML_TEMPLATE_PUBLIC_METADATA_PATH = path.join(
   'block-metadata.json'
 )
 const TEST_BLOCK_MANIFEST_PATH = path.resolve(TEST_BLOCK_DIST_DIR, 'assets-manifest.json')
+
+const RESOURCE_LOADER_BLOCK_DIR = path.resolve(
+  REPO_ROOT,
+  'apps',
+  'blockprotocol-poc',
+  'external',
+  'resource-loader-block'
+)
+
+export interface StartServerOptions {
+  port?: number
+  host?: string
+  attachSignalHandlers?: boolean
+  enableVite?: boolean
+}
 
 const HTML_TEMPLATE_BLOCK_CLIENT_SOURCE = [
   'const NAME_PROPERTY_BASE = "https://blockprotocol.org/@blockprotocol/types/property-type/name/";',
@@ -619,6 +634,47 @@ const scenarios: Record<string, ScenarioDefinition> = {
       if (!entity) return
       entity.properties = { ...entity.properties, ...update.properties }
     }
+  },
+  'resource-loader': {
+    id: 'resource-loader',
+    title: 'Resource Loader – CJS Modules',
+    description:
+      'Exercises CommonJS require support for local chunks and styles served through the host dev server.',
+    createState: () => ({ graph: createResourceLoaderGraph() }),
+    buildNotifications: (state) => [
+      {
+        blockId: 'resource-loader-block-1',
+        blockType: 'https://vivafolio.dev/blocks/resource-loader/v1',
+        entityId:
+          state.graph.entities[0]?.entityId ?? 'resource-loader-entity',
+        displayMode: 'multi-line',
+        initialGraph: state.graph,
+        supportsHotReload: false,
+        initialHeight: 260,
+        resources: [
+          {
+            logicalName: 'main.js',
+            physicalPath: '/external/resource-loader-block/main.js',
+            cachingTag: nextCachingTag()
+          },
+          {
+            logicalName: 'chunk.js',
+            physicalPath: '/external/resource-loader-block/chunk.js',
+            cachingTag: nextCachingTag()
+          },
+          {
+            logicalName: 'style.css',
+            physicalPath: '/external/resource-loader-block/style.css',
+            cachingTag: nextCachingTag()
+          }
+        ]
+      }
+    ],
+    applyUpdate: ({ state, update }) => {
+      const entity = state.graph.entities.find((item) => item.entityId === update.entityId)
+      if (!entity) return
+      entity.properties = { ...entity.properties, ...update.properties }
+    }
   }
 }
 
@@ -690,6 +746,21 @@ function createHtmlTemplateGraph(): EntityGraph {
   return { entities: [entity], links: [] }
 }
 
+function createResourceLoaderGraph(): EntityGraph {
+  const namePropertyBase = 'https://blockprotocol.org/@blockprotocol/types/property-type/name/'
+  const namePropertyVersioned = `${namePropertyBase}v/1`
+  const entity: Entity = {
+    entityId: 'resource-loader-entity',
+    entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
+    properties: {
+      [namePropertyBase]: 'CJS Resource Block',
+      [namePropertyVersioned]: 'CJS Resource Block'
+    }
+  }
+
+  return { entities: [entity], links: [] }
+}
+
 function dispatchScenarioNotifications(
   socket: WebSocket,
   scenario: ScenarioDefinition,
@@ -731,10 +802,15 @@ function dumpExpressStack(app: express.Express) {
   console.log('[routes] dump end')
 }
 
-async function bootstrap() {
+export async function startServer(options: StartServerOptions = {}) {
+  const port = options.port ?? DEFAULT_PORT
+  const host = options.host ?? '0.0.0.0'
+  const attachSignalHandlers = options.attachSignalHandlers ?? true
+  const enableVite = options.enableVite ?? process.env.NODE_ENV !== 'production'
+
   const app = express()
 
-  console.log('[boot] entry', { file: __filename, cwd: process.cwd(), argv: process.argv })
+  console.log('[blockprotocol-poc] html template dir', HTML_TEMPLATE_BLOCK_DIR)
 
   await ensureHtmlTemplateAssets()
 
@@ -754,13 +830,14 @@ async function bootstrap() {
   )
 
   app.use('/external/test-npm-block', express.static(TEST_BLOCK_DIST_DIR))
+  app.use('/external/resource-loader-block', express.static(RESOURCE_LOADER_BLOCK_DIR))
   app.use('/templates', express.static(TEMPLATES_DIR))
 
   dumpExpressStack(app)
 
   let viteServer: ViteDevServer | undefined
 
-  if (process.env.NODE_ENV !== 'production') {
+  if (enableVite) {
     const { createServer } = await import('vite')
     viteServer = await createServer({
       root: ROOT_DIR,
@@ -862,15 +939,13 @@ async function bootstrap() {
     })
   })
 
-  httpServer.listen(PORT, () => {
-    console.log(`[blockprotocol-poc] server listening on http://localhost:${PORT}`)
-    console.log(
-      `[blockprotocol-poc] mode=${process.env.NODE_ENV ?? 'development'} root=${ROOT_DIR}`
-    )
-  })
+  const signalHandlers: Array<[NodeJS.Signals, NodeJS.SignalsListener]> = []
 
-  function shutdown(signal: NodeJS.Signals) {
-    console.log(`[blockprotocol-poc] received ${signal}, shutting down`)
+  const close = async () => {
+    for (const [signal, handler] of signalHandlers) {
+      process.off(signal, handler)
+    }
+
     for (const socket of liveSockets) {
       try {
         socket.close()
@@ -878,17 +953,68 @@ async function bootstrap() {
         console.error('[blockprotocol-poc] failed to close socket', error)
       }
     }
-    wss.close()
-    httpServer.close(() => {
-      process.exit(0)
+    liveSockets.clear()
+    socketStates.clear()
+
+    await new Promise<void>((resolve) => {
+      wss.close(() => resolve())
     })
+
+    await new Promise<void>((resolve, reject) => {
+      httpServer.close((err) => {
+        if (err) {
+          reject(err)
+        } else {
+          resolve()
+        }
+      })
+    })
+
+    if (viteServer) {
+      await viteServer.close()
+    }
   }
 
-  process.on('SIGINT', shutdown)
-  process.on('SIGTERM', shutdown)
+  if (attachSignalHandlers) {
+    const handler: NodeJS.SignalsListener = async (signal) => {
+      console.log(`[blockprotocol-poc] received ${signal}, shutting down`)
+      try {
+        await close()
+      } finally {
+        process.exit(0)
+      }
+    }
+    signalHandlers.push(['SIGINT', handler], ['SIGTERM', handler])
+    for (const [sig, fn] of signalHandlers) {
+      process.on(sig, fn)
+    }
+  }
+
+  await new Promise<void>((resolve) => {
+    httpServer.listen(port, host, resolve)
+  })
+
+  const address = httpServer.address()
+  const printableHost =
+    typeof address === 'object' && address
+      ? address.address === '::' || address.address === '0.0.0.0'
+        ? 'localhost'
+        : address.address
+      : host === '::' || host === '0.0.0.0'
+        ? 'localhost'
+        : host
+  const printablePort =
+    typeof address === 'object' && address ? address.port : port
+
+  console.log(`[blockprotocol-poc] server listening on http://${printableHost}:${printablePort}`)
+  console.log(`[blockprotocol-poc] mode=${process.env.NODE_ENV ?? 'development'} root=${ROOT_DIR}`)
+
+  return { app, httpServer, wss, close }
 }
 
-bootstrap().catch((error) => {
-  console.error('[blockprotocol-poc] failed to start server', error)
-  process.exit(1)
-})
+if (process.argv[1] === __filename) {
+  startServer().catch((error) => {
+    console.error('[blockprotocol-poc] failed to start server', error)
+    process.exit(1)
+  })
+}

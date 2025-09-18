@@ -253,6 +253,24 @@ interface PublishedBlockLoaderDiagnostics {
   requiredDependencies: string[]
   blockedDependencies: string[]
   allowedDependencies: string[]
+  localModules?: Array<{
+    logicalName: string
+    type: 'js' | 'css'
+    integritySha256: string | null
+  }>
+}
+
+type BlockResource = NonNullable<VivafolioBlockNotification['resources']>[number]
+
+interface LocalModuleEntry {
+  logicalName: string
+  url: string
+  type: 'js' | 'css'
+  source: string
+  integritySha256: string | null
+  executed: boolean
+  exports?: unknown
+  styleElement?: HTMLStyleElement
 }
 
 type PublishedBlockDebug = {
@@ -355,7 +373,8 @@ const renderers: Record<string, BlockRenderer> = {
   'https://vivafolio.dev/blocks/iframe-task-list/v1': (notification) =>
     renderIframeBlock(notification, 'iframe-task-list', 'Task List IFrame'),
   'https://blockprotocol.org/@blockprotocol/blocks/test-npm-block/v0': renderPublishedBlock,
-  'https://blockprotocol.org/@blockprotocol/blocks/html-template/v0': renderPublishedBlock
+  'https://blockprotocol.org/@blockprotocol/blocks/html-template/v0': renderPublishedBlock,
+  'https://vivafolio.dev/blocks/resource-loader/v1': renderPublishedBlock
 }
 
 function renderHelloBlock(notification: VivafolioBlockNotification): HTMLElement {
@@ -615,6 +634,7 @@ class PublishedBlockController {
   private readonly mode: 'bundle' | 'html'
   private blockMount: HTMLDivElement | undefined
   private htmlTemplateHandlers: HtmlTemplateHandlers | undefined
+  private localModuleCache: Map<string, LocalModuleEntry> = new Map()
   public readonly debug: PublishedBlockDebug
 
   constructor(private notification: VivafolioBlockNotification) {
@@ -717,6 +737,7 @@ class PublishedBlockController {
   }
 
   updateFromNotification(notification: VivafolioBlockNotification) {
+    this.destroyLocalModules()
     this.notification = notification
     this.blockEntity = deriveBlockEntity(notification)
     this.blockGraph = deriveBlockGraph(notification)
@@ -736,6 +757,7 @@ class PublishedBlockController {
 
   destroy() {
     this.destroyed = true
+    this.destroyLocalModules()
     this.embedder?.destroy()
     this.reactRoot?.unmount()
     const registry = getDebugRegistry()
@@ -774,6 +796,8 @@ class PublishedBlockController {
       throw new Error('Bundle resource missing (main.js)')
     }
 
+    await this.prefetchLocalResources('main.js')
+
     const bundleResponse = await fetch(bundleUrl, { cache: 'no-store' })
     if (!bundleResponse.ok) {
       throw new Error(`Bundle request failed with ${bundleResponse.status}`)
@@ -788,6 +812,10 @@ class PublishedBlockController {
     const requiredDependencies: string[] = []
     const blockedDependencies: string[] = []
     const requireShim = (specifier: string) => {
+      if (specifier.startsWith('./') || specifier.startsWith('../')) {
+        requiredDependencies.push(specifier)
+        return this.loadLocalModule(specifier)
+      }
       if (!ALLOWED_CJS_DEPENDENCIES.has(specifier)) {
         blockedDependencies.push(specifier)
         throw new Error(`Unsupported dependency: ${specifier}`)
@@ -822,15 +850,21 @@ return module.exports;`
       return
     }
 
+    const localModulesDiagnostics = Array.from(this.localModuleCache.values()).map((entry) => ({
+      logicalName: entry.logicalName,
+      type: entry.type,
+      integritySha256: entry.integritySha256
+    }))
+
     this.loaderDiagnostics = {
       bundleUrl,
       evaluatedAt: new Date().toISOString(),
       integritySha256: integrity,
       requiredDependencies,
       blockedDependencies,
-      allowedDependencies: Array.from(ALLOWED_CJS_DEPENDENCIES)
+      allowedDependencies: Array.from(ALLOWED_CJS_DEPENDENCIES),
+      localModules: localModulesDiagnostics
     }
-    console.info('[blockprotocol-poc] evaluated npm bundle', this.loaderDiagnostics)
 
     this.reactModule = reactModule
     const { createRoot } = reactDomModule
@@ -931,6 +965,140 @@ return module.exports;`
     }
     handlers.setEntity?.(this.blockEntity)
     handlers.setReadonly?.(false)
+  }
+
+  private destroyLocalModules() {
+    this.localModuleCache.forEach((entry) => {
+      if (entry.type === 'css' && entry.styleElement?.parentNode) {
+        entry.styleElement.remove()
+      }
+    })
+    this.localModuleCache.clear()
+  }
+
+  private async prefetchLocalResources(mainLogicalName: string) {
+    this.destroyLocalModules()
+    const resources = this.resources ?? []
+    const localResources = resources.filter((resource) => resource.logicalName !== mainLogicalName)
+
+    for (const resource of localResources) {
+      const logicalName = resource.logicalName
+      const extension = logicalName.split('.').pop()?.toLowerCase()
+      if (!extension) continue
+
+      const relativeUrl = this.resolveResourceUrl(logicalName)
+      if (!relativeUrl) {
+        console.warn('[blockprotocol-poc] Missing resource path for', logicalName)
+        continue
+      }
+      const absoluteUrl = new URL(relativeUrl, window.location.origin).toString()
+
+      if (extension === 'js' || extension === 'cjs' || extension === 'mjs') {
+        const response = await fetch(absoluteUrl, { cache: 'no-store' })
+        if (!response.ok) {
+          throw new Error(`Failed to fetch local module ${logicalName}: ${response.status}`)
+        }
+        const source = await response.text()
+        const encoder = new TextEncoder()
+        const integritySha256 = await computeSha256Hex(encoder.encode(source).buffer)
+        this.localModuleCache.set(logicalName, {
+          logicalName,
+          url: absoluteUrl,
+          type: 'js',
+          source,
+          integritySha256,
+          executed: false
+        })
+        continue
+      }
+
+      if (extension === 'css') {
+        const response = await fetch(absoluteUrl, { cache: 'no-store' })
+        if (!response.ok) {
+          throw new Error(`Failed to fetch stylesheet ${logicalName}: ${response.status}`)
+        }
+        const source = await response.text()
+        const encoder = new TextEncoder()
+        const integritySha256 = await computeSha256Hex(encoder.encode(source).buffer)
+        this.localModuleCache.set(logicalName, {
+          logicalName,
+          url: absoluteUrl,
+          type: 'css',
+          source,
+          integritySha256,
+          executed: false
+        })
+      }
+    }
+  }
+
+  private resolveLocalLogicalName(specifier: string, fromLogicalName?: string) {
+    if (!specifier.startsWith('.')) {
+      return specifier
+    }
+
+    const baseSegments = fromLogicalName ? fromLogicalName.split('/') : []
+    if (baseSegments.length) {
+      baseSegments.pop()
+    }
+    for (const segment of specifier.split('/')) {
+      if (!segment || segment === '.') continue
+      if (segment === '..') {
+        if (baseSegments.length) {
+          baseSegments.pop()
+        }
+        continue
+      }
+      baseSegments.push(segment)
+    }
+    return baseSegments.join('/')
+  }
+
+  private loadLocalModule(specifier: string) {
+    const logicalName = this.resolveLocalLogicalName(specifier)
+    return this.loadLocalModuleByLogicalName(logicalName)
+  }
+
+  private loadLocalModuleRelative(fromLogicalName: string, specifier: string) {
+    const logicalName = this.resolveLocalLogicalName(specifier, fromLogicalName)
+    return this.loadLocalModuleByLogicalName(logicalName)
+  }
+
+  private loadLocalModuleByLogicalName(logicalName: string) {
+    const entry = this.localModuleCache.get(logicalName)
+    if (!entry) {
+      throw new Error(`Unsupported dependency: ${logicalName}`)
+    }
+
+    if (entry.type === 'css') {
+      if (!entry.executed) {
+        const styleElement = document.createElement('style')
+        styleElement.dataset.blockId = this.notification.blockId
+        styleElement.dataset.resource = logicalName
+        styleElement.textContent = entry.source
+        document.head.appendChild(styleElement)
+        entry.styleElement = styleElement
+        entry.executed = true
+      }
+      return undefined
+    }
+
+    if (!entry.executed) {
+      const moduleShim: { exports: unknown } = { exports: {} }
+      const exportsShim = moduleShim.exports as Record<string, unknown>
+      const localRequire = (childSpecifier: string) => {
+        if (childSpecifier.startsWith('./') || childSpecifier.startsWith('../')) {
+          return this.loadLocalModuleRelative(logicalName, childSpecifier)
+        }
+        return this.loadLocalModule(childSpecifier)
+      }
+      const evaluator = new Function('require', 'module', 'exports', entry.source)
+      evaluator(localRequire, moduleShim, exportsShim)
+      entry.exports = moduleShim.exports
+      entry.executed = true
+    }
+
+    return entry.exports
   }
 
   private async handleBlockUpdate(

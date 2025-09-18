@@ -1,0 +1,9 @@
+{
+  "name": "resource-loader-block",
+  "version": "0.1.0",
+  "description": "Verifies CommonJS loader handles local chunks and styles",
+  "protocol": "0.3",
+  "blockType": {
+    "entryPoint": "bundle"
+  }
+}

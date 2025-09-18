@@ -200,6 +200,19 @@ test.describe('Milestone 0 – Hello Block', () => {
     }
   })
 
+  test('loads CommonJS block with local chunk and stylesheet', async ({ page }) => {
+    await page.goto('/?scenario=resource-loader')
+
+    const block = page.locator('.published-block .cjs-resource-block')
+    await expect(block).toBeVisible()
+    await expect(block.locator('h2')).toHaveText('Resource Loader Diagnostic')
+    await expect(block.locator('p').first()).toContainText('Local chunk.js executed successfully.')
+    await expect(block.locator('.cjs-resource-block__name')).toContainText('Entity name: CJS Resource Block')
+
+    const borderColor = await block.evaluate((element) => window.getComputedStyle(element).borderColor)
+    expect(borderColor).toMatch(/59, 130, 246/)
+  })
+
   test('renders HTML entry block and propagates updates', async ({ page }) => {
     await page.goto('/?scenario=html-template-block')
 

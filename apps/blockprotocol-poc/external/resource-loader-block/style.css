@@ -1,0 +1,10 @@
+.cjs-resource-block {
+  border: 2px solid #3b82f6;
+  padding: 1rem;
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.cjs-resource-block__name {
+  font-style: italic;
+  color: #1d4ed8;
+}
