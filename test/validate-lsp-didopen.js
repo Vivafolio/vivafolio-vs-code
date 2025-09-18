@@ -28,7 +28,12 @@ const testLspClient = () => {
   return new Promise((resolve, reject) => {
     console.log('🚀 Starting LSP server...')
 
-    const server = spawn('node', [mockLspServer], {
+  const inspectMode = String(process.env.VIVAFOLIO_LSP_INSPECT || '').toLowerCase()
+  const inspectPort = String(process.env.VIVAFOLIO_LSP_INSPECT_PORT || '').trim() || '9229'
+  const nodeArgs = []
+  if (inspectMode === '1' || inspectMode === 'true') nodeArgs.push(`--inspect=${inspectPort}`)
+  else if (inspectMode === 'brk' || inspectMode === 'break') nodeArgs.push(`--inspect-brk=${inspectPort}`)
+  const server = spawn('node', [...nodeArgs, mockLspServer], {
       stdio: ['pipe', 'pipe', 'pipe']
     })
 

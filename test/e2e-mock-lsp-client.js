@@ -52,7 +52,13 @@ function wait(ms) { return new Promise(r => setTimeout(r, ms)) }
 // ---------- Mock LSP Server Test ----------
 function startMockLSPServer(repoRoot) {
   const serverPath = path.resolve(repoRoot, 'test', 'mock-lsp-server.js')
-  const proc = spawn('node', [serverPath], { cwd: process.cwd(), stdio: 'pipe', env: process.env })
+  // Optional inspector support: set VIVAFOLIO_LSP_INSPECT to '1' or 'brk' to enable, use VIVAFOLIO_LSP_INSPECT_PORT to override port
+  const inspectMode = String(process.env.VIVAFOLIO_LSP_INSPECT || '').toLowerCase()
+  const inspectPort = String(process.env.VIVAFOLIO_LSP_INSPECT_PORT || '').trim() || '9229'
+  const nodeArgs = []
+  if (inspectMode === '1' || inspectMode === 'true') nodeArgs.push(`--inspect=${inspectPort}`)
+  else if (inspectMode === 'brk' || inspectMode === 'break') nodeArgs.push(`--inspect-brk=${inspectPort}`)
+  const proc = spawn('node', [...nodeArgs, serverPath], { cwd: process.cwd(), stdio: 'pipe', env: process.env })
   const { conn, logPath, log } = makeConnectionWithLogging(proc, 'mock-lsp-client-test', repoRoot)
   return { conn, proc, logPath, log }
 }

@@ -5,7 +5,12 @@ const path = require('path')
 
 function startServer() {
 	const serverPath = path.resolve(__dirname, 'mock-lsp-server.js')
-	const proc = spawn('node', [serverPath], { stdio: 'pipe', env: process.env, cwd: path.dirname(serverPath) })
+	const inspectMode = String(process.env.VIVAFOLIO_LSP_INSPECT || '').toLowerCase()
+	const inspectPort = String(process.env.VIVAFOLIO_LSP_INSPECT_PORT || '').trim() || '9229'
+	const nodeArgs = []
+	if (inspectMode === '1' || inspectMode === 'true') nodeArgs.push(`--inspect=${inspectPort}`)
+	else if (inspectMode === 'brk' || inspectMode === 'break') nodeArgs.push(`--inspect-brk=${inspectPort}`)
+	const proc = spawn('node', [...nodeArgs, serverPath], { stdio: 'pipe', env: process.env, cwd: path.dirname(serverPath) })
 	const conn = rpc.createMessageConnection(
 		new rpc.StreamMessageReader(proc.stdout),
 		new rpc.StreamMessageWriter(proc.stdin)

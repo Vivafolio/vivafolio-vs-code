@@ -48,7 +48,8 @@ if [[ "$(uname -s)" == "Linux" && -z "${DISPLAY:-}" && -x "$(command -v Xvfb || 
   export DISPLAY=:99
 fi
 
-exec code-insiders "$WS" \
+exec env VIVAFOLIO_LSP_INSPECT="${VIVAFOLIO_LSP_INSPECT:-1}" VIVAFOLIO_LSP_INSPECT_PORT="${VIVAFOLIO_LSP_INSPECT_PORT:-6009}" \
+  code-insiders "$WS" \
   --extensionDevelopmentPath="$EXT1" \
   --extensionDevelopmentPath="$EXT2" \
   --enable-proposed-api local.vivafolio \

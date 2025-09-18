@@ -69,6 +69,57 @@
         "group": "test",
         "order": 1
       }
+    },
+    {
+      "name": "Attach: Mock LSP Server (6009)",
+      "type": "node",
+      "request": "attach",
+      "port": 6009,
+      "restart": true,
+      "timeout": 20000,
+      "skipFiles": [
+        "<node_internals>/**"
+      ]
+    },
+    {
+      "name": "Attach: Mock LSP Server (env port)",
+      "type": "node",
+      "request": "attach",
+      "port": "${env:VIVAFOLIO_LSP_INSPECT_PORT}",
+      "restart": true,
+      "timeout": 20000,
+      "skipFiles": [
+        "<node_internals>/**"
+      ]
+    },
+    {
+      "name": "Launch: Mock LSP Server (break on start)",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/test/mock-lsp-server.js",
+      "cwd": "${workspaceFolder}",
+      "runtimeArgs": [
+        "--inspect-brk=9229"
+      ],
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "skipFiles": [
+        "<node_internals>/**"
+      ]
+    },
+    {
+      "name": "Run Extension: Mock Language (LSP @6009)",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}/mock-language-extension"
+      ],
+      "outFiles": [
+        "${workspaceFolder}/mock-language-extension/out/**/*.js"
+      ],
+      "preLaunchTask": "compile:mock-language",
+      "postDebugTask": "none",
+      "trace": true
     }
   ]
 }
