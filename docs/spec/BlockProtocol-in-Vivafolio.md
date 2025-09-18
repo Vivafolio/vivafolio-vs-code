@@ -453,6 +453,19 @@ To align with the security posture demonstrated in the Block Protocol reference 
 2. **Integrity Metadata:** The Host **must** compute a SHA-256 hash (or stronger) for each fetched bundle and surface that digest to diagnostics. Hosts deploying remote content **should** reject responses whose hash differs from recorded metadata.  
 3. **Audit Logging:** For every bundle evaluation, capture the evaluated URL, timestamp, allowed dependencies, and any blocked dependency attempts. This metadata enables downstream policy enforcement (e.g., unit tests, telemetry).  
 4. **Caching Discipline:** Cache-busting tags supplied in VivafolioBlock resources **must** be preserved when fetching bundle assets so blocks pick up updates without stale assets leaking into other instances.
+5. **Local Resource Resolution:** When a bundle `require`s relative paths (for example `./chunk.js` or `./style.css`), the Host **must** resolve those logical names against the VivafolioBlock `resources`, fetch each file with the caller’s cache tag, compute a SHA-256 hash, and execute them inside the same sandbox as the entry bundle. JavaScript modules are evaluated via the CommonJS shim; stylesheets are injected as ephemeral `<style>` tags that are removed when the block unmounts.
+
+> **Implementation note:** The POC prefetches local resources prior to evaluating the bundle (`apps/blockprotocol-poc/src/client/main.ts`) and records each module’s digest in diagnostics so tests can assert integrity.
+
+#### 5.4.1. HTML Entry Blocks
+
+HTML entry-point blocks (`blockType.entryPoint === "html"`) rely on `@blockprotocol/core` helpers, but hosts still need to supply a bridge for direct DOM integration. Vivafolio **should** expose a host-scoped registry (e.g., `window.__vivafolioHtmlTemplateHost.register(blockId, handlers)`) that:
+
+* Provides setters for the current entity payload and readonly state so inline inputs render deterministically.  
+* Returns callbacks (such as `updateEntity`) that route inline mutations back through the standard `graph/update` channel.  
+* Tears down handlers when the block hot-reloads or disconnects to avoid stale references.
+
+The dev POC implements this bridge (`apps/blockprotocol-poc/src/client/main.ts`, generated script in `external/html-template-block/src/app.js`), ensuring HTML template blocks remain on parity with npm bundles while preserving host control.
 
 > **Rationale:** These requirements mirror the behaviour validated in the POC (`apps/blockprotocol-poc/src/client/main.ts`), ensuring the Host mediates bundle execution instead of allowing arbitrary module resolution.
 
