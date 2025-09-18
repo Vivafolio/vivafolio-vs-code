@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@blockprotocol/core": "^0.0.14",
-    "@blockprotocol/graph": "^0.0.14",
+    "@blockprotocol/graph": "^0.3.4",
     "block-template": "^0.0.26",
     "express": "^4.19.2",
     "react": "^18.3.1",

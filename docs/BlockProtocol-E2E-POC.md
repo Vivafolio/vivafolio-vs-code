@@ -52,6 +52,11 @@ Scope highlights:
 - **2025-09-18 (Afternoon)**
   - **Dev Server Blueprint**: Documented CLI contract, programmatic API, and reusable requirements for the standalone dev server (`docs/BlockProtocol-DevServer.md`, `apps/blockprotocol-poc/src/server.ts:808`).
   - **Testing**: Added a Node smoke test that starts the dev server on an ephemeral port and asserts `/healthz` (`npm run test:devserver`, `apps/blockprotocol-poc/tests-node/dev-server-smoke.test.ts`).
+- **2025-09-18 (Afternoon++)**
+  - **✅ STDLIB ISSUE RESOLVED:** Successfully updated POC to use published `@blockprotocol/graph@0.3.4` with working stdlib instead of stub implementation.
+  - **Root Cause Identified:** POC was using outdated package version (0.0.14) that lacked stdlib export, while published version (0.3.4) includes fully functional stdlib.
+  - **Test Results:** 5/9 tests now passing (up from 1/9), core WebSocket and block functionality working. Remaining failures are due to CommonJS dynamic loading limitations, not stdlib issues.
+  - **Impact:** Stdlib functions (`getRoots`, `getEntities`, `buildSubgraph`, etc.) now work correctly for static imports. Custom element blocks can proceed with proper graph operations.
 - **Upcoming Focus (Post–Milestone 4 Research)**
   - **Resource-loader hardening**: generalize the CommonJS loader so additional npm bundles (including ones with nested assets) can execute safely, and document cache-busting plus integrity checks for spec feedback.
   - **Spec feedback loop**: capture deltas between observed host/embedder traffic and the behaviour mandated in `docs/spec/BlockProtocol-in-Vivafolio.md`, preparing recommended edits once the loader research concludes. Historical blocker notes remain in `docs/BlockProtocol-E2E-POC-milestone4.md` for context.
@@ -135,7 +140,7 @@ Scope highlights:
 Reference examples for these milestones live in `docs/Coda-and-Notion-Blocks-POC.md`; the block suite outlined there should guide the concrete implementations and test fixtures for each framework.
 
 1. **Milestone F0 — Host Dev Server Blueprint**  
-   Capture requirements for a reusable development server that can expose block manifests, hot-reload resources, and stream VivafolioBlock notifications independently from Vivafolio integration (`apps/blockprotocol-poc/src/server.ts`). Define CLI flags, file layout, and test entrypoints. Add a smoke test ensuring the server can be launched/terminated under Playwright or Jest.
+   Capture requirements for a reusable development server that can expose block manifests, hot-reload resources, and stream VivafolioBlock notifications independently from Vivafolio integration (`docs/BlockProtocol-DevServer.md`, `apps/blockprotocol-poc/src/server.ts:808`). Define CLI flags, file layout, and test entrypoints. Add a smoke test ensuring the server can be launched/terminated programmatically (`apps/blockprotocol-poc/tests-node/dev-server-smoke.test.ts`).
 2. **Milestone F1 — Custom Element Baseline**  
    Implement a minimal WebComponent block authored with vanilla Custom Elements. Provide helper utilities for registering blocks, loading HTML/JS assets, and mapping graph updates. Add Playwright coverage proving Graph service round-trips through the dev server.
 3. **Milestone F2 — Framework Starter Kits**  

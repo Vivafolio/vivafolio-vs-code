@@ -213,6 +213,27 @@ test.describe('Milestone 0 – Hello Block', () => {
     expect(borderColor).toMatch(/59, 130, 246/)
   })
 
+  test('renders custom element block with helper wiring', async ({ page }) => {
+    page.on('console', (message) => {
+      console.log('[browser]', message.type(), message.text())
+    })
+
+    await page.goto('/?scenario=custom-element-baseline')
+
+    const block = page.locator('vivafolio-custom-block')
+    await expect(block).toBeVisible()
+
+    const shadow = block.evaluateHandle((el) => el.shadowRoot)
+    const contentLocator = block.locator('shadow=.entity-copy')
+    await expect(contentLocator).toContainText('Custom Element Baseline')
+
+    const input = block.locator('shadow=.name-input')
+    await input.fill('Updated via Custom Element')
+    await input.blur()
+
+    await expect(contentLocator).toContainText('Updated via Custom Element')
+  })
+
   test('renders HTML entry block and propagates updates', async ({ page }) => {
     await page.goto('/?scenario=html-template-block')
 

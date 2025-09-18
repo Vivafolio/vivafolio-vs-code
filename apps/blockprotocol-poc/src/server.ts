@@ -675,6 +675,51 @@ const scenarios: Record<string, ScenarioDefinition> = {
       if (!entity) return
       entity.properties = { ...entity.properties, ...update.properties }
     }
+  },
+  'custom-element-baseline': {
+    id: 'custom-element-baseline',
+    title: 'Custom Element Baseline',
+    description:
+      'Renders a vanilla custom element block using the helper API to wire Graph services.',
+    createState: () => ({ graph: createCustomElementGraph() }),
+    buildNotifications: (state) => [
+      {
+        blockId: 'custom-element-block-1',
+        blockType: 'https://vivafolio.dev/blocks/custom-element/v1',
+        entityId: state.graph.entities[0]?.entityId ?? 'custom-element-entity',
+        displayMode: 'multi-line',
+        initialGraph: state.graph,
+        supportsHotReload: true,
+        initialHeight: 260,
+        resources: [
+          {
+            logicalName: 'block-metadata.json',
+            physicalPath: '/external/custom-element-block/block-metadata.json',
+            cachingTag: nextCachingTag()
+          },
+          {
+            logicalName: 'main.js',
+            physicalPath: '/external/custom-element-block/main.js',
+            cachingTag: nextCachingTag()
+          },
+          {
+            logicalName: 'helper.js',
+            physicalPath: '/external/custom-element-block/helper.js',
+            cachingTag: nextCachingTag()
+          },
+          {
+            logicalName: 'style.css',
+            physicalPath: '/external/custom-element-block/style.css',
+            cachingTag: nextCachingTag()
+          }
+        ]
+      }
+    ],
+    applyUpdate: ({ state, update }) => {
+      const entity = state.graph.entities.find((item) => item.entityId === update.entityId)
+      if (!entity) return
+      entity.properties = { ...entity.properties, ...update.properties }
+    }
   }
 }
 
@@ -755,6 +800,21 @@ function createResourceLoaderGraph(): EntityGraph {
     properties: {
       [namePropertyBase]: 'CJS Resource Block',
       [namePropertyVersioned]: 'CJS Resource Block'
+    }
+  }
+
+  return { entities: [entity], links: [] }
+}
+
+function createCustomElementGraph(): EntityGraph {
+  const namePropertyBase = 'https://blockprotocol.org/@blockprotocol/types/property-type/name/'
+  const namePropertyVersioned = `${namePropertyBase}v/1`
+  const entity: Entity = {
+    entityId: 'custom-element-entity',
+    entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
+    properties: {
+      [namePropertyBase]: 'Custom Element Baseline',
+      [namePropertyVersioned]: 'Custom Element Baseline'
     }
   }
 

@@ -361,7 +361,9 @@ const ALLOWED_CJS_DEPENDENCIES = new Set([
   'react/jsx-runtime',
   'react/jsx-dev-runtime',
   'react-dom',
-  'react-dom/client'
+  'react-dom/client',
+  '@blockprotocol/graph',
+  '@blockprotocol/graph/stdlib'
 ])
 
 const renderers: Record<string, BlockRenderer> = {
@@ -374,7 +376,8 @@ const renderers: Record<string, BlockRenderer> = {
     renderIframeBlock(notification, 'iframe-task-list', 'Task List IFrame'),
   'https://blockprotocol.org/@blockprotocol/blocks/test-npm-block/v0': renderPublishedBlock,
   'https://blockprotocol.org/@blockprotocol/blocks/html-template/v0': renderPublishedBlock,
-  'https://vivafolio.dev/blocks/resource-loader/v1': renderPublishedBlock
+  'https://vivafolio.dev/blocks/resource-loader/v1': renderPublishedBlock,
+  'https://vivafolio.dev/blocks/custom-element/v1': renderPublishedBlock
 }
 
 function renderHelloBlock(notification: VivafolioBlockNotification): HTMLElement {
@@ -786,9 +789,11 @@ class PublishedBlockController {
   }
 
   private async initializeBundle() {
-    const [reactModule, reactDomModule] = await Promise.all([
+    const [reactModule, reactDomModule, graphModule, graphStdlibModule] = await Promise.all([
       import('react'),
-      import('react-dom/client')
+      import('react-dom/client'),
+      import('@blockprotocol/graph'),
+      import('@blockprotocol/graph/stdlib')
     ])
 
     const bundleUrl = this.resolveResourceUrl('main.js')
@@ -829,6 +834,10 @@ class PublishedBlockController {
         case 'react-dom':
         case 'react-dom/client':
           return reactDomModule
+        case '@blockprotocol/graph':
+          return graphModule
+        case '@blockprotocol/graph/stdlib':
+          return graphStdlibModule
       }
       throw new Error(`Dependency resolution fallback hit for ${specifier}`)
     }
@@ -1422,11 +1431,15 @@ function handleEnvelope(data: ServerEnvelope) {
       ensurePlaceholder(`Awaiting VivafolioBlock notifications for ${scenarioTitle}…`)
       break
     }
-    case 'vivafolioblock-notification': {
-      clearPlaceholder()
-      latestPayloads.set(data.payload.blockId, data.payload)
-      const renderer = renderers[data.payload.blockType] ?? renderFallback
-      const element = renderer(data.payload)
+  case 'vivafolioblock-notification': {
+    clearPlaceholder()
+    latestPayloads.set(data.payload.blockId, data.payload)
+    const renderer = renderers[data.payload.blockType] ?? renderFallback
+    if (!renderers[data.payload.blockType]) {
+      console.warn('[blockprotocol-poc] missing renderer for', data.payload.blockType)
+      console.warn('[blockprotocol-poc] available renderers', Object.keys(renderers))
+    }
+    const element = renderer(data.payload)
       const existing = blockRegion.querySelector<HTMLElement>(
         `[data-block-id="${data.payload.blockId}"]`
       )
