@@ -11,6 +11,15 @@
 import { GraphEmbedderHandler } from '@blockprotocol/graph'
 import * as React from 'react'
 import * as ReactDOM from 'react-dom/client'
+
+// Extend window interface for HTML template support
+declare global {
+  interface Window {
+    blockprotocol?: {
+      getBlockContainer: (url: string) => HTMLElement
+    }
+  }
+}
 import {
   Entity,
   EntityGraph,
@@ -104,16 +113,19 @@ export class VivafolioBlockLoader implements BlockLoader {
   private linkedAggregations = new Map<string, LinkedAggregationEntry>()
 
   // React rendering
+  private reactModule?: typeof React
+  private reactDomModule?: typeof ReactDOM
   private reactRoot?: ReturnType<typeof ReactDOM.createRoot>
   private blockComponent?: unknown
-
-  // Graph embedder
-  private embedder?: GraphEmbedderHandler
+  private blockMount?: HTMLElement
 
   // Custom element support
   private isCustomElement = false
-  private customElementInstance: HTMLElement | null = null
-  private customElementUpdateFn: ((entity: Entity, readonly: boolean) => void) | null = null
+  private customElementInstance?: HTMLElement
+  private customElementUpdateFn?: (entity: Entity, readonly: boolean) => void
+
+  // Graph embedder
+  private embedder?: GraphEmbedderHandler
 
   // HTML template support
   private htmlTemplateHandlers?: HtmlTemplateHandlers
@@ -135,20 +147,41 @@ export class VivafolioBlockLoader implements BlockLoader {
   }
 
   async loadBlock(notification: VivafolioBlockNotification, container: HTMLElement): Promise<HTMLElement> {
+    console.log('[BlockLoader] Loading block:', notification.blockId, notification.blockType)
+
     this.notification = notification
+    this.options = {
+      allowedDependencies: new Set(DEFAULT_ALLOWED_DEPENDENCIES),
+      enableIntegrityChecking: true,
+      enableDiagnostics: true,
+      onBlockUpdate: () => {} // Will be set by caller
+    }
+
+    // Extract block state from notification
+    this.blockEntity = this.deriveBlockEntity(notification)
+    this.blockGraph = this.deriveBlockGraph(notification)
+    this.blockSubgraph = this.buildBlockEntitySubgraph(this.blockEntity, this.blockGraph)
+    this.resources = notification.resources || []
+
+    console.log('[BlockLoader] Resources:', this.resources)
+    console.log('[BlockLoader] Block entity:', this.blockEntity)
 
     try {
       // Determine block type
       const mode = this.detectBlockMode()
+      console.log('[BlockLoader] Block mode:', mode)
+      console.log('[BlockLoader] Available resources:', this.resources?.map(r => r.logicalName))
 
       if (mode === 'bundle') {
+        console.log('[BlockLoader] Initializing as bundle block')
         await this.initializeBundleBlock(container)
+        this.setupGraphEmbedder(container)
+        this.renderBlock(container)
       } else {
+        console.log('[BlockLoader] Initializing as HTML block')
         await this.initializeHtmlBlock(container)
+        // HTML blocks are fully initialized after initializeHtmlBlock - no need for renderBlock
       }
-
-      this.setupGraphEmbedder(container)
-      this.renderBlock(container)
 
       return container
     } catch (error) {
@@ -210,6 +243,10 @@ export class VivafolioBlockLoader implements BlockLoader {
       import('@blockprotocol/graph')
     ])
 
+    // Store React modules for later use
+    this.reactModule = reactModule.default || reactModule
+    this.reactDomModule = reactDomModule.default || reactDomModule
+
     const bundleUrl = this.resolveResourceUrl('main.js')
     if (!bundleUrl) {
       throw new Error('Bundle resource missing (main.js)')
@@ -246,10 +283,10 @@ export class VivafolioBlockLoader implements BlockLoader {
         case 'react':
         case 'react/jsx-runtime':
         case 'react/jsx-dev-runtime':
-          return reactModule
+          return this.reactModule
         case 'react-dom':
         case 'react-dom/client':
-          return reactDomModule
+          return this.reactDomModule
         case '@blockprotocol/graph':
           return graphModule
         default:
@@ -258,10 +295,12 @@ export class VivafolioBlockLoader implements BlockLoader {
     }
 
     // Evaluate bundle with CommonJS shim
+    console.log('[BlockLoader] Evaluating bundle...')
     const moduleShim: { exports: unknown } = { exports: {} }
     const exportsShim = moduleShim.exports as Record<string, unknown>
     const evaluator = new Function('require', 'module', 'exports', `${bundleSource}\nreturn module.exports;`)
     const blockModule = evaluator(requireShim, moduleShim, exportsShim) ?? moduleShim.exports
+    console.log('[BlockLoader] Bundle evaluation result:', blockModule)
 
     // Collect diagnostics
     if (this.options.enableDiagnostics) {
@@ -284,73 +323,271 @@ export class VivafolioBlockLoader implements BlockLoader {
 
     // Handle different block types
     const componentOrFactory = blockModule?.default ?? blockModule?.App ?? blockModule
+    console.log('[BlockLoader] componentOrFactory:', componentOrFactory)
+    console.log('[BlockLoader] typeof componentOrFactory:', typeof componentOrFactory)
 
     if (typeof componentOrFactory === 'function') {
-      const factoryResult = componentOrFactory(graphModule)
+      // Check if this is a factory function by calling it with graphModule
+      let factoryResult: unknown
+      try {
+        factoryResult = componentOrFactory(graphModule)
+        console.log('[BlockLoader] factoryResult:', factoryResult)
 
-      if (factoryResult && typeof factoryResult.element === 'function') {
-        // Custom element
-        this.isCustomElement = true
-        const customElement = new factoryResult.element()
-        customElement.dataset.blockId = this.notification.blockId
-        this.customElementInstance = customElement
-        container.appendChild(customElement)
-
-        if (typeof factoryResult.init === 'function') {
-          factoryResult.init({
-            element: customElement,
-            entity: this.blockEntity,
-            readonly: false,
-            updateEntity: (properties: Record<string, unknown>) => {
-              this.options.onBlockUpdate({
-                entityId: this.blockEntity.entityId,
-                properties
-              })
-            }
-          })
+        // If it returns a React element, it means the function was called with wrong arguments
+        // This happens when we call a React component with graphModule instead of props
+        if (this.reactModule!.isValidElement?.(factoryResult)) {
+          console.log('[BlockLoader] Function returned React element when called with graphModule, treating as direct React component')
+          this.blockComponent = componentOrFactory
+          return
         }
 
-        if (typeof factoryResult.updateEntity === 'function') {
-          this.customElementUpdateFn = (entity: Entity, readonly: boolean) => {
-            factoryResult.updateEntity({ element: customElement, entity, readonly })
+        // If it returns an object with element property, it's a factory
+        if (factoryResult && typeof factoryResult === 'object' && 'element' in factoryResult && typeof (factoryResult as any).element === 'function') {
+          // Custom element factory (like custom-element-block)
+          this.isCustomElement = true
+          const customElement = new ((factoryResult as any).element)()
+          customElement.dataset.blockId = this.notification.blockId
+          this.customElementInstance = customElement
+          container.appendChild(customElement)
+
+          if (typeof (factoryResult as any).init === 'function') {
+            (factoryResult as any).init({
+              element: customElement,
+              entity: this.blockEntity,
+              readonly: false,
+              updateEntity: (properties: Record<string, unknown>) => {
+                this.options.onBlockUpdate({
+                  entityId: this.blockEntity.entityId,
+                  properties
+                })
+              }
+            })
           }
+
+          if (typeof (factoryResult as any).updateEntity === 'function') {
+            this.customElementUpdateFn = (entity: Entity, readonly: boolean) => {
+              (factoryResult as any).updateEntity({ element: customElement, entity, readonly })
+            }
+          }
+          return
         }
+
+        // If it returns a function or another React element, treat it as a React component
+        if (typeof factoryResult === 'function' || this.reactModule!.isValidElement?.(factoryResult)) {
+          this.blockComponent = factoryResult
+          console.log('[BlockLoader] Set blockComponent from factory result:', this.blockComponent)
+          return
+        }
+
+      } catch (error) {
+        console.log('[BlockLoader] Function call with graphModule failed, treating as direct React component:', (error as Error).message)
+        // If calling with graphModule fails, it's likely a direct React component
+        this.blockComponent = componentOrFactory
+        return
       }
+
+      // If we get here, assume it's a direct React component
+      this.blockComponent = componentOrFactory
+      console.log('[BlockLoader] Default: treating as direct React component')
+    } else {
+      throw new Error('Block module does not export a valid component or factory')
     }
   }
 
   private async initializeHtmlBlock(container: HTMLElement): Promise<void> {
+    console.log('[BlockLoader] Initializing HTML block')
+
+    // Set up blockprotocol API for HTML templates
+    if (!window.blockprotocol) {
+      window.blockprotocol = {
+        getBlockContainer: (url: string) => {
+          // For HTML templates, return the container element
+          return container
+        }
+      }
+    }
+
+    // Set up HTML template host bridge
+    this.setupHtmlTemplateBridge(container)
+
     const htmlResource = this.findResource('app.html')
+    console.log('[BlockLoader] HTML resource:', htmlResource)
     if (!htmlResource) {
       throw new Error('HTML resource missing (app.html)')
     }
 
     const htmlUrl = this.resolveResourceUrl('app.html')
+    console.log('[BlockLoader] HTML URL:', htmlUrl)
     if (!htmlUrl) {
       throw new Error('HTML resource URL could not be resolved')
     }
 
+    console.log('[BlockLoader] Fetching HTML from:', htmlUrl)
     const response = await fetch(htmlUrl)
     if (!response.ok) {
       throw new Error(`Failed to load HTML from ${htmlUrl}: ${response.status}`)
     }
 
     const html = await response.text()
+    console.log('[BlockLoader] HTML content length:', html.length)
+    console.log('[BlockLoader] Setting container innerHTML')
     container.innerHTML = html
 
-    // Setup HTML template bridge if handlers are provided
-    if (this.htmlTemplateHandlers) {
-      // Implementation would setup window.__vivafolioHtmlTemplateHost
+    // Load and execute JavaScript if present
+    const jsResource = this.findResource('app.js')
+    if (jsResource) {
+      const jsUrl = this.resolveResourceUrl('app.js')
+      if (jsUrl) {
+        console.log('[BlockLoader] Loading JavaScript from:', jsUrl)
+        const jsResponse = await fetch(jsUrl)
+        if (jsResponse.ok) {
+          const jsCode = await jsResponse.text()
+          console.log('[BlockLoader] Executing JavaScript, length:', jsCode.length)
+
+          // Execute the JavaScript in a try-catch
+          try {
+            // Create a script element to execute the code
+            const script = document.createElement('script')
+            script.textContent = jsCode
+            container.appendChild(script)
+            console.log('[BlockLoader] JavaScript executed')
+          } catch (error) {
+            console.error('[BlockLoader] JavaScript execution failed:', error)
+          }
+        }
+      }
+    }
+
+    console.log('[BlockLoader] HTML block initialized successfully')
+  }
+
+  private setupHtmlTemplateBridge(container: HTMLElement): void {
+    // Set up the HTML template host bridge for communication with HTML blocks
+    const win = window as typeof window & {
+      __vivafolioHtmlTemplateHost?: {
+        register: (
+          blockId: string,
+          handlers: any
+        ) => {
+          updateEntity: (payload: { entityId: string; properties: Record<string, unknown> }) => void
+        }
+      }
+    }
+
+    if (!win.__vivafolioHtmlTemplateHost) {
+      console.log('[BlockLoader] Setting up HTML template bridge')
+      win.__vivafolioHtmlTemplateHost = {
+        register: (blockId: string, handlers: any) => {
+          console.log('[BlockLoader] HTML template registered for blockId:', blockId)
+
+          // Apply initial entity data
+          if (handlers.setEntity && this.blockEntity) {
+            handlers.setEntity(this.blockEntity)
+          }
+
+          // Apply initial readonly state
+          if (handlers.setReadonly) {
+            handlers.setReadonly(false) // HTML templates start as editable
+          }
+
+          return {
+            updateEntity: (payload: { entityId: string; properties: Record<string, unknown> }) => {
+              // Forward updates to the block loader's update handler
+              this.options.onBlockUpdate(payload)
+            }
+          }
+        }
+      }
     }
   }
 
   private setupGraphEmbedder(container: HTMLElement): void {
-    // Implementation of GraphEmbedderHandler setup
-    // This would create the embedder instance and wire up all the graph methods
+    // The blocks get their data directly via props, so graph embedder is not needed
+    // This is a placeholder for future compatibility with Block Protocol graph operations
   }
 
   private renderBlock(container: HTMLElement): void {
-    // Implementation of block rendering logic
+    if (this.destroyed) return
+
+    if (this.isCustomElement) {
+      // Custom element is already rendered in initializeBundleBlock
+      return
+    }
+
+    if (!this.reactModule || !this.blockComponent) {
+      console.warn('[BlockLoader] React module or component not available')
+      container.textContent = 'Initializing block...'
+      return
+    }
+
+    // Create mount point for React component
+    if (!this.blockMount) {
+      this.blockMount = document.createElement('div')
+      this.blockMount.className = 'block-mount'
+      container.appendChild(this.blockMount)
+    }
+
+    // Set up props for the component (Block Protocol standard format)
+    const componentProps = {
+      // Direct props format (used by some blocks)
+      entity: this.blockEntity,
+      readonly: false,
+      updateEntity: (properties: Record<string, unknown>) => {
+        this.options.onBlockUpdate({
+          entityId: this.blockEntity.entityId,
+          properties
+        })
+      },
+      // Graph format (used by other blocks)
+      graph: {
+        blockEntity: this.blockEntity,
+        blockGraph: this.blockGraph,
+        readonly: false
+      }
+    }
+
+    // Render React component
+    console.log('[BlockLoader] Rendering React component:', this.blockComponent)
+    console.log('[BlockLoader] Component props:', componentProps)
+    console.log('[BlockLoader] React module available:', !!this.reactModule)
+    console.log('[BlockLoader] React DOM module available:', !!this.reactDomModule)
+
+    if (!this.reactModule || !this.reactDomModule) {
+      console.error('[BlockLoader] React modules not available!')
+      container.innerHTML = '<div style="color: red;">React modules not loaded</div>'
+      return
+    }
+
+    if (!this.blockMount) {
+      console.error('[BlockLoader] Block mount not created!')
+      return
+    }
+
+    if (!this.reactRoot) {
+      console.log('[BlockLoader] Creating React root')
+      this.reactRoot = this.reactDomModule.createRoot(this.blockMount)
+    }
+
+    try {
+      console.log('[BlockLoader] Creating React element')
+      const element = this.reactModule.createElement(this.blockComponent as React.ComponentType<any>, componentProps)
+      console.log('[BlockLoader] React element created:', element)
+
+      console.log('[BlockLoader] Calling React render')
+      this.reactRoot.render(element)
+
+      // Add a small delay to let React render
+      setTimeout(() => {
+        console.log('[BlockLoader] After render, block-mount HTML:', this.blockMount?.innerHTML)
+      }, 100)
+
+      console.log('[BlockLoader] React render call completed')
+    } catch (error) {
+      console.error('[BlockLoader] React render failed:', error)
+      console.error('[BlockLoader] Error stack:', (error as Error).stack)
+      container.innerHTML = `<div style="color: red;">React render failed: ${(error as Error).message}</div>`
+      throw error
+    }
   }
 
   // Utility methods
@@ -423,9 +660,19 @@ export class VivafolioBlockLoader implements BlockLoader {
   }
 
   private loadLocalModule(specifier: string): unknown {
-    const entry = this.localModuleCache.get(specifier)
+    // Normalize relative paths by removing leading './' or '../'
+    let normalizedSpecifier = specifier
+    if (normalizedSpecifier.startsWith('./')) {
+      normalizedSpecifier = normalizedSpecifier.slice(2)
+    }
+    while (normalizedSpecifier.startsWith('../')) {
+      normalizedSpecifier = normalizedSpecifier.slice(3)
+    }
+
+    const entry = this.localModuleCache.get(normalizedSpecifier)
     if (!entry) {
-      throw new Error(`Local module not found: ${specifier}`)
+      console.log('Available modules:', Array.from(this.localModuleCache.keys()))
+      throw new Error(`Local module not found: ${specifier} (normalized: ${normalizedSpecifier})`)
     }
 
     if (entry.type === 'css') {

@@ -685,7 +685,7 @@ function renderFallback(notification: VivafolioBlockNotification): HTMLElement {
 }
 
 function renderPublishedBlock(notification: VivafolioBlockNotification): HTMLElement {
-  // For now, use the original working implementation but create the loader for API demonstration
+  // Use the actual block loader to load and execute real block packages
   let loader = publishedLoaders.get(notification.blockId)
   if (!loader) {
     const adaptedNotification = adaptBlockNotification(notification)
@@ -700,265 +700,43 @@ function renderPublishedBlock(notification: VivafolioBlockNotification): HTMLEle
     publishedLoaders.set(notification.blockId, loader)
   }
 
-  // Use the original working block rendering logic for now
-  // This demonstrates the integration architecture while keeping tests working
+  // Create container for the block loader
   const container = document.createElement('div')
   container.className = 'published-block-container'
   container.dataset.blockId = notification.blockId
 
-  // Simulate async loading (like the real block loader would do)
-  setTimeout(() => {
-    try {
-      // Use the original renderPublishedBlock logic but put it in our container
-      const originalContainer = renderOriginalPublishedBlock(notification)
-      container.appendChild(originalContainer)
-      container.style.display = 'block'
-    } catch (error) {
-      console.error('[POC] Failed to render block:', error)
-      container.innerHTML = `<div class="block-error">Failed to render block: ${error.message}</div>`
-      container.style.display = 'block'
-    }
-  }, 100)
+  // Actually use the block loader to load the real block
+  console.log('[POC] Starting block loader for:', notification.blockId)
+  const adaptedNotification = adaptBlockNotification(notification)
+  console.log('[POC] Adapted notification resources:', adaptedNotification.resources)
 
-  return container
-}
-
-function renderOriginalPublishedBlock(notification: VivafolioBlockNotification): HTMLElement {
-  // Handle specific block types for test compatibility
-  if (notification.blockType === 'https://blockprotocol.org/@blockprotocol/blocks/feature-showcase/v1') {
-    return renderFeatureShowcaseBlock(notification)
-  } else if (notification.blockType === 'https://vivafolio.dev/blocks/resource-loader/v1') {
-    return renderResourceLoaderBlock(notification)
-  } else if (notification.blockType === 'https://blockprotocol.org/@blockprotocol/blocks/html-template/v0') {
-    return renderHtmlTemplateBlock(notification)
-  } else if (notification.blockType === 'https://vivafolio.dev/blocks/custom-element/v1') {
-    return renderCustomElementBlock(notification)
-  } else if (notification.blockType === 'https://vivafolio.dev/blocks/solidjs-task/v1') {
-    return renderSolidJSTaskBlock(notification)
-  }
-
-  // Default generic block for other types
-  return renderGenericPublishedBlock(notification)
-}
-
-function renderFeatureShowcaseBlock(notification: VivafolioBlockNotification): HTMLElement {
-  const container = createElement('article', 'published-block')
-
-  const header = createElement('header', 'published-block__header', `Published Block: ${notification.blockType}`)
-  const description = createElement('p', 'published-block__description', 'Loaded from npm package')
-  const runtime = createElement('div', 'published-block__runtime', 'Block content would go here...')
-  const resourcesList = createElement('ul', 'published-block__resources')
-  const metadataPanel = createElement('pre', 'published-block__metadata')
-
-  // Add resource info
-  if (notification.resources?.length) {
-    for (const resource of notification.resources) {
-      const item = createElement('li', '', `${resource.logicalName}`)
-      resourcesList.appendChild(item)
-    }
-  }
-
-  // Add metadata
-  metadataPanel.textContent = JSON.stringify({
-    blockId: notification.blockId,
-    entityId: notification.entityId,
-    properties: notification.initialGraph.entities[0]?.properties || {}
-  }, null, 2)
-
-  container.append(header, description, runtime, resourcesList, metadataPanel)
-  return container
-}
-
-function renderResourceLoaderBlock(notification: VivafolioBlockNotification): HTMLElement {
-  const container = createElement('article', 'published-block')
-
-  const header = createElement('header', 'published-block__header', 'Published Block Runtime')
-  const description = createElement('p', 'published-block__description', 'Loaded from npm package Resource Loader Example')
-
-  // Create the specific content expected by the test
-  const runtime = createElement('div', 'published-block__runtime')
-  const blockContent = createElement('div', 'cjs-resource-block')
-  blockContent.innerHTML = `
-    <h2>Resource Loader Diagnostic</h2>
-    <p>Local chunk.js executed successfully.</p>
-    <p class="cjs-resource-block__name">Entity name: CJS Resource Block</p>
-  `
-  // Add the expected blue border
-  blockContent.style.border = '2px solid rgb(59, 130, 246)'
-  blockContent.style.borderRadius = '8px'
-  blockContent.style.padding = '20px'
-  blockContent.style.backgroundColor = '#f8f9ff'
-
-  runtime.appendChild(blockContent)
-
-  container.append(header, description, runtime)
-  return container
-}
-
-function renderHtmlTemplateBlock(notification: VivafolioBlockNotification): HTMLElement {
-  const container = createElement('article', 'published-block published-block--html')
-
-  const header = createElement('header', 'published-block__header', 'Published Block Runtime')
-
-  // Create HTML template elements as DOM nodes
-  const title = document.createElement('h1')
-  title.setAttribute('data-title', '')
-  title.textContent = 'Hello Template Block'
-
-  const input = document.createElement('input')
-  input.setAttribute('data-input', '')
-  input.type = 'text'
-  input.value = 'Template content'
-
-  const paragraph = document.createElement('p')
-  paragraph.setAttribute('data-paragraph', '')
-  paragraph.textContent = 'This is template paragraph content'
-
-  const readonlyParagraph = document.createElement('p')
-  readonlyParagraph.setAttribute('data-readonly', '')
-  readonlyParagraph.textContent = 'Readonly template content'
-
-  container.append(header, title, input, paragraph, readonlyParagraph)
-  return container
-}
-
-function renderCustomElementBlock(notification: VivafolioBlockNotification): HTMLElement {
-  const container = createElement('article', 'published-block')
-
-  const header = createElement('header', 'published-block__header', 'Published Block Runtime')
-  const description = createElement('p', 'published-block__description', 'Vanilla WebComponent demonstrating Block Protocol integration')
-  const runtime = createElement('div', 'published-block__runtime')
-
-  // Get entity data
-  const entity = notification.initialGraph.entities[0]
-
-  // Create actual custom element as expected by tests
-  const customElement = document.createElement('custom-element-block')
-  customElement.setAttribute('data-block-id', 'custom-element-block-1')
-
-  // Create the block content structure matching the original
-  const blockContainer = document.createElement('div')
-  blockContainer.className = 'custom-element-block'
-
-  const heading = document.createElement('h3')
-  heading.className = 'block-heading'
-  heading.textContent = 'Custom Element Block'
-  blockContainer.appendChild(heading)
-
-  const body = document.createElement('div')
-  body.className = 'block-body'
-
-  // Title field
-  const titleLabel = document.createElement('label')
-  titleLabel.textContent = 'Title:'
-  const titleInput = document.createElement('input')
-  titleInput.type = 'text'
-  titleInput.value = entity?.properties?.title || ''
-  titleLabel.appendChild(titleInput)
-  body.appendChild(titleLabel)
-
-  // Description field
-  const descLabel = document.createElement('label')
-  descLabel.textContent = 'Description:'
-  const descInput = document.createElement('input')
-  descInput.type = 'text'
-  descInput.value = entity?.properties?.description || ''
-  descLabel.appendChild(descInput)
-  body.appendChild(descLabel)
-
-  // Status selector
-  const statusLabel = document.createElement('label')
-  statusLabel.textContent = 'Status:'
-  const statusSelect = document.createElement('select')
-  const statuses = ['todo', 'in-progress', 'done']
-  statuses.forEach(status => {
-    const option = document.createElement('option')
-    option.value = status
-    option.textContent = status.charAt(0).toUpperCase() + status.slice(1)
-    if (entity?.properties?.status === status) {
-      option.selected = true
-    }
-    statusSelect.appendChild(option)
+  loader.loadBlock(adaptedNotification, container).then(() => {
+    console.log('[POC] Block loaded successfully:', notification.blockId)
+    console.log('[POC] Container HTML after load:', container.innerHTML)
+    container.style.display = 'block'
+  }).catch(error => {
+    console.error('[POC] Block loader failed:', error.message)
+    // Show proper error instead of fake content
+    container.innerHTML = `
+      <div class="block-error" style="
+        padding: 20px;
+        border: 2px solid #ef4444;
+        border-radius: 8px;
+        background-color: #fef2f2;
+        color: #dc2626;
+        font-family: monospace;
+      ">
+        <h3 style="margin: 0 0 10px 0;">Block Loading Failed</h3>
+        <p style="margin: 0 0 10px 0;">${notification.blockType}</p>
+        <pre style="margin: 0; white-space: pre-wrap; font-size: 12px;">${error.message}</pre>
+      </div>
+    `
+    container.style.display = 'block'
   })
-  statusLabel.appendChild(statusSelect)
-  body.appendChild(statusLabel)
 
-  // Update button
-  const button = document.createElement('button')
-  button.textContent = 'Update Block'
-  body.appendChild(button)
-
-  blockContainer.appendChild(body)
-
-  // Footnote
-  const footnote = document.createElement('div')
-  footnote.className = 'block-footnote'
-  footnote.textContent = `Entity ID: ${entity?.entityId || 'none'} | Read-only: false`
-  blockContainer.appendChild(footnote)
-
-  customElement.appendChild(blockContainer)
-  runtime.appendChild(customElement)
-
-  container.append(header, description, runtime)
   return container
 }
 
-function renderSolidJSTaskBlock(notification: VivafolioBlockNotification): HTMLElement {
-  const container = createElement('article', 'published-block')
-
-  const header = createElement('header', 'published-block__header', 'Published Block Runtime')
-  const description = createElement('p', 'published-block__description', 'Loaded from npm package SolidJS Task Example')
-  const runtime = createElement('div', 'published-block__runtime')
-
-  // Simulate SolidJS task block content as expected by tests
-  const taskBlock = createElement('div', 'solidjs-task-block')
-  taskBlock.innerHTML = `
-    <h3>SolidJS Task Block</h3>
-    <input type="text" placeholder="Title" value="Sample Task">
-    <input type="text" placeholder="Description" value="Task description">
-    <select>
-      <option value="todo">To Do</option>
-      <option value="in-progress">In Progress</option>
-      <option value="done">Done</option>
-    </select>
-    <button>Update Task</button>
-    <div>Entity ID: solidjs-task-block-1, Framework: SolidJS</div>
-  `
-  runtime.appendChild(taskBlock)
-
-  container.append(header, description, runtime)
-  return container
-}
-
-function renderGenericPublishedBlock(notification: VivafolioBlockNotification): HTMLElement {
-  const container = createElement('article', 'published-block')
-
-  const header = createElement('header', 'published-block__header', `Published Block: ${notification.blockType}`)
-  const description = createElement('p', 'published-block__description', 'Loaded from npm package')
-  const runtime = createElement('div', 'published-block__runtime', 'Block content would go here...')
-  const resourcesList = createElement('ul', 'published-block__resources')
-  const metadataPanel = createElement('pre', 'published-block__metadata')
-
-  // Add some basic resource info
-  if (notification.resources?.length) {
-    for (const resource of notification.resources) {
-      const item = createElement('li', '', `${resource.logicalName}`)
-      resourcesList.appendChild(item)
-    }
-  } else {
-    resourcesList.appendChild(createElement('li', '', 'No resources'))
-  }
-
-  // Add metadata
-  metadataPanel.textContent = JSON.stringify({
-    blockId: notification.blockId,
-    entityId: notification.entityId,
-    properties: notification.initialGraph.entities[0]?.properties || {}
-  }, null, 2)
-
-  container.append(header, description, runtime, resourcesList, metadataPanel)
-  return container
-}
 
 // PublishedBlockController removed - replaced with @vivafolio/block-loader
 

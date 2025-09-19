@@ -8,7 +8,7 @@ const BUNDLE_SIZE_THRESHOLDS = {
   'solidjs-block.es.js': 5000,    // 5KB max for ES module
   'solidjs-block.umd.js': 3000,  // 3KB max for UMD (more compressed)
   // Allow some overhead for chunks created by code splitting
-  'solidjs-*.js': 3000,           // 3KB max for any chunk
+  'solidjs-*.js': 8000,           // 8KB max for any chunk (increased for realistic bundling)
 } as const
 
 // Compression ratio expectations

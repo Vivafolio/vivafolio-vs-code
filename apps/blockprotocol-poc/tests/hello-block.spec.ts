@@ -91,21 +91,37 @@ test.describe('Milestone 0 – Hello Block', () => {
   })
 
   test('renders feature-showcase block with Block Protocol APIs', async ({ page }) => {
+    // Listen for console messages
+    const consoleMessages: string[] = []
+    page.on('console', msg => {
+      consoleMessages.push(`${msg.type()}: ${msg.text()}`)
+    })
+
     await page.goto('/?scenario=feature-showcase-block')
 
     // Check if the container exists and has content
     const container = page.locator('.published-block-container')
     await expect(container).toBeAttached() // Just check it exists in DOM
 
-    // Wait a bit for async loading to complete
-    await page.waitForTimeout(1000)
+    // Wait for content to appear (block loader is async)
+    await page.waitForTimeout(5000)
 
     // Check the container's HTML content
     const containerHtml = await container.innerHTML()
     console.log('Container HTML:', containerHtml)
 
-    // Check if there's content or an error
-    expect(containerHtml.length).toBeGreaterThan(0)
+    // Check what's inside the block-mount div
+    const blockMount = container.locator('.block-mount')
+    if (await blockMount.isVisible()) {
+      const blockMountHtml = await blockMount.innerHTML()
+      console.log('Block mount HTML:', blockMountHtml)
+    }
+
+    // Log all console messages
+    console.log('Console messages:', consoleMessages)
+
+    // Check if there's content (block-mount should be there)
+    expect(containerHtml).toContain('block-mount')
 
     // Check if there's an error message in the container
     const errorDiv = container.locator('.block-error')
@@ -115,16 +131,17 @@ test.describe('Milestone 0 – Hello Block', () => {
       throw new Error(`Block failed to load: ${errorText}`)
     }
 
-    // Then check for the published block content (integration demo)
-    const block = container.locator('.published-block')
-    await expect(block).toBeVisible()
+    // Check for the actual rendered React component content
+    const featureShowcaseBlock = container.locator('.feature-showcase-block')
+    await expect(featureShowcaseBlock).toBeVisible()
 
-    await expect(block.locator('.published-block__header')).toContainText('Published Block:')
-    await expect(block.locator('.published-block__description')).toContainText('Loaded from npm package')
+    await expect(featureShowcaseBlock.locator('h3')).toHaveText('Block Protocol Feature Showcase')
+    await expect(featureShowcaseBlock.locator('p').first()).toContainText('This block demonstrates the Block Protocol graph module')
 
-    // Note: Full diagnostics would be available with complete block loader implementation
-    // For this integration demo, we verify the basic block rendering works
-    console.log('Block integration demo - diagnostics check skipped for simplified implementation')
+    // Check that the entity info is displayed
+    const entityInfo = featureShowcaseBlock.locator('div').last()
+    await expect(entityInfo).toContainText('Entity ID:')
+    await expect(entityInfo).toContainText('feature-showcase-block')
   })
 
   test('loads CommonJS block with local chunk and stylesheet', async ({ page }) => {
@@ -132,6 +149,10 @@ test.describe('Milestone 0 – Hello Block', () => {
 
     const container = page.locator('.published-block-container')
     await expect(container).toBeVisible()
+
+    // Check what's actually rendered
+    const containerHtml = await container.innerHTML()
+    console.log('Resource loader container HTML:', containerHtml)
 
     const block = container.locator('.cjs-resource-block')
     await expect(block).toBeVisible()
@@ -145,18 +166,33 @@ test.describe('Milestone 0 – Hello Block', () => {
 
 
   test('renders HTML entry block and loads content', async ({ page }) => {
+    // Listen for console messages
+    const consoleMessages: string[] = []
+    page.on('console', msg => {
+      consoleMessages.push(`${msg.type()}: ${msg.text()}`)
+    })
+
     await page.goto('/?scenario=html-template-block')
 
-    await page.waitForSelector('.published-block-container', {
-      timeout: 15000
-    })
-    const runtime = page.locator('.published-block-container')
+    // Wait for the block to load
+    const container = page.locator('.published-block-container')
+    await expect(container).toBeAttached()
 
-    // Verify HTML structure is loaded
-    const title = runtime.locator('h1[data-title]')
-    const input = runtime.locator('input[data-input]')
-    const paragraph = runtime.locator('p[data-paragraph]')
-    const readonlyParagraph = runtime.locator('p[data-readonly]')
+    // Wait a bit more for async loading
+    await page.waitForTimeout(3000)
+
+    // Check what's actually rendered
+    const containerHtml = await container.innerHTML()
+    console.log('HTML template container HTML:', containerHtml)
+
+    // Log console messages
+    console.log('Console messages for HTML template:', consoleMessages.filter(msg => msg.includes('BlockLoader') || msg.includes('POC')))
+
+    // The HTML template block renders its content directly in the container
+    const title = container.locator('h1[data-title]')
+    const input = container.locator('input[data-input]')
+    const paragraph = container.locator('p[data-paragraph]')
+    const readonlyParagraph = container.locator('p[data-readonly]')
 
     // Check that elements exist
     await expect(title).toBeAttached()
@@ -164,14 +200,19 @@ test.describe('Milestone 0 – Hello Block', () => {
     await expect(paragraph).toBeAttached()
     await expect(readonlyParagraph).toBeAttached()
 
-    // Verify title has content (either from entity or fallback)
-    await expect(title).toHaveText(/Hello.*Template Block/i)
+    // Verify actual content from the HTML template
+    await expect(title).toHaveText('Hello, Vivafolio Template Block')
+    await expect(input).toHaveValue('Vivafolio Template Block')
+    await expect(paragraph).toContainText('This HTML template block demonstrates Block Protocol integration')
+    await expect(readonlyParagraph).toHaveText('Vivafolio Template Block')
 
-    // Note: Full diagnostics would be available with complete block loader implementation
-    // For this integration demo, we verify the basic HTML template rendering works
+    // Test interaction: update the input field
+    await input.fill('Updated by test')
+    await expect(input).toHaveValue('Updated by test')
   })
+})
 
-  test.describe('F1 – Custom Element Baseline', () => {
+test.describe('F1 – Custom Element Baseline', () => {
     test('custom element block is instantiated and has basic structure', async ({ page }) => {
       await page.goto('/?scenario=custom-element-baseline')
 
@@ -296,39 +337,78 @@ test.describe('Milestone 0 – Hello Block', () => {
     test('status pill example block renders with correct styling', async ({ page }) => {
       await page.goto('/?scenario=status-pill-example')
 
-      // The published block should load and display
-      const block = page.locator('.published-block-container')
-      await expect(block).toBeVisible()
+      // Wait for the block to load
+      const container = page.locator('.published-block-container')
+      await expect(container).toBeAttached()
 
-      await expect(block.locator('.published-block__header')).toContainText('Published Block:')
-      await expect(block.locator('.published-block__description')).toContainText('Loaded from npm package')
+      // Check for the status pill component
+      const statusPill = container.locator('.status-pill-block')
+      await expect(statusPill).toBeVisible()
+
+      // Should display status text
+      await expect(statusPill).toContainText('In Progress')
+
+      // Check the visual styling (should have background color)
+      const backgroundColor = await statusPill.evaluate((el) => window.getComputedStyle(el).backgroundColor)
+      expect(backgroundColor).not.toBe('rgba(0, 0, 0, 0)') // Should have a visible background
+
+      // Should be clickable (has cursor pointer)
+      const cursor = await statusPill.evaluate((el) => window.getComputedStyle(el).cursor)
+      expect(cursor).toBe('pointer')
     })
 
     test('person chip example block renders with assignee data', async ({ page }) => {
       await page.goto('/?scenario=person-chip-example')
 
-      const block = page.locator('.published-block-container')
-      await expect(block).toBeVisible()
+      // Wait for the block to load
+      const container = page.locator('.published-block-container')
+      await expect(container).toBeAttached()
 
-      await expect(block.locator('.published-block__header')).toContainText('Published Block:')
+      // Check for person chip component
+      const personChip = container.locator('.person-chip-block')
+      await expect(personChip).toBeVisible()
+
+      // Should display some person/assignee information
+      await expect(personChip).toContainText('Alice') // Default assignee from the block
     })
 
     test('table view example block renders table structure', async ({ page }) => {
       await page.goto('/?scenario=table-view-example')
 
-      const block = page.locator('.published-block-container')
-      await expect(block).toBeVisible()
+      // Wait for the block to load
+      const container = page.locator('.published-block-container')
+      await expect(container).toBeAttached()
 
-      await expect(block.locator('.published-block__header')).toContainText('Published Block:')
+      // Check for table view block structure
+      const tableView = container.locator('.table-view-block')
+      await expect(tableView).toBeVisible()
+
+      // Should contain a table
+      const table = tableView.locator('table')
+      await expect(table).toBeVisible()
+
+      // Should have table headers
+      const headers = table.locator('thead th')
+      expect(await headers.count()).toBeGreaterThan(0) // Should have some headers
+
+      // Should have table rows
+      const rows = table.locator('tbody tr')
+      expect(await rows.count()).toBeGreaterThan(0) // Should have some rows
     })
 
     test('board view example block renders kanban layout', async ({ page }) => {
       await page.goto('/?scenario=board-view-example')
 
-      const block = page.locator('.published-block-container')
-      await expect(block).toBeVisible()
+      // Wait for the block to load
+      const container = page.locator('.published-block-container')
+      await expect(container).toBeAttached()
 
-      await expect(block.locator('.published-block__header')).toContainText('Published Block:')
+      // Check for kanban board structure
+      const board = container.locator('.board-view-block')
+      await expect(board).toBeVisible()
+
+      // Should have kanban columns
+      const columns = board.locator('.kanban-column')
+      expect(await columns.count()).toBeGreaterThan(0) // Should have some columns
     })
   })
-})
