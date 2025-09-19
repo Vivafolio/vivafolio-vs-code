@@ -1,30 +1,26 @@
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
-
 import { defineConfig } from 'vite'
-
-const thisFilePath = fileURLToPath(import.meta.url)
-const thisDir = path.dirname(thisFilePath)
-
-const graphStdlibShimPath = path.resolve(
-  thisDir,
-  'src/shims/blockprotocol-graph-stdlib.ts'
-)
+import vue from '@vitejs/plugin-vue'
+import { svelte } from '@sveltejs/vite-plugin-svelte'
 
 export default defineConfig({
   root: '.',
   publicDir: false,
-  resolve: {
-    alias: {
-      '@blockprotocol/graph/stdlib': graphStdlibShimPath
-    }
-  },
   build: {
     outDir: 'dist/client',
-    emptyOutDir: true
+    emptyOutDir: true,
+    rollupOptions: {
+      external: ['solid-js', 'vue', 'svelte', 'svelte/internal', 'lit', '@angular/core']
+    }
   },
+  plugins: [
+    vue(),
+    svelte()
+  ],
   server: {
     port: 5173,
     strictPort: false
+  },
+  optimizeDeps: {
+    include: ['solid-js', 'vue', 'svelte', 'lit', '@angular/core']
   }
 })

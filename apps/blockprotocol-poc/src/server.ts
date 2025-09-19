@@ -1,4 +1,5 @@
 import express from 'express'
+import compression from 'compression'
 import { createServer as createHttpServer } from 'http'
 import { WebSocketServer, type WebSocket } from 'ws'
 import path from 'path'
@@ -75,6 +76,47 @@ const ROOT_DIR = path.resolve(__dirname, '..')
 const DIST_CLIENT_DIR = path.resolve(ROOT_DIR, 'dist/client')
 const INDEX_HTML = path.resolve(ROOT_DIR, 'index.html')
 const TEMPLATES_DIR = path.resolve(ROOT_DIR, 'templates')
+
+// Production-optimized static asset serving configuration
+function createOptimizedStaticOptions(maxAge: number = 31536000) { // 1 year default
+  const isProduction = process.env.NODE_ENV === 'production'
+
+  return {
+    fallthrough: false,
+    index: false,
+    etag: true,
+    lastModified: true,
+    cacheControl: isProduction,
+    setHeaders: (res: any, path: string) => {
+      // Set content type for JSON files
+      if (path.endsWith('.json')) {
+        res.type('application/json')
+      }
+
+      // Set cache headers for production
+      if (isProduction) {
+        const ext = path.split('.').pop()?.toLowerCase()
+
+        // Static assets with content hashing can be cached aggressively
+        if (ext === 'js' || ext === 'css' || path.includes('-')) {
+          res.setHeader('Cache-Control', `public, max-age=${maxAge}, immutable`)
+        }
+        // HTML files should not be cached aggressively
+        else if (ext === 'html') {
+          res.setHeader('Cache-Control', 'public, max-age=300') // 5 minutes
+        }
+        // Other assets get shorter cache
+        else {
+          res.setHeader('Cache-Control', `public, max-age=${maxAge / 10}`) // 1 month
+        }
+
+        // Add security headers
+        res.setHeader('X-Content-Type-Options', 'nosniff')
+        res.setHeader('X-Frame-Options', 'DENY')
+      }
+    }
+  }
+}
 function findRepoRoot(startDir = ROOT_DIR) {
   let current = startDir
   const { root } = path.parse(current)
@@ -1477,6 +1519,21 @@ export async function startServer(options: StartServerOptions = {}) {
 
   const app = express()
 
+  // Enable compression for all responses in production
+  if (process.env.NODE_ENV === 'production') {
+    app.use(compression({
+      level: 6, // Good balance between compression and speed
+      threshold: 1024, // Only compress responses larger than 1KB
+      filter: (req, res) => {
+        // Don't compress event streams or already compressed content
+        if (req.headers['accept-encoding']?.includes('br')) {
+          return false
+        }
+        return compression.filter(req, res)
+      }
+    }))
+  }
+
   // Framework watchers and bundles
   let frameworkWatchers: FrameworkWatcher[] = []
 
@@ -1495,38 +1552,20 @@ export async function startServer(options: StartServerOptions = {}) {
     }
   }
 
-  app.use(
-    '/external/html-template-block',
-    express.static(HTML_TEMPLATE_PUBLIC_DIR, {
-      fallthrough: false,
-      index: false,
-      cacheControl: false,
-      etag: true,
-      setHeaders(res, servedPath) {
-        if (servedPath.endsWith('.json')) {
-          res.type('application/json')
-        }
-      }
-    })
-  )
+  // Static asset serving with production optimizations
+  app.use('/external/html-template-block', express.static(HTML_TEMPLATE_PUBLIC_DIR, createOptimizedStaticOptions()))
+  app.use('/external/resource-loader-block', express.static(RESOURCE_LOADER_BLOCK_DIR, createOptimizedStaticOptions()))
+  app.use('/external/feature-showcase-block', express.static(path.resolve(ROOT_DIR, 'external/feature-showcase-block'), createOptimizedStaticOptions()))
+  app.use('/external/custom-element-block', express.static(path.resolve(ROOT_DIR, 'external/custom-element-block'), createOptimizedStaticOptions()))
+  app.use('/external/solidjs-task-block', express.static(path.resolve(ROOT_DIR, 'external/solidjs-task-block'), createOptimizedStaticOptions()))
+  app.use('/examples/blocks/status-pill', express.static(path.resolve(ROOT_DIR, 'examples/blocks/status-pill'), createOptimizedStaticOptions()))
+  app.use('/examples/blocks/person-chip', express.static(path.resolve(ROOT_DIR, 'examples/blocks/person-chip'), createOptimizedStaticOptions()))
+  app.use('/examples/blocks/table-view', express.static(path.resolve(ROOT_DIR, 'examples/blocks/table-view'), createOptimizedStaticOptions()))
+  app.use('/examples/blocks/board-view', express.static(path.resolve(ROOT_DIR, 'examples/blocks/board-view'), createOptimizedStaticOptions()))
+  app.use('/templates', express.static(TEMPLATES_DIR, createOptimizedStaticOptions()))
 
-  app.use('/external/resource-loader-block', express.static(RESOURCE_LOADER_BLOCK_DIR))
-  app.use('/external/feature-showcase-block', express.static(path.resolve(ROOT_DIR, 'external/feature-showcase-block')))
-  app.use('/external/custom-element-block', express.static(path.resolve(ROOT_DIR, 'external/custom-element-block')))
-  app.use('/external/solidjs-task-block', express.static(path.resolve(ROOT_DIR, 'external/solidjs-task-block')))
-  app.use('/examples/blocks/status-pill', express.static(path.resolve(ROOT_DIR, 'examples/blocks/status-pill')))
-  app.use('/examples/blocks/person-chip', express.static(path.resolve(ROOT_DIR, 'examples/blocks/person-chip')))
-  app.use('/examples/blocks/table-view', express.static(path.resolve(ROOT_DIR, 'examples/blocks/table-view')))
-  app.use('/examples/blocks/board-view', express.static(path.resolve(ROOT_DIR, 'examples/blocks/board-view')))
-  app.use('/templates', express.static(TEMPLATES_DIR))
-
-  // Framework compiled assets
-  app.use('/frameworks', express.static(path.resolve(ROOT_DIR, 'dist/frameworks'), {
-    fallthrough: false,
-    index: false,
-    cacheControl: false,
-    etag: true
-  }))
+  // Framework compiled assets with aggressive caching for hashed bundles
+  app.use('/frameworks', express.static(path.resolve(ROOT_DIR, 'dist/frameworks'), createOptimizedStaticOptions()))
 
   // Framework bundles API
   app.get('/api/frameworks/:framework/bundles', (req, res) => {
@@ -1588,6 +1627,48 @@ export async function startServer(options: StartServerOptions = {}) {
 
   app.get('/healthz', (_req, res) => {
     res.json({ ok: true, timestamp: new Date().toISOString() })
+  })
+
+  // Performance monitoring endpoint
+  app.get('/api/performance', (req, res) => {
+    const performance = {
+      server: {
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        nodeVersion: process.version,
+        environment: process.env.NODE_ENV || 'development'
+      },
+      bundles: Array.from(globalFrameworkWatchers || []).map(watcher => ({
+        framework: watcher.framework,
+        bundleCount: watcher.bundles.size,
+        bundles: Array.from(watcher.bundles.values()).map(bundle => ({
+          id: bundle.id,
+          size: bundle.assets.reduce((total, asset) => {
+            try {
+              const stat = fs.statSync(path.join(ROOT_DIR, 'dist/frameworks', watcher.framework, asset))
+              return total + stat.size
+            } catch {
+              return total
+            }
+          }, 0),
+          lastModified: bundle.lastModified.toISOString(),
+          hash: bundle.hash
+        }))
+      })),
+      timestamp: new Date().toISOString()
+    }
+
+    res.json(performance)
+  })
+
+  // Bundle loading performance tracking
+  app.post('/api/performance/bundle-load', express.json(), (req, res) => {
+    const { bundleId, loadTime, framework, userAgent } = req.body
+
+    console.log(`[performance] Bundle ${bundleId} (${framework}) loaded in ${loadTime}ms`)
+
+    // In a real implementation, this would be stored in a database or monitoring system
+    res.json({ recorded: true, bundleId, loadTime, framework })
   })
 
   app.get('*', async (req, res, next) => {

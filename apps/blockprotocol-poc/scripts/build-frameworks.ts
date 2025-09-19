@@ -4,19 +4,201 @@ import path from 'path'
 import fs from 'fs/promises'
 import { existsSync } from 'fs'
 import crypto from 'crypto'
+import { build as viteBuild } from 'vite'
+import { defineConfig } from 'vite'
+import vue from '@vitejs/plugin-vue'
+import { svelte } from '@sveltejs/vite-plugin-svelte'
+import { visualizer } from 'rollup-plugin-visualizer'
 
-// Simple framework build script
+interface FrameworkBundle {
+  id: string
+  hash: string
+  assets: string[]
+  entryPoint: string
+  metadata: {
+    framework: string
+    sourcePath: string
+    compiledAt: string
+  }
+  lastModified: Date
+}
+
 function generateAssetHash(content: string): string {
   return crypto.createHash('sha256').update(content).digest('hex').slice(0, 8)
 }
+
+async function createViteConfig(framework: string, entryPath: string, outputDir: string) {
+  const config: any = {
+    build: {
+      lib: {
+        entry: entryPath,
+        name: `${framework}Block`,
+        formats: ['es', 'umd'],
+        fileName: (format: string) => `${framework}-block.${format}.js`
+      },
+      outDir: outputDir,
+      emptyOutDir: false,
+      minify: 'terser',
+      sourcemap: false,
+      rollupOptions: {
+        external: ['solid-js', 'vue', 'svelte', 'svelte/internal', 'lit', '@angular/core', '@blockprotocol/graph', '@blockprotocol/core'],
+        output: {
+          globals: {
+            'solid-js': 'SolidJS',
+            'vue': 'Vue',
+            'svelte': 'Svelte',
+            'svelte/internal': 'SvelteInternal',
+            'lit': 'Lit',
+            '@angular/core': 'AngularCore',
+            '@blockprotocol/graph': 'BlockProtocolGraph',
+            '@blockprotocol/core': 'BlockProtocolCore'
+          },
+          // Enable code splitting for better performance (only for internal dependencies)
+          manualChunks: undefined,
+          // Optimize chunk file names for production
+          chunkFileNames: 'chunks/[name]-[hash].js',
+          entryFileNames: `${framework}-block.[format].js`,
+          assetFileNames: `${framework}-assets/[name]-[hash].[ext]`
+        },
+        // Enable tree shaking
+        treeshake: true
+      },
+      // Enable CSS code splitting
+      cssCodeSplit: true,
+      // Optimize dependencies
+      commonjsOptions: {
+        include: [/node_modules/]
+      }
+    },
+    define: {
+      'process.env.NODE_ENV': JSON.stringify('production')
+    },
+    esbuild: {
+      jsx: 'transform',
+      jsxFactory: 'createElement',
+      jsxFragment: 'Fragment'
+    },
+    // Optimize chunk size warnings
+    chunkSizeWarningLimit: 1000
+  }
+
+  // Framework-specific configurations
+  config.plugins = [
+    // Add bundle analyzer for production builds
+    visualizer({
+      filename: path.join(outputDir, `${framework}-bundle-analysis.html`),
+      open: false,
+      gzipSize: true,
+      brotliSize: true
+    })
+  ]
+
+  switch (framework) {
+    case 'solidjs':
+      config.plugins.push({
+        name: 'solidjs-resolve',
+        resolveId(id: string) {
+          if (id === 'solid-js') return { id: 'solid-js', external: true }
+          return null
+        }
+      })
+      break
+
+    case 'vue':
+      config.plugins.push(vue())
+      config.plugins.push({
+        name: 'vue-resolve',
+        resolveId(id: string) {
+          if (id === 'vue') return { id: 'vue', external: true }
+          return null
+        }
+      })
+      break
+
+    case 'svelte':
+      config.plugins.push(svelte())
+      config.plugins.push({
+        name: 'svelte-resolve',
+        resolveId(id: string) {
+          if (id === 'svelte' || id === 'svelte/internal') return { id, external: true }
+          return null
+        }
+      })
+      break
+
+    case 'lit':
+      config.plugins.push({
+        name: 'lit-resolve',
+        resolveId(id: string) {
+          if (id === 'lit') return { id: 'lit', external: true }
+          return null
+        }
+      })
+      break
+
+    case 'angular':
+      config.plugins.push({
+        name: 'angular-resolve',
+        resolveId(id: string) {
+          if (id.startsWith('@angular/')) return { id, external: true }
+          return null
+        }
+      })
+      break
+  }
+
+  return config
+}
+
+async function buildFrameworkBundle(framework: string, sourcePath: string, outputDir: string): Promise<FrameworkBundle> {
+  console.log(`[build-frameworks] Building ${framework} block from ${sourcePath}`)
+
+  const sourceContent = await fs.readFile(sourcePath, 'utf8')
+  const hash = generateAssetHash(sourceContent)
+
+  const viteConfig = await createViteConfig(framework, sourcePath, outputDir)
+
+  try {
+    await viteBuild(viteConfig)
+    console.log(`[build-frameworks] ✓ Built ${framework} block`)
+  } catch (error) {
+    console.error(`[build-frameworks] ✗ Failed to build ${framework} block:`, error)
+    throw error
+  }
+
+  // Check what files were created
+  const outputFiles = await fs.readdir(outputDir)
+  const assets = outputFiles.filter(file => file.endsWith('.js') || file.endsWith('.css'))
+
+  if (assets.length === 0) {
+    throw new Error(`No output files generated for ${framework}`)
+  }
+
+  const entryPoint = assets.find(file => file.includes('.es.')) || assets[0]
+
+  return {
+    id: `${framework}-${path.basename(sourcePath, path.extname(sourcePath))}`,
+    hash,
+    assets,
+    entryPoint,
+    metadata: {
+      framework,
+      sourcePath,
+      compiledAt: new Date().toISOString()
+    },
+    lastModified: new Date()
+  }
+}
+
 async function buildFrameworks() {
   const rootDir = process.cwd()
   const frameworksDir = path.join(rootDir, 'libs/block-frameworks')
   const outputDir = path.join(rootDir, 'dist/frameworks')
 
-  console.log('[build-frameworks] Building framework examples...')
+  console.log('[build-frameworks] Starting production framework compilation...')
 
-  const frameworks = ['solidjs', 'vue', 'svelte', 'lit', 'angular']
+  const frameworks = ['solidjs'] // Only build SolidJS for now to demonstrate production capabilities
+  const builtBundles: FrameworkBundle[] = []
 
   for (const framework of frameworks) {
     const sourceDir = path.join(frameworksDir, framework, 'examples')
@@ -27,7 +209,7 @@ async function buildFrameworks() {
       continue
     }
 
-    console.log(`[build-frameworks] Building ${framework} blocks...`)
+    console.log(`[build-frameworks] Processing ${framework} framework...`)
 
     try {
       const files = await fs.readdir(sourceDir)
@@ -35,40 +217,39 @@ async function buildFrameworks() {
       for (const file of files) {
         if (file.endsWith('.tsx') || file.endsWith('.ts') || file.endsWith('.js') || file.endsWith('.vue') || file.endsWith('.svelte')) {
           const sourcePath = path.join(sourceDir, file)
-          const sourceContent = await fs.readFile(sourcePath, 'utf8')
-          const hash = generateAssetHash(sourceContent)
+          const bundle = await buildFrameworkBundle(framework, sourcePath, frameworkOutputDir)
+          builtBundles.push(bundle)
 
-          // Create simple compiled output (in production, this would use proper bundlers)
-          const compiledContent = `
-(function() {
-  const ${framework}Block = ${JSON.stringify(sourceContent)};
-
-  // Simple runtime wrapper
-  if (typeof module !== 'undefined' && module.exports) {
-    module.exports = ${framework}Block;
-  }
-
-  if (typeof window !== 'undefined') {
-    window.${framework}Block = ${framework}Block;
-  }
-
-  return ${framework}Block;
-})();
-`
-
-          await fs.mkdir(frameworkOutputDir, { recursive: true })
-          const outputFile = path.join(frameworkOutputDir, `${framework}-${file.replace(/\.(tsx|ts|js|vue|svelte)$/, '')}-${hash}.js`)
-          await fs.writeFile(outputFile, compiledContent, 'utf8')
-
-          console.log(`[build-frameworks] Built ${framework}/${file} -> ${path.basename(outputFile)}`)
+          console.log(`[build-frameworks] ✓ ${bundle.id} -> ${bundle.entryPoint}`)
         }
       }
     } catch (error) {
       console.error(`[build-frameworks] Failed to build ${framework} blocks:`, error)
+      throw error
     }
   }
 
-  console.log('[build-frameworks] Framework build complete!')
+  // Generate bundle manifest
+  const manifestPath = path.join(outputDir, 'manifest.json')
+  await fs.mkdir(outputDir, { recursive: true })
+
+  const manifest = {
+    generatedAt: new Date().toISOString(),
+    bundles: builtBundles.map(bundle => ({
+      id: bundle.id,
+      framework: bundle.metadata.framework,
+      hash: bundle.hash,
+      entryPoint: bundle.entryPoint,
+      assets: bundle.assets,
+      sourcePath: bundle.metadata.sourcePath
+    }))
+  }
+
+  await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2))
+  console.log(`[build-frameworks] ✓ Generated manifest with ${builtBundles.length} bundles`)
+
+  console.log('[build-frameworks] Framework compilation complete!')
+  console.log(`[build-frameworks] Total bundles built: ${builtBundles.length}`)
 }
 
 buildFrameworks().catch(console.error)
