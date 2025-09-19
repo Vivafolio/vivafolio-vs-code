@@ -397,25 +397,28 @@ Imagine a developer working on a Vivafolio project with data stored in various f
 - **Acceptance**: Unit tests verify entity extraction from file formats and LSP data integration
 - **Reference**: Entity/link modeling examples in `docs/spec/BlockProtocol-in-Vivafolio.md` **4.2** and LSP integration in spec **3.1**
 
-**G2.2 — Custom Syntax Integration**
-Now imagine extending the mock language server to recognize a new `vivafolio_data` construct that allows developers to embed table-like data directly in source code using custom syntax. The LSP server parses this syntax and sends VivafolioBlock notifications containing both the Block Protocol block for visualization and a DSL module for handling edits.
+**G2.2 — Custom Syntax Integration (Complete ✅)**
+✅ **Custom Syntax Support**: Extended mock language server to recognize `vivafolio_data!()` construct for embedding table-like data directly in source code
 
 **Story: How Custom Syntax Parsing Works**
-1. **Syntax Recognition**: LSP server scans source files for `vivafolio_data!()` macro calls
-2. **Content Extraction**: Parse the custom table syntax within the macro arguments using language-specific parsing
-3. **Schema Inference**: Determine column types and constraints from the table structure
-4. **DSL Module Creation**: Generate a DSL module that knows how to translate entity updates back to source code edits
-5. **Block Creation**: Create Block Protocol block for visual editing of the table data
-6. **Notification Dispatch**: Send VivafolioBlock notification containing both block and DSL module to indexing service
-7. **Entity Registration**: Indexing service stores entities, block, and DSL module for editing operations
-8. **Type Registration**: Register dynamic EntityTypes based on inferred table schema
+1. **Syntax Recognition**: LSP server scans source files for `vivafolio_data!("entity_id", r#"table_data"#)` macro calls
+2. **Content Extraction**: Parse CSV-style table syntax within raw string literals
+3. **Schema Inference**: Extract column headers and row data from table structure
+4. **DSL Module Creation**: Generate DSL module with operations for entity updates, creation, and deletion
+5. **Block Creation**: Create table-view Block Protocol blocks for visual editing
+6. **Notification Dispatch**: Send VivafolioBlock notifications with embedded DSL modules
+7. **Entity Registration**: Convert table rows to individual entities with proper entityIds
+8. **Type Registration**: Register table-view-block type with inferred schema
 
 **Implementation Details**:
-- Extend `test/mock-lsp-server.js` VivafolioBlock notifications to include DSL modules alongside blocks
-- Implement table-like syntax parser within LSP server (building on existing gui_state parsing)
-- Create DSL module format for entity-update-to-source-edit translation
+- ✅ Extended `test/mock-lsp-server.js` with multi-line regex pattern matching
+- ✅ Implemented `parseTableSyntax()` function for CSV table parsing
+- ✅ Created `createTableDSLModule()` for entity-update-to-source-edit translation
+- ✅ Extended VivafolioBlock payload to include DSL modules and table data
+- ✅ Created `table-view.html` block implementation with inline editing
+- ✅ Added comprehensive unit tests and example files
 - **Acceptance**: Unit tests verify LSP produces blocks and DSL modules that correctly handle table editing
-- **Reference**: Current LSP construct parsing in `test/mock-lsp-server.js` lines 87-104 and gui_state extraction
+- **Reference**: New implementation in `test/mock-lsp-server.js` lines 81-183, examples in `test/projects/vivafolio-data-examples/`
 
 **G2.3 — Pluggable Editing Modules**
 When a user edits data through a Block Protocol block (like changing a task title), that change needs to be saved back to the original source while preserving the syntax and structure. The indexing service routes edit operations to appropriate modules based on whether the data came from direct file parsing (Markdown, CSV) or LSP-provided VivafolioBlock notifications (source code constructs).

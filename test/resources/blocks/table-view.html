@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vivafolio Table View Block</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 10px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: white;
+        }
+
+        .table-container {
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0;
+        }
+
+        th, td {
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid #e1e5e9;
+        }
+
+        th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            color: #495057;
+            border-bottom: 2px solid #dee2e6;
+        }
+
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        .editable-cell {
+            cursor: pointer;
+            min-width: 100px;
+        }
+
+        .editable-cell:hover {
+            background-color: #e3f2fd;
+        }
+
+        .editable-cell.editing {
+            background-color: white;
+            border: 1px solid #007bff;
+            padding: 6px 10px;
+        }
+
+        .editable-cell.editing input {
+            border: none;
+            outline: none;
+            width: 100%;
+            font-size: inherit;
+            font-family: inherit;
+        }
+
+        .add-row-btn {
+            margin-top: 10px;
+            padding: 6px 12px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .add-row-btn:hover {
+            background-color: #0056b3;
+        }
+
+        .error-message {
+            color: #dc3545;
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="table-container" class="table-container">
+        <!-- Table will be dynamically generated -->
+    </div>
+
+    <script>
+        // Block Protocol integration
+        let currentEntities = [];
+        let blockId = null;
+        let entityId = null;
+
+        // Initialize block
+        function init({ blockId: id, entityId: eid, initialGraph }) {
+            blockId = id;
+            entityId = eid;
+            currentEntities = initialGraph?.entities || [];
+
+            console.log('Table View Block initialized:', { blockId, entityId, entities: currentEntities });
+            renderTable();
+
+            // Notify Block Protocol that we're ready
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'blockprotocol:init:response',
+                    blockId: blockId,
+                    entityId: entityId,
+                    success: true
+                }, '*');
+            }
+        }
+
+        // Handle entity updates
+        function updateEntity({ entityId: updatedEntityId, properties }) {
+            console.log('Table View Block updating entity:', updatedEntityId, properties);
+
+            const entityIndex = currentEntities.findIndex(e => e.entityId === updatedEntityId);
+            if (entityIndex >= 0) {
+                currentEntities[entityIndex] = { entityId: updatedEntityId, properties };
+            } else {
+                currentEntities.push({ entityId: updatedEntityId, properties });
+            }
+
+            renderTable();
+        }
+
+        function renderTable() {
+            const container = document.getElementById('table-container');
+
+            if (currentEntities.length === 0) {
+                container.innerHTML = '<p style="color: #6c757d; text-align: center; padding: 20px;">No data available</p>';
+                return;
+            }
+
+            // Get all unique property keys from all entities
+            const allKeys = new Set();
+            currentEntities.forEach(entity => {
+                Object.keys(entity.properties || {}).forEach(key => allKeys.add(key));
+            });
+            const headers = Array.from(allKeys).sort();
+
+            let html = '<table>';
+            html += '<thead><tr>';
+            headers.forEach(header => {
+                html += `<th>${header}</th>`;
+            });
+            html += '</tr></thead>';
+
+            html += '<tbody>';
+            currentEntities.forEach((entity, rowIndex) => {
+                html += '<tr>';
+                headers.forEach(header => {
+                    const value = entity.properties?.[header] || '';
+                    html += `<td class="editable-cell" data-entity-id="${entity.entityId}" data-property="${header}" data-row="${rowIndex}">${value}</td>`;
+                });
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+
+            html += '<button class="add-row-btn" onclick="addNewRow()">Add Row</button>';
+
+            container.innerHTML = html;
+
+            // Attach event listeners to editable cells
+            document.querySelectorAll('.editable-cell').forEach(cell => {
+                cell.addEventListener('click', handleCellClick);
+            });
+        }
+
+        function handleCellClick(event) {
+            const cell = event.target;
+            const entityId = cell.dataset.entityId;
+            const property = cell.dataset.property;
+            const currentValue = cell.textContent;
+
+            // Create input field
+            const input = document.createElement('input');
+            input.value = currentValue;
+            input.style.width = '100%';
+
+            cell.classList.add('editing');
+            cell.innerHTML = '';
+            cell.appendChild(input);
+            input.focus();
+            input.select();
+
+            function saveEdit() {
+                const newValue = input.value;
+                cell.classList.remove('editing');
+                cell.textContent = newValue;
+
+                // Notify parent about the update
+                if (window.parent !== window) {
+                    window.parent.postMessage({
+                        type: 'blockprotocol:updateEntity',
+                        blockId: blockId,
+                        entityId: entityId,
+                        properties: { [property]: newValue }
+                    }, '*');
+                }
+            }
+
+            function cancelEdit() {
+                cell.classList.remove('editing');
+                cell.textContent = currentValue;
+            }
+
+            input.addEventListener('blur', saveEdit);
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    saveEdit();
+                } else if (e.key === 'Escape') {
+                    cancelEdit();
+                }
+            });
+        }
+
+        function addNewRow() {
+            const newEntityId = `${entityId}-row-${Date.now()}`;
+            const newProperties = {};
+
+            // Get headers from existing entities
+            if (currentEntities.length > 0) {
+                Object.keys(currentEntities[0].properties || {}).forEach(key => {
+                    newProperties[key] = '';
+                });
+            }
+
+            // Notify parent about the new entity
+            if (window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'blockprotocol:updateEntity',
+                    blockId: blockId,
+                    entityId: newEntityId,
+                    properties: newProperties
+                }, '*');
+            }
+        }
+
+        // Listen for messages from parent
+        window.addEventListener('message', (event) => {
+            const message = event.data;
+
+            if (message.type === 'blockprotocol:init') {
+                init(message);
+            } else if (message.type === 'blockprotocol:updateEntity') {
+                updateEntity(message);
+            }
+        });
+
+        // Auto-initialize if we're in an iframe context
+        if (window.parent !== window) {
+            window.parent.postMessage({
+                type: 'blockprotocol:block:ready',
+                blockId: 'unknown'
+            }, '*');
+        }
+    </script>
+</body>
+</html>
