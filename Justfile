@@ -156,22 +156,45 @@ test-blockprotocol-standalone-build:
 # Launch Block Protocol POC dev server (basic mode)
 dev-blockprotocol-poc:
 	cd apps/blockprotocol-poc && \
-	  npm run dev
+		node ../../scripts/guarded-run.js \
+			--name blockprotocol-poc-dev \
+			--pid-file .pids/dev.pid \
+			--cwd . \
+			--match "apps/blockprotocol-poc/src/server.ts" \
+			--match "apps/blockprotocol-poc/dist/server/server.js" \
+			-- npm run dev
 
 # Launch Block Protocol POC dev server once (with timeout, for testing)
 dev-blockprotocol-poc-once:
 	cd apps/blockprotocol-poc && \
-	  npm run dev:once
+		PORT="${PORT:-0}" node ../../scripts/guarded-run.js \
+			--name blockprotocol-poc-dev-once \
+			--pid-file .pids/dev-once.pid \
+			--cwd . \
+			--match "apps/blockprotocol-poc/src/server.ts" \
+			-- npm run dev:once
 
 # Launch Block Protocol POC dev server with framework watching
 dev-blockprotocol-poc-frameworks:
 	cd apps/blockprotocol-poc && \
-	  npm run dev:frameworks
+		node ../../scripts/guarded-run.js \
+			--name blockprotocol-poc-frameworks \
+			--pid-file .pids/dev-frameworks.pid \
+			--cwd . \
+			--match "ENABLE_FRAMEWORK_WATCH=true" \
+			--match "apps/blockprotocol-poc/src/server.ts" \
+			-- npm run dev:frameworks
 
 # Launch Block Protocol POC dev server with frameworks once (with timeout)
 dev-blockprotocol-poc-frameworks-once:
 	cd apps/blockprotocol-poc && \
-	  npm run dev:once-frameworks
+		PORT="${PORT:-0}" node ../../scripts/guarded-run.js \
+			--name blockprotocol-poc-frameworks-once \
+			--pid-file .pids/dev-frameworks-once.pid \
+			--cwd . \
+			--match "apps/blockprotocol-poc/src/server.ts" \
+			--match "ENABLE_FRAMEWORK_WATCH=true" \
+			-- npm run dev:once-frameworks
 
 # Launch Block Protocol POC production server
 start-blockprotocol-poc:
@@ -182,6 +205,22 @@ start-blockprotocol-poc:
 start-blockprotocol-poc-standalone:
 	cd apps/blockprotocol-poc && \
 	  npm run start:standalone
+
+# -----------------------------
+# Install commands
+# -----------------------------
+
+# Install dependencies in all relevant directories
+install-all:
+	@echo "Installing dependencies in root directory..."
+	npm install
+	@echo "Installing dependencies in Block Protocol POC..."
+	cd apps/blockprotocol-poc && npm install
+	@echo "Installing dependencies in block-loader package..."
+	cd packages/block-loader && npm install && npm run build
+	@echo "Installing dependencies in mock language extension..."
+	cd mock-language-extension && npm install
+	@echo "All dependencies installed and packages built successfully"
 
 # -----------------------------
 # Build commands

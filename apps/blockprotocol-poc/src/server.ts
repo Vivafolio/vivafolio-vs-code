@@ -92,7 +92,13 @@ interface ScenarioDefinition {
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-const DEFAULT_PORT = Number.parseInt(process.env.PORT || '', 10) || 4173
+// Respect PORT=0 for ephemeral port selection; treat only undefined/NaN as missing
+const DEFAULT_PORT = (() => {
+  const raw = process.env.PORT
+  if (raw === undefined) return 4173
+  const n = Number.parseInt(raw, 10)
+  return Number.isNaN(n) ? 4173 : n
+})()
 const ROOT_DIR = path.resolve(__dirname, '..')
 const DIST_CLIENT_DIR = path.resolve(ROOT_DIR, 'dist/client')
 const INDEX_HTML = path.resolve(ROOT_DIR, 'index.html')
