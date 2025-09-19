@@ -6,6 +6,7 @@ import matter from 'gray-matter';
 import { EditingModule, DSLModule, EditResult, EditContext } from './EditingModule';
 import { DSLModuleExecutor } from './DSLModuleExecutor';
 import { CSVEditingModule, MarkdownEditingModule } from './FileEditingModule';
+import { EventEmitter } from './EventEmitter';
 
 // Entity metadata stored by the indexing service
 export interface EntityMetadata {
@@ -24,12 +25,57 @@ export interface IndexingServiceConfig {
   excludePatterns: string[];
 }
 
-// Event types emitted by the indexing service
+// Enhanced event types emitted by the indexing service
 export interface IndexingEvents {
-  'file-changed': (filePath: string, eventType: 'add' | 'change' | 'unlink') => void;
-  'entity-updated': (entityId: string, properties: Record<string, any>) => void;
-  'entity-created': (entityId: string, properties: Record<string, any>) => void;
-  'entity-deleted': (entityId: string) => void;
+  'file-changed': (payload: FileChangeEvent) => void;
+  'entity-updated': (payload: EntityUpdateEvent) => void;
+  'entity-created': (payload: EntityCreateEvent) => void;
+  'entity-deleted': (payload: EntityDeleteEvent) => void;
+  'batch-operation': (payload: BatchOperationEvent) => void;
+}
+
+// Event payload interfaces
+export interface FileChangeEvent {
+  filePath: string;
+  eventType: 'add' | 'change' | 'unlink';
+  timestamp: Date;
+  affectedEntities: string[];
+  sourceType: string;
+}
+
+export interface EntityUpdateEvent {
+  entityId: string;
+  properties: Record<string, any>;
+  previousProperties?: Record<string, any>;
+  timestamp: Date;
+  sourcePath: string;
+  sourceType: string;
+  operationType: 'update';
+}
+
+export interface EntityCreateEvent {
+  entityId: string;
+  properties: Record<string, any>;
+  timestamp: Date;
+  sourcePath: string;
+  sourceType: string;
+  operationType: 'create';
+}
+
+export interface EntityDeleteEvent {
+  entityId: string;
+  previousProperties?: Record<string, any>;
+  timestamp: Date;
+  sourcePath: string;
+  sourceType: string;
+  operationType: 'delete';
+}
+
+export interface BatchOperationEvent {
+  operations: Array<EntityUpdateEvent | EntityCreateEvent | EntityDeleteEvent>;
+  timestamp: Date;
+  sourcePath?: string;
+  operationType: 'batch';
 }
 
 export class IndexingService {
@@ -37,10 +83,17 @@ export class IndexingService {
   private editingModules: EditingModule[] = [];
   private entityMetadata: Map<string, EntityMetadata> = new Map();
   private watcher?: chokidar.FSWatcher;
-  private eventListeners: Map<keyof IndexingEvents, Function[]> = new Map();
+  private eventEmitter: EventEmitter;
 
   constructor(config: IndexingServiceConfig) {
     this.config = config;
+    this.eventEmitter = new EventEmitter({
+      maxListeners: 50, // Allow more listeners for complex integrations
+      asyncDelivery: true, // Enable async delivery for better performance
+      errorHandler: (error, eventName, listener) => {
+        console.error(`IndexingService: Error in event listener for '${eventName}' (listener: ${listener.id}):`, error);
+      }
+    });
     this.initializeEditingModules();
   }
 
@@ -49,6 +102,16 @@ export class IndexingService {
     this.editingModules.push(new DSLModuleExecutor());
     this.editingModules.push(new CSVEditingModule());
     this.editingModules.push(new MarkdownEditingModule());
+  }
+
+  // Get source type from file extension
+  private getSourceTypeFromExtension(ext: string): string {
+    switch (ext) {
+      case '.csv': return 'csv';
+      case '.md': return 'markdown';
+      case '.rs': case '.js': case '.ts': case '.py': case '.java': return 'vivafolio_data_construct';
+      default: return 'unknown';
+    }
   }
 
   // Register a custom editing module
@@ -117,19 +180,47 @@ export class IndexingService {
   private async handleFileChange(filePath: string, eventType: 'add' | 'change' | 'unlink'): Promise<void> {
     console.log(`IndexingService: File ${eventType}: ${filePath}`);
 
+    const affectedEntities: string[] = [];
+    const ext = path.extname(filePath).toLowerCase();
+    const sourceType = this.getSourceTypeFromExtension(ext);
+
     if (eventType === 'unlink') {
       // Remove entities from this file
       for (const [entityId, metadata] of this.entityMetadata) {
         if (metadata.sourcePath === filePath) {
+          affectedEntities.push(entityId);
+          const previousProperties = { ...metadata.properties };
           this.entityMetadata.delete(entityId);
-          this.emit('entity-deleted', entityId);
+
+          await this.eventEmitter.emit('entity-deleted', {
+            entityId,
+            previousProperties,
+            timestamp: new Date(),
+            sourcePath: filePath,
+            sourceType: metadata.sourceType,
+            operationType: 'delete'
+          });
         }
       }
     } else {
       await this.processFile(filePath, eventType);
+
+      // Collect affected entities for this file
+      for (const [entityId, metadata] of this.entityMetadata) {
+        if (metadata.sourcePath === filePath) {
+          affectedEntities.push(entityId);
+        }
+      }
     }
 
-    this.emit('file-changed', filePath, eventType);
+    // Emit enhanced file-changed event
+    await this.eventEmitter.emit('file-changed', {
+      filePath,
+      eventType,
+      timestamp: new Date(),
+      affectedEntities,
+      sourceType
+    });
   }
 
   // Process a file to extract entities
@@ -285,10 +376,23 @@ export class IndexingService {
 
     const success = await editingModule.updateEntity(entityId, properties, metadata);
     if (success) {
+      // Store previous properties for event
+      const previousProperties = { ...metadata.properties };
+
       // Update our metadata
       metadata.properties = { ...metadata.properties, ...properties };
       metadata.lastModified = new Date();
-      this.emit('entity-updated', entityId, metadata.properties);
+
+      // Emit enhanced entity-updated event
+      await this.eventEmitter.emit('entity-updated', {
+        entityId,
+        properties: metadata.properties,
+        previousProperties,
+        timestamp: new Date(),
+        sourcePath: metadata.sourcePath,
+        sourceType: metadata.sourceType,
+        operationType: 'update'
+      });
     }
 
     return success;
@@ -319,7 +423,16 @@ export class IndexingService {
       };
 
       this.entityMetadata.set(entityId, metadata);
-      this.emit('entity-created', entityId, properties);
+
+      // Emit enhanced entity-created event
+      await this.eventEmitter.emit('entity-created', {
+        entityId,
+        properties,
+        timestamp: new Date(),
+        sourcePath: sourceMetadata.sourcePath,
+        sourceType: sourceMetadata.sourceType,
+        operationType: 'create'
+      });
     }
 
     return success;
@@ -345,8 +458,18 @@ export class IndexingService {
 
     const success = await editingModule.deleteEntity(entityId, metadata);
     if (success) {
+      const previousProperties = { ...metadata.properties };
       this.entityMetadata.delete(entityId);
-      this.emit('entity-deleted', entityId);
+
+      // Emit enhanced entity-deleted event
+      await this.eventEmitter.emit('entity-deleted', {
+        entityId,
+        previousProperties,
+        timestamp: new Date(),
+        sourcePath: metadata.sourcePath,
+        sourceType: metadata.sourceType,
+        operationType: 'delete'
+      });
     }
 
     return success;
@@ -362,28 +485,186 @@ export class IndexingService {
     return Array.from(this.entityMetadata.values());
   }
 
-  // Event system
-  on<K extends keyof IndexingEvents>(event: K, listener: IndexingEvents[K]): void {
-    if (!this.eventListeners.has(event)) {
-      this.eventListeners.set(event, []);
-    }
-    this.eventListeners.get(event)!.push(listener);
-  }
+  // Batch operations support
+  async performBatchOperations(operations: Array<{
+    type: 'update' | 'create' | 'delete';
+    entityId: string;
+    properties?: Record<string, any>;
+    sourceMetadata?: any;
+  }>): Promise<{
+    success: boolean;
+    results: Array<{ entityId: string; success: boolean; error?: string }>;
+  }> {
+    const results: Array<{ entityId: string; success: boolean; error?: string }> = [];
+    const batchEvents: Array<EntityUpdateEvent | EntityCreateEvent | EntityDeleteEvent> = [];
+    const timestamp = new Date();
 
-  off<K extends keyof IndexingEvents>(event: K, listener: IndexingEvents[K]): void {
-    const listeners = this.eventListeners.get(event);
-    if (listeners) {
-      const index = listeners.indexOf(listener);
-      if (index > -1) {
-        listeners.splice(index, 1);
+    for (const operation of operations) {
+      try {
+        let success = false;
+        let event: EntityUpdateEvent | EntityCreateEvent | EntityDeleteEvent | null = null;
+
+        switch (operation.type) {
+          case 'update':
+            if (operation.properties) {
+              success = await this.updateEntity(operation.entityId, operation.properties);
+              if (success) {
+                const metadata = this.entityMetadata.get(operation.entityId);
+                if (metadata) {
+                  event = {
+                    entityId: operation.entityId,
+                    properties: metadata.properties,
+                    timestamp,
+                    sourcePath: metadata.sourcePath,
+                    sourceType: metadata.sourceType,
+                    operationType: 'update'
+                  } as EntityUpdateEvent;
+                }
+              }
+            }
+            break;
+
+          case 'create':
+            if (operation.properties && operation.sourceMetadata) {
+              success = await this.createEntity(operation.entityId, operation.properties, operation.sourceMetadata);
+              if (success) {
+                event = {
+                  entityId: operation.entityId,
+                  properties: operation.properties,
+                  timestamp,
+                  sourcePath: operation.sourceMetadata.sourcePath,
+                  sourceType: operation.sourceMetadata.sourceType,
+                  operationType: 'create'
+                } as EntityCreateEvent;
+              }
+            }
+            break;
+
+          case 'delete':
+            success = await this.deleteEntity(operation.entityId);
+            if (success) {
+              // Event already emitted in deleteEntity method
+            }
+            break;
+        }
+
+        results.push({
+          entityId: operation.entityId,
+          success,
+          error: success ? undefined : `Failed to ${operation.type} entity`
+        });
+
+        if (event) {
+          batchEvents.push(event);
+        }
+
+      } catch (error) {
+        results.push({
+          entityId: operation.entityId,
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
       }
     }
+
+    // Emit batch operation event if we have successful operations
+    if (batchEvents.length > 0) {
+      await this.eventEmitter.emit('batch-operation', {
+        operations: batchEvents,
+        timestamp,
+        operationType: 'batch'
+      });
+    }
+
+    const overallSuccess = results.every(r => r.success);
+
+    return {
+      success: overallSuccess,
+      results
+    };
   }
 
-  private emit<K extends keyof IndexingEvents>(event: K, ...args: Parameters<IndexingEvents[K]>): void {
-    const listeners = this.eventListeners.get(event);
-    if (listeners) {
-      listeners.forEach(listener => listener(...args));
-    }
+  // Enhanced Event System API
+  /**
+   * Subscribe to an event with optional filtering and priority
+   */
+  on<T = any>(
+    event: string,
+    listener: (payload: T) => void | Promise<void>,
+    options: {
+      filter?: (payload: T) => boolean;
+      priority?: number;
+    } = {}
+  ): string {
+    return this.eventEmitter.on(event, listener, options);
+  }
+
+  /**
+   * Subscribe to an event once
+   */
+  once<T = any>(
+    event: string,
+    listener: (payload: T) => void | Promise<void>,
+    options: {
+      filter?: (payload: T) => boolean;
+      priority?: number;
+    } = {}
+  ): string {
+    return this.eventEmitter.once(event, listener, options);
+  }
+
+  /**
+   * Unsubscribe from an event
+   */
+  off(event: string, listenerId: string): boolean {
+    return this.eventEmitter.off(event, listenerId);
+  }
+
+  /**
+   * Unsubscribe all listeners for an event or all events
+   */
+  offAll(event?: string): void {
+    this.eventEmitter.offAll(event);
+  }
+
+  /**
+   * Wait for an event to be emitted
+   */
+  waitFor<T = any>(
+    event: string,
+    options: {
+      filter?: (payload: T) => boolean;
+      timeout?: number;
+    } = {}
+  ): Promise<T> {
+    return this.eventEmitter.waitFor(event, options);
+  }
+
+  /**
+   * Get the number of listeners for an event
+   */
+  listenerCount(event: string): number {
+    return this.eventEmitter.listenerCount(event);
+  }
+
+  /**
+   * Get all listener IDs for an event
+   */
+  getListenerIds(event: string): string[] {
+    return this.eventEmitter.getListenerIds(event);
+  }
+
+  /**
+   * Get event names that have listeners
+   */
+  eventNames(): string[] {
+    return this.eventEmitter.eventNames();
+  }
+
+  /**
+   * Check if there are listeners for an event
+   */
+  hasListeners(event: string): boolean {
+    return this.eventEmitter.hasListeners(event);
   }
 }

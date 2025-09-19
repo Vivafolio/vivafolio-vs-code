@@ -172,8 +172,8 @@ Alice,30,New York`;
     });
   });
 
-  describe('event system', () => {
-    it('should emit events when entities change', async () => {
+  describe('enhanced event system', () => {
+    it('should emit enhanced events when entities change', async () => {
       const csvContent = `Name,Age,City
 Alice,30,New York`;
 
@@ -188,7 +188,164 @@ Alice,30,New York`;
 
       await service.updateEntity('data-row-0', { Name: 'Alice Updated' });
 
-      expect(entityUpdatedHandler).toHaveBeenCalledWith('data-row-0', expect.objectContaining({ Name: 'Alice Updated' }));
+      expect(entityUpdatedHandler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entityId: 'data-row-0',
+          properties: expect.objectContaining({ Name: 'Alice Updated' }),
+          timestamp: expect.any(Date),
+          sourcePath: '/test/data.csv',
+          sourceType: 'csv',
+          operationType: 'update'
+        })
+      );
+    });
+
+    it('should support event filtering', async () => {
+      const csvContent = `Name,Age,City
+Alice,30,New York
+Bob,25,London`;
+
+      mockedFs.readFile.mockResolvedValue(csvContent);
+
+      // Process the file to create entities
+      const processCSVFile = (service as any).processCSVFile.bind(service);
+      await processCSVFile('/test/data.csv');
+
+      const entityUpdatedHandler = jest.fn();
+      service.on('entity-updated', entityUpdatedHandler, {
+        filter: (payload) => payload.entityId === 'data-row-0'
+      });
+
+      // Update first entity (should trigger)
+      await service.updateEntity('data-row-0', { Name: 'Alice Updated' });
+      // Update second entity (should be filtered out)
+      await service.updateEntity('data-row-1', { Name: 'Bob Updated' });
+
+      expect(entityUpdatedHandler).toHaveBeenCalledTimes(1);
+      expect(entityUpdatedHandler).toHaveBeenCalledWith(
+        expect.objectContaining({ entityId: 'data-row-0' })
+      );
+    });
+
+    it('should support event priority', async () => {
+      const csvContent = `Name,Age,City
+Alice,30,New York`;
+
+      mockedFs.readFile.mockResolvedValue(csvContent);
+
+      // Process the file to create entities
+      const processCSVFile = (service as any).processCSVFile.bind(service);
+      await processCSVFile('/test/data.csv');
+
+      const calls: string[] = [];
+      const highPriorityHandler = jest.fn(() => calls.push('high'));
+      const lowPriorityHandler = jest.fn(() => calls.push('low'));
+
+      service.on('entity-updated', highPriorityHandler as any, { priority: 10 });
+      service.on('entity-updated', lowPriorityHandler as any, { priority: 0 });
+
+      await service.updateEntity('data-row-0', { Name: 'Alice Updated' });
+
+      expect(calls).toEqual(['high', 'low']);
+    });
+
+    it('should emit file-changed events with enhanced payload', async () => {
+      const fileChangedHandler = jest.fn();
+      service.on('file-changed', fileChangedHandler as any);
+
+      const csvContent = `Name,Age,City
+Alice,30,New York`;
+
+      mockedFs.readFile.mockResolvedValue(csvContent);
+
+      // Simulate file change event (this triggers the file-changed event)
+      const handleFileChange = (service as any).handleFileChange.bind(service);
+      await handleFileChange('/test/data.csv', 'add');
+
+      expect(fileChangedHandler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          filePath: '/test/data.csv',
+          eventType: 'add',
+          timestamp: expect.any(Date),
+          affectedEntities: expect.arrayContaining(['data-row-0']),
+          sourceType: 'csv'
+        })
+      );
+    });
+
+    it('should support waitFor method', async () => {
+      const csvContent = `Name,Age,City
+Alice,30,New York`;
+
+      mockedFs.readFile.mockResolvedValue(csvContent);
+
+      // Process the file to create entities
+      const processCSVFile = (service as any).processCSVFile.bind(service);
+      await processCSVFile('/test/data.csv');
+
+      const waitPromise = service.waitFor('entity-updated');
+
+      // Trigger the event after a short delay
+      setTimeout(async () => {
+        await service.updateEntity('data-row-0', { Name: 'Alice Updated' });
+      }, 10);
+
+      const result = await waitPromise;
+
+      expect(result).toEqual(
+        expect.objectContaining({
+          entityId: 'data-row-0',
+          properties: expect.objectContaining({ Name: 'Alice Updated' }),
+          operationType: 'update'
+        })
+      );
+    });
+
+    it('should support batch operations', async () => {
+      const batchOperationHandler = jest.fn();
+      service.on('batch-operation', batchOperationHandler);
+
+      const csvContent1 = `Name,Age,City
+Alice,30,New York`;
+      const csvContent2 = `Name,Age,City
+Bob,25,London`;
+
+      mockedFs.readFile.mockResolvedValueOnce(csvContent1).mockResolvedValueOnce(csvContent2);
+
+      // Create initial entities
+      const processCSVFile = (service as any).processCSVFile.bind(service);
+      await processCSVFile('/test/data1.csv');
+      await processCSVFile('/test/data2.csv');
+
+      const operations = [
+        {
+          type: 'update' as const,
+          entityId: 'data1-row-0',
+          properties: { Name: 'Alice Updated' }
+        },
+        {
+          type: 'update' as const,
+          entityId: 'data2-row-0',
+          properties: { Name: 'Bob Updated' }
+        }
+      ];
+
+      const result = await service.performBatchOperations(operations);
+
+      expect(result.success).toBe(true);
+      expect(result.results).toHaveLength(2);
+      expect(result.results.every(r => r.success)).toBe(true);
+
+      expect(batchOperationHandler).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operations: expect.arrayContaining([
+            expect.objectContaining({ entityId: 'data1-row-0', operationType: 'update' }),
+            expect.objectContaining({ entityId: 'data2-row-0', operationType: 'update' })
+          ]),
+          timestamp: expect.any(Date),
+          operationType: 'batch'
+        })
+      );
     });
   });
 });

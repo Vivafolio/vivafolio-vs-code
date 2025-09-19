@@ -272,8 +272,12 @@ Test,123
       // Update entity
       await service.updateEntity('test_data-row-0', { Name: 'Updated Test' });
 
-      expect(entityUpdatedHandler).toHaveBeenCalledWith('test_data-row-0', expect.objectContaining({
-        Name: 'Updated Test'
+      expect(entityUpdatedHandler).toHaveBeenCalledWith(expect.objectContaining({
+        entityId: 'test_data-row-0',
+        properties: expect.objectContaining({
+          Name: 'Updated Test'
+        }),
+        operationType: 'update'
       }));
 
       // Create entity
@@ -283,15 +287,22 @@ Test,123
         sourcePath: sourcePath
       });
 
-      expect(entityCreatedHandler).toHaveBeenCalledWith('test_data-row-1', expect.objectContaining({
-        Name: 'New Item',
-        Value: '456'
+      expect(entityCreatedHandler).toHaveBeenCalledWith(expect.objectContaining({
+        entityId: 'test_data-row-1',
+        properties: expect.objectContaining({
+          Name: 'New Item',
+          Value: '456'
+        }),
+        operationType: 'create'
       }));
 
       // Delete entity
       await service.deleteEntity('test_data-row-0');
 
-      expect(entityDeletedHandler).toHaveBeenCalledWith('test_data-row-0');
+      expect(entityDeletedHandler).toHaveBeenCalledWith(expect.objectContaining({
+        entityId: 'test_data-row-0',
+        operationType: 'delete'
+      }));
     });
   });
 });

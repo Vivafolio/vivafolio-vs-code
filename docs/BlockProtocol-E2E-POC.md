@@ -1,10 +1,10 @@
-# Block Protocol E2E POC Status - Framework Integration Complete ✅
+# Block Protocol E2E POC Status - File System Indexing Progress 🚧
 
 This document tracks the proof-of-concept effort to validate the Block Protocol integration described in `docs/spec/BlockProtocol-in-Vivafolio.md` using a standalone web application and Playwright-driven tests.
 
-## 🚧 Phase F In Progress: Framework & WebComponent Interop (Prototype)
+## 🚧 Phase G In Progress: Production & Integration
 
-**Framework integration milestones (F0-F5) have been prototyped with basic functionality.** The POC demonstrates framework-agnostic concepts but requires significant development for production deployment. Current implementation provides proof-of-concept hot-reload and basic compilation but lacks proper bundling, optimization, and production readiness.
+**Phase G focuses on production-ready components and integration patterns.** G1 (Production Deployment) and G2.4 (Pub/Sub Event System) are now complete. G2 continues with WebSocket transport and LSP integration, while G3-G4 plan advanced caching and nested block mechanisms.
 
 ## 🎯 Initiative Overview
 
@@ -296,10 +296,10 @@ Following the testing guidelines from `AGENTS.md` - **all tests are headless and
 2. **Milestone G2 — File-System Entity Indexing (In Progress 🚧)**
    - ✅ **Block Loader Package**: Created `@vivafolio/block-loader` package for secure Block Protocol execution in webviews
    - ✅ **POC Integration**: Integrated new block loader into POC demo app, replacing inline implementation
-   - 🔄 **Stand-alone Indexing Service**: Create reusable `@vivafolio/indexing-service` package for entity graph management
-   - 🔄 **Custom Syntax Support**: Add `vivafolio_data` construct for table-like syntax in gui_state strings
-   - 🔄 **Editing Modules**: Implement pluggable modules that translate BlockProtocol updates to syntax edits
-   - 🔄 **Pub/Sub Interface**: Add event system for file edit notifications without LSP coupling
+   - ✅ **Stand-alone Indexing Service**: Created reusable `@vivafolio/indexing-service` package for entity graph management
+   - ✅ **Custom Syntax Support**: Added `vivafolio_data` construct for table-like syntax in gui_state strings
+   - ✅ **Editing Modules**: Implemented pluggable modules that translate BlockProtocol updates to syntax edits
+   - ✅ **Pub/Sub Interface**: Advanced event system for file edit notifications without LSP coupling
    - 🔄 **WebSocket Transport**: Use WebSocket as primary communication between client and indexing service
    - 🔄 **Abstract Transport API**: Define transport-agnostic API for easy adaptation to VS Code messaging
    - 🔄 **Sidecar LSP Integration**: Drive mock LSP server notifications when files are edited
@@ -454,8 +454,15 @@ Imagine a developer working on a Vivafolio project with data stored in various f
 - `packages/indexing-service/src/FileEditingModule.ts` - CSV and Markdown file editing
 - `packages/indexing-service/test/` - Comprehensive test suite with integration tests
 
-**G2.4 — Pub/Sub Event System**
-The indexing service needs to notify other components (like LSP clients) when files are edited, but without creating tight coupling. An event system allows multiple subscribers to react to changes without the indexing service knowing about specific clients.
+**G2.4 — Pub/Sub Event System (Complete ✅)**
+✅ **Advanced EventEmitter**: Implemented with typed events, filtering, and priority ordering
+✅ **Event Filtering**: Support for custom filter predicates on all event types
+✅ **Priority Ordering**: Configurable priority levels for event delivery order
+✅ **Async Delivery**: Non-blocking event delivery with Promise-based handling
+✅ **Batch Operations**: Atomic multi-entity operations with consolidated events
+✅ **Enhanced Payloads**: Rich metadata including timestamps, source paths, and operation types
+✅ **Comprehensive Testing**: 51 unit tests covering all features and edge cases
+✅ **Type Safety**: Full TypeScript support with proper type inference
 
 **Story: How Event-Driven Updates Work**
 1. **File Edit Completion**: After successfully editing a file, indexing service emits "file-changed" event
@@ -466,11 +473,20 @@ The indexing service needs to notify other components (like LSP clients) when fi
 6. **Cascade Effects**: Changes can trigger updates across multiple related files/entities
 
 **Implementation Details**:
-- Implement event emitter interface with typed events for file operations
-- Support multiple subscribers with filtering capabilities
-- Ensure complete decoupling between indexing service and LSP communication layers
-- **Acceptance**: Unit tests verify event publishing, subscription, and delivery mechanisms
-- **Reference**: Event-driven patterns in LSP testing framework (`AGENTS.md`)
+- ✅ Advanced EventEmitter class with filtering, priority, and async delivery
+- ✅ Enhanced event payloads with timestamps, source metadata, and operation types
+- ✅ Support for multiple subscribers with custom filter predicates
+- ✅ Priority-based event ordering for controlled delivery sequence
+- ✅ Batch operations for atomic multi-entity updates
+- ✅ Complete decoupling between indexing service and LSP communication layers
+- ✅ **Acceptance**: Unit tests verify event publishing, subscription, delivery, filtering, and priority mechanisms
+- ✅ **Reference**: Event-driven patterns in LSP testing framework (`AGENTS.md`)
+
+**Key Components Created**:
+- `packages/indexing-service/src/EventEmitter.ts` - Advanced event emitter with filtering and priority
+- `packages/indexing-service/src/IndexingService.ts` - Enhanced with rich event payloads
+- `packages/indexing-service/test/EventEmitter.test.ts` - Comprehensive event system tests
+- Enhanced event types: `FileChangeEvent`, `EntityUpdateEvent`, `BatchOperationEvent`
 
 **G2.5 — WebSocket Transport Integration**
 The POC demo app runs in a browser, so the indexing service needs to communicate with client-side Block Protocol blocks via WebSocket connections, rather than direct VS Code extension messaging.

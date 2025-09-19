@@ -171,27 +171,311 @@ interface DSLModule {
 }
 ```
 
-## Event System
+## Advanced Event System (G2.4)
 
-The service emits events for various operations:
+The indexing service provides a powerful pub/sub event system with advanced features including filtering, priority ordering, async delivery, and batch operations.
+
+### Event Types
+
+#### Enhanced Event Payloads
+
+All events now include rich metadata:
 
 ```typescript
-// File system events
-indexingService.on('file-changed', (filePath, eventType) => {
-  console.log(`File ${eventType}: ${filePath}`);
+interface FileChangeEvent {
+  filePath: string;
+  eventType: 'add' | 'change' | 'unlink';
+  timestamp: Date;
+  affectedEntities: string[];
+  sourceType: string;
+}
+
+interface EntityUpdateEvent {
+  entityId: string;
+  properties: Record<string, any>;
+  previousProperties?: Record<string, any>;
+  timestamp: Date;
+  sourcePath: string;
+  sourceType: string;
+  operationType: 'update';
+}
+
+interface BatchOperationEvent {
+  operations: Array<EntityUpdateEvent | EntityCreateEvent | EntityDeleteEvent>;
+  timestamp: Date;
+  sourcePath?: string;
+  operationType: 'batch';
+}
+```
+
+### Basic Event Subscription
+
+```typescript
+import { IndexingService, IndexingServiceConfig } from '@vivafolio/indexing-service';
+
+const config: IndexingServiceConfig = {
+  watchPaths: ['./src', './data'],
+  supportedExtensions: ['csv', 'md', 'rs'],
+  excludePatterns: ['**/node_modules/**']
+};
+
+const indexingService = new IndexingService(config);
+
+// Basic event subscription
+indexingService.on('entity-updated', (event) => {
+  console.log(`Entity ${event.entityId} updated:`, event.properties);
+  console.log(`Source: ${event.sourcePath} (${event.sourceType})`);
 });
 
-// Entity events
+indexingService.on('file-changed', (event) => {
+  console.log(`File ${event.eventType}: ${event.filePath}`);
+  console.log(`Affected entities:`, event.affectedEntities);
+});
+```
+
+### Advanced Event Features
+
+#### Event Filtering
+
+Subscribe to events with custom filters:
+
+```typescript
+// Only listen to CSV file changes
+indexingService.on('file-changed', (event) => {
+  console.log(`CSV file changed: ${event.filePath}`);
+}, {
+  filter: (event) => event.sourceType === 'csv'
+});
+
+// Only listen to updates for specific entities
+indexingService.on('entity-updated', (event) => {
+  console.log(`Task updated: ${event.entityId}`);
+}, {
+  filter: (event) => event.entityId.startsWith('task-')
+});
+```
+
+#### Priority Ordering
+
+Control the order of event delivery:
+
+```typescript
+// High priority logger (runs first)
+indexingService.on('entity-updated', (event) => {
+  console.log(`[HIGH] Entity updated: ${event.entityId}`);
+}, { priority: 10 });
+
+// Low priority processor (runs after)
+indexingService.on('entity-updated', (event) => {
+  // Process the update
+  processEntityUpdate(event);
+}, { priority: 0 });
+```
+
+#### One-time Listeners
+
+```typescript
+// Listen once for the next entity creation
+indexingService.once('entity-created', (event) => {
+  console.log(`First new entity: ${event.entityId}`);
+  // This listener will be automatically removed after firing
+});
+```
+
+#### Async Event Handling
+
+```typescript
+indexingService.on('entity-updated', async (event) => {
+  // Perform async operations
+  await updateExternalSystem(event.entityId, event.properties);
+  await sendNotification(event.entityId);
+});
+```
+
+### Waiting for Events
+
+```typescript
+// Wait for the next entity update
+const updateEvent = await indexingService.waitFor('entity-updated');
+console.log('Next update:', updateEvent);
+
+// Wait with timeout
+try {
+  const updateEvent = await indexingService.waitFor('entity-updated', {
+    timeout: 5000 // 5 seconds
+  });
+  console.log('Update received:', updateEvent);
+} catch (error) {
+  console.log('Timeout waiting for update');
+}
+
+// Wait with filter
+const specificUpdate = await indexingService.waitFor('entity-updated', {
+  filter: (event) => event.entityId === 'important-entity'
+});
+```
+
+### Batch Operations
+
+Perform multiple operations atomically and receive consolidated events:
+
+```typescript
+const operations = [
+  {
+    type: 'update' as const,
+    entityId: 'task-1',
+    properties: { status: 'completed', completedAt: new Date() }
+  },
+  {
+    type: 'update' as const,
+    entityId: 'task-2',
+    properties: { status: 'in-progress' }
+  },
+  {
+    type: 'create' as const,
+    entityId: 'task-3',
+    properties: { title: 'New Task', status: 'pending' },
+    sourceMetadata: { sourceType: 'csv', sourcePath: '/data/tasks.csv' }
+  }
+];
+
+const result = await indexingService.performBatchOperations(operations);
+
+if (result.success) {
+  console.log('All operations completed successfully');
+} else {
+  console.log('Some operations failed:', result.results);
+}
+
+// Listen for batch operation events
+indexingService.on('batch-operation', (event) => {
+  console.log(`Batch operation completed with ${event.operations.length} operations`);
+  event.operations.forEach(op => {
+    console.log(`- ${op.operationType}: ${op.entityId}`);
+  });
+});
+```
+
+### Event Management
+
+```typescript
+// Get listener information
+const listenerCount = indexingService.listenerCount('entity-updated');
+const listenerIds = indexingService.getListenerIds('entity-updated');
+const eventNames = indexingService.eventNames();
+
+// Check if listeners exist
+if (indexingService.hasListeners('entity-updated')) {
+  console.log('There are listeners for entity updates');
+}
+
+// Unsubscribe specific listeners
+const listenerId = indexingService.on('entity-updated', handler);
+indexingService.off('entity-updated', listenerId);
+
+// Unsubscribe all listeners for an event
+indexingService.offAll('entity-updated');
+
+// Unsubscribe all listeners for all events
+indexingService.offAll();
+```
+
+### Real-world Example: LSP Integration
+
+```typescript
+class LSPClient {
+  private indexingService: IndexingService;
+  private listeners: string[] = [];
+
+  constructor(indexingService: IndexingService) {
+    this.indexingService = indexingService;
+    this.setupEventListeners();
+  }
+
+  private setupEventListeners() {
+    // Listen for file changes that affect LSP-managed entities
+    const fileListenerId = this.indexingService.on('file-changed', (event) => {
+      if (event.sourceType === 'vivafolio_data_construct') {
+        console.log(`LSP: File changed, updating diagnostics for ${event.filePath}`);
+        this.updateLSPDiagnostics(event.filePath);
+      }
+    }, {
+      filter: (event) => event.affectedEntities.length > 0
+    });
+
+    // Listen for entity updates from Block Protocol blocks
+    const entityListenerId = this.indexingService.on('entity-updated', (event) => {
+      if (event.sourceType === 'vivafolio_data_construct') {
+        console.log(`LSP: Entity updated, refreshing diagnostics`);
+        this.refreshDiagnostics(event.sourcePath);
+      }
+    }, {
+      priority: 5 // High priority for LSP updates
+    });
+
+    this.listeners.push(fileListenerId, entityListenerId);
+  }
+
+  private updateLSPDiagnostics(filePath: string) {
+    // Update LSP diagnostics for the changed file
+  }
+
+  private refreshDiagnostics(filePath: string) {
+    // Refresh diagnostics for the file
+  }
+
+  destroy() {
+    // Clean up listeners
+    this.listeners.forEach(id => {
+      this.indexingService.offAll(); // In practice, you'd track which event type each ID belongs to
+    });
+  }
+}
+```
+
+### Error Handling
+
+The event system includes robust error handling:
+
+```typescript
+// Errors in listeners are caught and logged
+indexingService.on('entity-updated', (event) => {
+  // If this throws, it won't crash other listeners
+  throw new Error('Something went wrong');
+});
+
+// Custom error handler can be configured during service initialization
+const indexingService = new IndexingService(config, {
+  errorHandler: (error, eventName, listener) => {
+    console.error(`Custom error handler: ${eventName} - ${error.message}`);
+    // Send to monitoring system, etc.
+  }
+});
+```
+
+### Performance Considerations
+
+- **Async Delivery**: Events are delivered asynchronously by default for better performance
+- **Priority Queuing**: High-priority listeners are called first
+- **Listener Limits**: Maximum listener limits prevent memory leaks (configurable)
+- **Batch Operations**: Use batch operations for multiple related changes to reduce event overhead
+- **Filtering**: Use filters to reduce unnecessary event processing
+
+### Migration from Simple Events
+
+If migrating from the old simple event system:
+
+```typescript
+// Old way (deprecated)
 indexingService.on('entity-updated', (entityId, properties) => {
-  console.log(`Entity updated: ${entityId}`, properties);
+  console.log(`Entity ${entityId} updated`);
 });
 
-indexingService.on('entity-created', (entityId, properties) => {
-  console.log(`Entity created: ${entityId}`, properties);
-});
-
-indexingService.on('entity-deleted', (entityId) => {
-  console.log(`Entity deleted: ${entityId}`);
+// New way (enhanced)
+indexingService.on('entity-updated', (event) => {
+  console.log(`Entity ${event.entityId} updated at ${event.timestamp}`);
+  console.log(`Previous:`, event.previousProperties);
+  console.log(`New:`, event.properties);
 });
 ```
 
