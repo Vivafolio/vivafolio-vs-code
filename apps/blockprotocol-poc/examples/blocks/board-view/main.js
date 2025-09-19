@@ -4,8 +4,12 @@ const React = require('react')
 function BoardViewBlock({ graph }) {
   const { blockEntity, readonly } = graph
 
+  // State for editing
+  const [editingTaskId, setEditingTaskId] = React.useState(null)
+  const [editForm, setEditForm] = React.useState({ title: '', description: '' })
+
   // Mock data for demonstration - in a real implementation, this would come from the graph
-  const mockTasks = [
+  const [mockTasks, setMockTasks] = React.useState([
     {
       id: 'task-1',
       title: 'Design new API',
@@ -46,7 +50,7 @@ function BoardViewBlock({ graph }) {
       assignees: ['carol'],
       priority: 'high'
     }
-  ]
+  ])
 
   const statusConfig = {
     'todo': {
@@ -80,6 +84,36 @@ function BoardViewBlock({ graph }) {
     'bob': { name: 'Bob Smith', avatar: 'BS', color: '#10b981' },
     'carol': { name: 'Carol Davis', avatar: 'CD', color: '#f59e0b' },
     'dave': { name: 'Dave Wilson', avatar: 'DW', color: '#8b5cf6' }
+  }
+
+  // Editing functions
+  const startEditing = (task) => {
+    if (readonly) return
+    setEditingTaskId(task.id)
+    setEditForm({ title: task.title, description: task.description })
+  }
+
+  const cancelEditing = () => {
+    setEditingTaskId(null)
+    setEditForm({ title: '', description: '' })
+  }
+
+  const saveEditing = () => {
+    if (!editingTaskId) return
+
+    setMockTasks(prevTasks =>
+      prevTasks.map(task =>
+        task.id === editingTaskId
+          ? { ...task, title: editForm.title, description: editForm.description }
+          : task
+      )
+    )
+    setEditingTaskId(null)
+    setEditForm({ title: '', description: '' })
+  }
+
+  const handleInputChange = (field, value) => {
+    setEditForm(prev => ({ ...prev, [field]: value }))
   }
 
   const renderPersonChip = (personId) => {
@@ -134,69 +168,200 @@ function BoardViewBlock({ graph }) {
   }
 
   const renderTaskCard = (task) => {
-    return React.createElement('div', {
-      key: task.id,
-      className: 'task-card',
-      style: {
-        backgroundColor: 'white',
-        border: '1px solid #e5e7eb',
-        borderRadius: '8px',
-        padding: '12px',
-        marginBottom: '8px',
-        cursor: readonly ? 'default' : 'pointer',
-        transition: 'all 0.2s ease',
-        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
-      }
-    }, [
-      React.createElement('div', {
-        key: 'header',
+    const isEditing = editingTaskId === task.id
+
+    if (isEditing) {
+      // Edit mode
+      return React.createElement('div', {
+        key: task.id,
+        className: 'task-card editing',
         style: {
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          marginBottom: '8px'
+          backgroundColor: 'white',
+          border: '2px solid #3b82f6',
+          borderRadius: '8px',
+          padding: '12px',
+          marginBottom: '8px',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)'
         }
       }, [
-        React.createElement('h4', {
-          key: 'title',
+        React.createElement('div', {
+          key: 'header',
           style: {
-            margin: '0',
-            fontSize: '14px',
-            fontWeight: '600',
-            color: '#111827',
-            flex: '1'
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            marginBottom: '8px'
           }
-        }, task.title),
-        renderPriorityBadge(task.priority)
-      ]),
+        }, [
+          React.createElement('input', {
+            key: 'title-input',
+            type: 'text',
+            value: editForm.title,
+            onChange: (e) => handleInputChange('title', e.target.value),
+            style: {
+              flex: '1',
+              fontSize: '14px',
+              fontWeight: '600',
+              color: '#111827',
+              border: '1px solid #d1d5db',
+              borderRadius: '4px',
+              padding: '4px 8px',
+              marginRight: '8px'
+            }
+          }),
+          renderPriorityBadge(task.priority)
+        ]),
 
-      React.createElement('p', {
-        key: 'description',
-        style: {
-          margin: '0 0 8px 0',
-          fontSize: '12px',
-          color: '#6b7280',
-          lineHeight: '1.4'
-        }
-      }, task.description),
+        React.createElement('textarea', {
+          key: 'description-input',
+          value: editForm.description,
+          onChange: (e) => handleInputChange('description', e.target.value),
+          style: {
+            width: '100%',
+            minHeight: '60px',
+            fontSize: '12px',
+            color: '#6b7280',
+            border: '1px solid #d1d5db',
+            borderRadius: '4px',
+            padding: '4px 8px',
+            marginBottom: '8px',
+            resize: 'vertical'
+          }
+        }),
 
-      React.createElement('div', {
-        key: 'assignees',
-        style: {
-          display: 'flex',
-          flexWrap: 'wrap',
-          marginBottom: '8px'
-        }
-      }, task.assignees.map(personId => renderPersonChip(personId))),
+        React.createElement('div', {
+          key: 'assignees',
+          style: {
+            display: 'flex',
+            flexWrap: 'wrap',
+            marginBottom: '8px'
+          }
+        }, task.assignees.map(personId => renderPersonChip(personId))),
 
-      React.createElement('div', {
-        key: 'footer',
+        React.createElement('div', {
+          key: 'actions',
+          style: {
+            display: 'flex',
+            gap: '8px',
+            justifyContent: 'flex-end'
+          }
+        }, [
+          React.createElement('button', {
+            key: 'cancel',
+            onClick: cancelEditing,
+            style: {
+              padding: '4px 12px',
+              backgroundColor: '#f3f4f6',
+              color: '#374151',
+              border: '1px solid #d1d5db',
+              borderRadius: '4px',
+              fontSize: '12px',
+              cursor: 'pointer'
+            }
+          }, 'Cancel'),
+          React.createElement('button', {
+            key: 'save',
+            onClick: saveEditing,
+            style: {
+              padding: '4px 12px',
+              backgroundColor: '#3b82f6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              fontSize: '12px',
+              cursor: 'pointer'
+            }
+          }, 'Save')
+        ]),
+
+        React.createElement('div', {
+          key: 'footer',
+          style: {
+            fontSize: '10px',
+            color: '#9ca3af',
+            marginTop: '8px'
+          }
+        }, `ID: ${task.id}`)
+      ])
+    } else {
+      // View mode
+      return React.createElement('div', {
+        key: task.id,
+        className: 'task-card',
+        onClick: () => startEditing(task),
         style: {
-          fontSize: '10px',
-          color: '#9ca3af'
+          backgroundColor: 'white',
+          border: '1px solid #e5e7eb',
+          borderRadius: '8px',
+          padding: '12px',
+          marginBottom: '8px',
+          cursor: readonly ? 'default' : 'pointer',
+          transition: 'all 0.2s ease',
+          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+        },
+        onMouseEnter: (e) => {
+          if (!readonly) {
+            e.target.style.transform = 'translateY(-2px)'
+            e.target.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)'
+          }
+        },
+        onMouseLeave: (e) => {
+          if (!readonly) {
+            e.target.style.transform = 'translateY(0)'
+            e.target.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)'
+          }
         }
-      }, `ID: ${task.id}`)
-    ])
+      }, [
+        React.createElement('div', {
+          key: 'header',
+          style: {
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            marginBottom: '8px'
+          }
+        }, [
+          React.createElement('h4', {
+            key: 'title',
+            style: {
+              margin: '0',
+              fontSize: '14px',
+              fontWeight: '600',
+              color: '#111827',
+              flex: '1'
+            }
+          }, task.title),
+          renderPriorityBadge(task.priority)
+        ]),
+
+        React.createElement('p', {
+          key: 'description',
+          style: {
+            margin: '0 0 8px 0',
+            fontSize: '12px',
+            color: '#6b7280',
+            lineHeight: '1.4'
+          }
+        }, task.description),
+
+        React.createElement('div', {
+          key: 'assignees',
+          style: {
+            display: 'flex',
+            flexWrap: 'wrap',
+            marginBottom: '8px'
+          }
+        }, task.assignees.map(personId => renderPersonChip(personId))),
+
+        React.createElement('div', {
+          key: 'footer',
+          style: {
+            fontSize: '10px',
+            color: '#9ca3af'
+          }
+        }, `ID: ${task.id}`)
+      ])
+    }
   }
 
   const renderKanbanColumn = (statusKey, config) => {
@@ -320,7 +485,7 @@ function BoardViewBlock({ graph }) {
         fontSize: '14px',
         color: '#6b7280'
       }
-    }, `Total: ${mockTasks.length} tasks • Framework: Lit`)
+    }, `Total: ${mockTasks.length} tasks • Framework: Lit • ${readonly ? 'Read-only' : 'Click to edit'}`)
   ])
 }
 

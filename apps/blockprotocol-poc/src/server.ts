@@ -769,7 +769,27 @@ const scenarios: Record<string, ScenarioDefinition> = {
         supportsHotReload: false,
         initialHeight: 420
       }
-    ]
+    ],
+    applyUpdate: ({ state, update }) => {
+      const entity = state.graph.entities.find((item) => item.entityId === update.entityId)
+      if (!entity) return
+      entity.properties = { ...entity.properties, ...update.properties }
+
+      if (entity.entityTypeId === 'https://vivafolio.dev/entity-types/task/v1') {
+        const tasks = state.graph.entities.filter(
+          (item) => item.entityTypeId === 'https://vivafolio.dev/entity-types/task/v1'
+        )
+        const board = state.graph.entities.find(
+          (item) => item.entityId === 'kanban-board-1'
+        )
+        if (board) {
+          board.properties = {
+            ...board.properties,
+            columns: buildBoardColumns(tasks)
+          }
+        }
+      }
+    }
   },
   'multi-view-sync': {
     id: 'multi-view-sync',

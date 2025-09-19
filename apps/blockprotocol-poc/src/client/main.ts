@@ -499,6 +499,35 @@ function renderKanbanBoard(notification: VivafolioBlockNotification): HTMLElemen
     columnEl.appendChild(createElement('h3', 'kanban-column__title', String(column.title ?? column.id ?? 'Column')))
 
     const tasksContainer = createElement('div', 'kanban-column__tasks')
+
+    // Add drop event handlers to the tasks container
+    tasksContainer.addEventListener('dragover', (e) => {
+      e.preventDefault()
+      e.dataTransfer!.dropEffect = 'move'
+      tasksContainer.classList.add('kanban-column__tasks--drag-over')
+    })
+
+    tasksContainer.addEventListener('dragleave', () => {
+      tasksContainer.classList.remove('kanban-column__tasks--drag-over')
+    })
+
+    tasksContainer.addEventListener('drop', (e) => {
+      e.preventDefault()
+      tasksContainer.classList.remove('kanban-column__tasks--drag-over')
+
+      const taskEntityId = e.dataTransfer!.getData('text/plain')
+      const newStatus = String(column.id ?? column.title ?? '')
+
+      if (taskEntityId && newStatus) {
+        // Send graph update to change the task's status
+        sendGraphUpdateMessage({
+          blockId: notification.blockId,
+          entityId: taskEntityId,
+          properties: { status: newStatus }
+        })
+      }
+    })
+
     const taskIds = (column.taskIds as string[]) || []
     taskIds.forEach((taskId) => {
       const taskEntity = entityMap.get(taskId)
@@ -591,6 +620,18 @@ function statusLabel(status: string): string {
 function createTaskCard(taskEntity: Entity, entityMap: Map<string, Entity>): HTMLElement {
   const container = createElement('article', 'task-card')
   container.dataset.entityId = taskEntity.entityId
+  container.draggable = true
+
+  // Add drag event handlers
+  container.addEventListener('dragstart', (e) => {
+    e.dataTransfer!.setData('text/plain', taskEntity.entityId)
+    e.dataTransfer!.effectAllowed = 'move'
+    container.classList.add('task-card--dragging')
+  })
+
+  container.addEventListener('dragend', () => {
+    container.classList.remove('task-card--dragging')
+  })
 
   const title = String(taskEntity.properties.title ?? 'Untitled task')
   container.appendChild(createElement('h4', 'task-card__title', title))

@@ -151,6 +151,15 @@ main {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  min-height: 2rem;
+  padding: 0.5rem;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.kanban-column__tasks--drag-over {
+  background: rgba(45, 212, 191, 0.2);
+  border: 2px dashed rgba(45, 212, 191, 0.5);
 }
 
 .task-card {
@@ -161,6 +170,19 @@ main {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  cursor: grab;
+  transition: all 0.2s ease;
+}
+
+.task-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(6, 95, 70, 0.4);
+}
+
+.task-card--dragging {
+  opacity: 0.5;
+  transform: rotate(5deg);
+  cursor: grabbing;
 }
 
 .task-card__title {
