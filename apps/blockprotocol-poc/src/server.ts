@@ -1,3 +1,24 @@
+/**
+ * Block Protocol POC Development Server
+ *
+ * This file implements a comprehensive development server for validating the Block Protocol
+ * integration in Vivafolio. It serves as both a web server and WebSocket server that simulates
+ * the Vivafolio extension environment for testing and development.
+ *
+ * Key Features:
+ * - HTTP server serving static assets and HTML templates
+ * - WebSocket server for real-time Block Protocol communication
+ * - Framework compilation and hot-reload for SolidJS, Vue, Svelte, Lit, Angular
+ * - Multiple test scenarios (hello-world, kanban, iframe-webviews, etc.)
+ * - Entity graph management and update propagation
+ * - Performance monitoring and health checks
+ *
+ * The server can run in different modes:
+ * - Basic mode: Static assets only
+ * - Framework mode: With hot-reload compilation for framework examples
+ * - Production mode: Optimized static serving with compression
+ */
+
 import express from 'express'
 import compression from 'compression'
 import { createServer as createHttpServer } from 'http'
@@ -118,6 +139,8 @@ function createOptimizedStaticOptions(maxAge: number = 31536000) { // 1 year def
   }
 }
 function findRepoRoot(startDir = ROOT_DIR) {
+  // Finds the repository root by looking for git directory, pnpm workspace, or specific app structure
+  // This helps locate vendored third-party dependencies and shared assets
   let current = startDir
   const { root } = path.parse(current)
   while (current !== root) {
@@ -285,16 +308,23 @@ let resourceCounter = 0
 let globalFrameworkWatchers: FrameworkWatcher[] = []
 
 function nextCachingTag() {
+  // Generates a unique cache-busting tag for resources to ensure browsers fetch fresh content
+  // Used in VivafolioBlock notifications to invalidate cached resources
   resourceCounter += 1
   return `v${resourceCounter}`
 }
 
 // Framework compilation helpers
 function generateAssetHash(content: string): string {
+  // Creates a content-based hash for cache busting and integrity checking
+  // Ensures that when asset content changes, the URL changes too
   return crypto.createHash('sha256').update(content).digest('hex').slice(0, 8)
 }
 
 async function compileSolidJSBlock(sourcePath: string, outputPath: string): Promise<FrameworkBundle> {
+  // Compiles a SolidJS block component into a browser-compatible bundle
+  // Creates a simple CommonJS wrapper around the SolidJS code for execution
+  // This is a placeholder implementation - real compilation would use esbuild or similar
   const sourceContent = await fs.readFile(sourcePath, 'utf8')
   const hash = generateAssetHash(sourceContent)
 
@@ -493,6 +523,8 @@ async function compileAngularBlock(sourcePath: string, outputPath: string): Prom
 }
 
 function getFrameworkCompiler(framework: string) {
+  // Returns the appropriate compilation function for a given framework
+  // Each framework (SolidJS, Vue, Svelte, Lit, Angular) has its own compilation strategy
   switch (framework) {
     case 'solidjs': return compileSolidJSBlock
     case 'vue': return compileVueBlock
@@ -504,6 +536,9 @@ function getFrameworkCompiler(framework: string) {
 }
 
 async function setupFrameworkWatchers(): Promise<FrameworkWatcher[]> {
+  // Sets up file watchers for framework examples to enable hot-reload during development
+  // Monitors source directories for changes and recompiles blocks automatically
+  // Supports SolidJS, Vue, Svelte, Lit, and Angular frameworks
   const watchers: FrameworkWatcher[] = []
   const frameworksDir = path.resolve(ROOT_DIR, 'libs/block-frameworks')
   const outputDir = path.resolve(ROOT_DIR, 'dist/frameworks')
@@ -582,6 +617,9 @@ async function setupFrameworkWatchers(): Promise<FrameworkWatcher[]> {
 
 
 function createHelloWorldGraph(): EntityGraph {
+  // Creates a simple entity graph for the hello-world scenario
+  // Demonstrates basic Block Protocol entity structure with a single person entity
+  // Used in Milestone 0 to verify basic Block Protocol wiring
   const blockEntity: Entity = {
     entityId: 'entity-hello-world',
     entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/person/v1',
@@ -596,6 +634,9 @@ function createHelloWorldGraph(): EntityGraph {
 }
 
 function createKanbanGraph(): EntityGraph {
+  // Creates a complex entity graph for Kanban board scenarios (Milestones 1-3)
+  // Includes tasks, users, and board structure to demonstrate nested block composition
+  // Shows how different block types (task, user, board) can work together
   const tasks: Entity[] = [
     {
       entityId: 'task-1',
@@ -671,6 +712,9 @@ function createKanbanGraph(): EntityGraph {
 }
 
 function buildBoardColumns(tasks: Entity[]) {
+  // Organizes tasks into Kanban board columns based on their status
+  // Groups tasks by 'todo', 'doing', 'done' status for board visualization
+  // Returns column structure with task IDs for each status
   const order = [
     { id: 'todo', title: 'To Do' },
     { id: 'doing', title: 'In Progress' },
@@ -1382,6 +1426,9 @@ const scenarios: Record<string, ScenarioDefinition> = {
 
 
 async function ensureHtmlTemplateAssets() {
+  // Ensures HTML template block assets are copied to the public directory
+  // Copies block metadata, HTML templates, and assets from third_party/blockprotocol
+  // Required for HTML-based block scenarios that load content in iframes
   await fs.mkdir(HTML_TEMPLATE_PUBLIC_SRC_DIR, { recursive: true })
   await fs.mkdir(HTML_TEMPLATE_PUBLIC_ASSETS_DIR, { recursive: true })
 
@@ -1474,6 +1521,9 @@ function dispatchScenarioNotifications(
   scenario: ScenarioDefinition,
   state: ScenarioState
 ) {
+  // Sends VivafolioBlock notifications for a scenario to a connected WebSocket client
+  // Converts scenario definition into Block Protocol notification payloads
+  // Each notification tells the client to render a specific block with entity data
   const notifications = scenario.buildNotifications(state)
   for (const payload of notifications) {
     socket.send(
@@ -1511,6 +1561,10 @@ function dumpExpressStack(app: express.Express) {
 }
 
 export async function startServer(options: StartServerOptions = {}) {
+  // Main server startup function - initializes HTTP server, WebSocket server, and all middleware
+  // Configures Express app with routes, static serving, compression, and Vite integration
+  // Sets up WebSocket connections for real-time Block Protocol communication
+  // Handles framework watching, scenario management, and entity graph updates
   const port = options.port ?? DEFAULT_PORT
   const host = options.host ?? '0.0.0.0'
   const attachSignalHandlers = options.attachSignalHandlers ?? true
@@ -1833,6 +1887,9 @@ export async function startServer(options: StartServerOptions = {}) {
 }
 
 if (process.argv[1] === __filename) {
+  // Entry point when this file is run directly (not imported as a module)
+  // Starts the Block Protocol POC development server with default configuration
+  // Handles startup errors and ensures clean process termination
   startServer().catch((error) => {
     console.error('[blockprotocol-poc] failed to start server', error)
     process.exit(1)
