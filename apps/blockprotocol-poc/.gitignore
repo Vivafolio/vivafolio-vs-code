@@ -1,15 +1,19 @@
-# Test artifacts
-logs/
-*.log
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Dependencies
+node_modules/
+
+# Vite specific
+*.timestamp-*.mjs
+vite.config.ts.timestamp-*.mjs
 
 # Test results
 test-results/
 playwright-report/
 test-results.json
-
-# Screenshots and videos
-screenshots/
-videos/
 
 # IDE
 .vscode/
@@ -19,10 +23,12 @@ videos/
 .DS_Store
 Thumbs.db
 
+# Logs
+*.log
+
 # Temporary
 *.tmp
 .cache/
 
 # Coverage
 coverage/
-.nyc_output/

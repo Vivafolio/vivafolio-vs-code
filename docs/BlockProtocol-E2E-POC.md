@@ -420,8 +420,8 @@ Imagine a developer working on a Vivafolio project with data stored in various f
 - **Acceptance**: Unit tests verify LSP produces blocks and DSL modules that correctly handle table editing
 - **Reference**: New implementation in `test/mock-lsp-server.js` lines 81-183, examples in `test/projects/vivafolio-data-examples/`
 
-**G2.3 — Pluggable Editing Modules**
-When a user edits data through a Block Protocol block (like changing a task title), that change needs to be saved back to the original source while preserving the syntax and structure. The indexing service routes edit operations to appropriate modules based on whether the data came from direct file parsing (Markdown, CSV) or LSP-provided VivafolioBlock notifications (source code constructs).
+**G2.3 — Pluggable Editing Modules (Complete ✅)**
+✅ **Pluggable Editing System**: Implemented comprehensive editing modules for different file types with atomic operations and syntax preservation
 
 **Story: How File Editing Works**
 1. **Update Reception**: Indexing service receives BlockProtocol `updateEntity` message
@@ -438,12 +438,21 @@ When a user edits data through a Block Protocol block (like changing a task titl
 8. **Event Notification**: Emit file change events for system-wide updates
 
 **Implementation Details**:
-- Develop editing modules for different sources: direct file editing (YAML, CSV) and DSL module execution (source constructs)
-- Implement BlockProtocol update → edit operation routing using stored DSL modules (no LSP round-trip)
-- DSL modules handle entity-update-to-source-edit translation autonomously
-- Ensure syntax preservation during all edit operations to maintain file/code integrity
+- ✅ **Standalone Package**: Created `@vivafolio/indexing-service` package with comprehensive editing capabilities
+- ✅ **DSL Module Executor**: Handles `vivafolio_data!()` constructs with proper table parsing and CSV updates
+- ✅ **File Editing Modules**: CSV and Markdown editing modules with atomic file operations
+- ✅ **Entity Routing**: Automatic routing of BlockProtocol messages to appropriate editing modules
+- ✅ **Syntax Preservation**: All edits preserve surrounding code/file structure
+- ✅ **Event System**: Real-time event emission for file and entity changes
+- ✅ **Comprehensive Testing**: Unit tests and integration tests covering all editing scenarios
 - **Acceptance**: Unit tests verify update operations produce syntactically correct files using both file modules and DSL modules
 - **Reference**: File persistence workflow in spec `docs/spec/BlockProtocol-in-Vivafolio.md` **3.2** step 5 and DSL module usage patterns
+
+**Key Components Created**:
+- `packages/indexing-service/src/IndexingService.ts` - Main service coordinating all operations
+- `packages/indexing-service/src/DSLModuleExecutor.ts` - Handles vivafolio_data!() constructs
+- `packages/indexing-service/src/FileEditingModule.ts` - CSV and Markdown file editing
+- `packages/indexing-service/test/` - Comprehensive test suite with integration tests
 
 **G2.4 — Pub/Sub Event System**
 The indexing service needs to notify other components (like LSP clients) when files are edited, but without creating tight coupling. An event system allows multiple subscribers to react to changes without the indexing service knowing about specific clients.

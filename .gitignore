@@ -1,22 +1,149 @@
+# Environment and configuration
 .direnv/
+.env
+.env.local
+.env.production
+.env.development
+.env.test
 
 # Build artifacts
 out/
 *.vsix
+dist/
+build/
+*.tsbuildinfo
 
 # Dependencies
 node_modules/
+**/node_modules/
 
-# Editor
+# Package-specific build outputs
+packages/*/dist/
+packages/*/build/
+packages/*/*.tsbuildinfo
+
+# Editor and IDE files
 .vscode/
+.idea/
+*.swp
+*.swo
+*~
 .DS_Store
+Thumbs.db
 .vscode-test/
+.cursor/
 
-.wdio-vscode-service/
+# Testing
 test-results/
 playwright-report/
 test-results.json
+coverage/
+.nyc_output/
+.jest/
+*.log
+
+# Webdriver and automation
+.wdio-vscode-service/
 
 # Block Protocol POC build output
 apps/blockprotocol-poc/dist/
 apps/blockprotocol-poc/node_modules/
+
+# Third party build artifacts
+third_party/*/dist/
+third_party/*/build/
+third_party/*/*.log
+
+# Vite specific
+*.timestamp-*.mjs
+vite.config.ts.timestamp-*.mjs
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+.tmp/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+lib-cov/
+
+# Grunt intermediate storage
+.grunt/
+
+# Bower dependency directory
+bower_components/
+
+# node-waf configuration
+.lock-wscript
+
+# Compiled binary addons
+build/Release/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# parcel-bundler cache
+.cache
+.parcel-cache
+
+# Next.js build output
+.next
+
+# Nuxt.js build / generate output
+.nuxt
+dist
+
+# Gatsby files
+.cache/
+public
+
+# Storybook build outputs
+.out
+.storybook-out
+
+# Temporary folders
+tmp/
+temp/

@@ -1,0 +1,30 @@
+# Build artifacts
+*/dist/
+*/build/
+*.tsbuildinfo
+
+# Dependencies
+*/node_modules/
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary
+*.tmp
+.cache/
+
+# Test artifacts
+test-results/
+coverage/
+
+# Generated files
+*.generated.*

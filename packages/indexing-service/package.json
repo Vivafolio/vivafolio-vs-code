@@ -1,0 +1,43 @@
+{
+  "name": "@vivafolio/indexing-service",
+  "version": "0.1.0",
+  "description": "File system indexing service for Vivafolio with Block Protocol integration",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "lint": "eslint src/**/*.ts",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "vivafolio",
+    "blockprotocol",
+    "indexing",
+    "filesystem",
+    "lsp"
+  ],
+  "author": "Vivafolio Team",
+  "license": "MIT",
+  "dependencies": {
+    "@blockprotocol/graph": "^0.3.4",
+    "chokidar": "^3.5.3",
+    "fast-glob": "^3.2.12",
+    "gray-matter": "^4.0.3"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "@types/node": "^20.0.0",
+    "jest": "^29.5.0",
+    "ts-jest": "^29.1.0",
+    "typescript": "^5.0.0"
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "testMatch": [
+      "<rootDir>/test/**/*.test.ts"
+    ]
+  }
+}

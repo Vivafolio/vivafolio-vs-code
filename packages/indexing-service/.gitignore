@@ -20,6 +20,3 @@ Thumbs.db
 # Temporary
 *.tmp
 .cache/
-
-# Jest cache
-.jest/
