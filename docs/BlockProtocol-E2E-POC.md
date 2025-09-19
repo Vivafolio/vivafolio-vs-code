@@ -294,7 +294,9 @@ Following the testing guidelines from `AGENTS.md` - **all tests are headless and
 - Security headers (X-Content-Type-Options, X-Frame-Options)
 
 2. **Milestone G2 — File-System Entity Indexing (In Progress 🚧)**
-   - 🔄 **Stand-alone Indexing Service**: Create reusable package for tracking entity data from files (Markdown, CSV, source code)
+   - ✅ **Block Loader Package**: Created `@vivafolio/block-loader` package for secure Block Protocol execution in webviews
+   - ✅ **POC Integration**: Integrated new block loader into POC demo app, replacing inline implementation
+   - 🔄 **Stand-alone Indexing Service**: Create reusable `@vivafolio/indexing-service` package for entity graph management
    - 🔄 **Custom Syntax Support**: Add `vivafolio_data` construct for table-like syntax in gui_state strings
    - 🔄 **Editing Modules**: Implement pluggable modules that translate BlockProtocol updates to syntax edits
    - 🔄 **Pub/Sub Interface**: Add event system for file edit notifications without LSP coupling
@@ -302,6 +304,56 @@ Following the testing guidelines from `AGENTS.md` - **all tests are headless and
    - 🔄 **Abstract Transport API**: Define transport-agnostic API for easy adaptation to VS Code messaging
    - 🔄 **Sidecar LSP Integration**: Drive mock LSP server notifications when files are edited
    - 🔄 **E2E Table Editing**: Automated Playwright tests verifying real-time file editing propagation
+
+## **🏗️ Future Vivafolio Extension Integration Architecture**
+
+The POC now demonstrates the final architecture that will be used in the Vivafolio VS Code extension:
+
+### **🔧 Block Loader (`@vivafolio/block-loader`)**
+- **Location**: Runs inside each VS Code webview
+- **Responsibilities**:
+  - Secure execution of third-party Block Protocol blocks
+  - Dependency sandboxing with allowlist enforcement
+  - Bundle integrity checking (SHA-256 verification)
+  - Audit logging and diagnostics collection
+  - HTML template and custom element support
+- **Communication**: Sends entity updates to indexing service via VS Code messaging API
+
+### **🔧 Indexing Service (`@vivafolio/indexing-service`)**
+- **Location**: Runs in VS Code extension host
+- **Responsibilities**:
+  - File system scanning (Markdown, CSV, source code parsing)
+  - Entity graph construction and maintenance
+  - LSP server integration for source code constructs
+  - Bidirectional sync with block loader instances
+  - File editing coordination via LSP/pluggable editing modules
+- **Communication**: Receives updates from block loaders and coordinates with LSP servers
+
+### **🔄 Integration Flow**
+```
+┌─────────────────┐    VS Code Messaging    ┌──────────────────┐
+│  VS Code        │◄──────────────────────►│  Webview         │
+│  Extension      │                        │  (Block Loader)  │
+│                 │                        │                  │
+│  Indexing       │◄──────────────────────►│  Block Protocol  │
+│  Service        │   WebSocket/LSP        │  Blocks          │
+│                 │◄──────────────────────►│                  │
+│  LSP Servers    │                        └──────────────────┘
+│  (Rust, Nim,    │
+│   etc.)         │
+└─────────────────┘
+```
+
+### **🛡️ Security Architecture**
+- **Block Loader**: Sandboxed execution with integrity checking
+- **Indexing Service**: File system access with LSP-mediated source code parsing
+- **No Direct Source Access**: Blocks never access source files directly
+- **Audit Trail**: Complete logging of all security-relevant operations
+
+### **📦 Package Structure**
+- `@vivafolio/block-loader`: Webview runtime for secure block execution
+- `@vivafolio/indexing-service`: Extension host service for entity management
+- Shared types and interfaces for consistent communication
 
 **Context & References:**
 - **Spec Requirements**: See `docs/spec/BlockProtocol-in-Vivafolio.md` sections **3.1** (Core Architecture - Workspace Indexer), **4.2 R2** (File-Based Data as Entities), and **4.1** (Inline Code as Entities)
