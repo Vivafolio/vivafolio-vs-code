@@ -305,6 +305,18 @@ Following the testing guidelines from `AGENTS.md` - **all tests are headless and
    - 🔄 **Sidecar LSP Integration**: Drive mock LSP server notifications when files are edited
    - 🔄 **E2E Table Editing**: Automated Playwright tests verifying real-time file editing propagation
 
+3. **Milestone G3 — Block Resources Caching System (Planned)**
+   - 📋 **Centralized Cache Service**: Create `@vivafolio/block-resources-cache` package for cross-webview block sharing
+   - 📋 **Integrity Verification**: Implement SHA-256 verification for all cached resources
+   - 📋 **Performance Monitoring**: Track cache hit rates and loading performance metrics
+   - 📋 **Offline Operation**: Enable block loading without internet connectivity
+
+4. **Milestone G4 — Hook Mechanism for Nested Blocks (Planned)**
+   - 📋 **Hook Interception**: Implement mini-host for intercepting Block Protocol hook messages
+   - 📋 **Dynamic Block Loading**: Enable parent blocks to request child blocks at runtime
+   - 📋 **Live Mounting**: Support direct DOM mounting of child blocks into parent containers
+   - 📋 **Real-Time Communication**: Enable parent-child block interaction within shared JavaScript context
+
 ## **🏗️ Future Vivafolio Extension Integration Architecture**
 
 The POC now demonstrates the final architecture that will be used in the Vivafolio VS Code extension:
@@ -520,12 +532,53 @@ The complete system comes together in an end-to-end demonstration where a user c
 - **Transport Abstraction**: API designed for both WebSocket and VS Code extension messaging
 - **Atomic Operations**: Ensure all edits are atomic and syntax-preserving across file types and DSL modules
 
-3. **Milestone G3 — Vivafolio Extension Integration** (Future)
+3. **Milestone G3 — Block Resources Caching System (Planned)**
+   **Objective**: Implement a centralized caching system for block definitions and resources to enable fast block instantiation and cross-webview sharing.
+
+   **Story: How Block Caching Works**
+   1. **Block Discovery**: When a block type is first encountered, the system requests block definition from BlockResourcesCache
+   2. **Resource Fetching**: Cache service downloads block metadata, JavaScript, CSS, and assets from npm/CDN
+   3. **Integrity Verification**: All resources are verified with SHA-256 hashes and stored in local cache
+   4. **Cross-WebView Sharing**: Cached blocks are available to all webviews without re-downloading
+   5. **Cache Invalidation**: Automatic cache updates when block versions change
+   6. **Offline Operation**: Cached blocks work without internet connectivity
+   7. **Performance Monitoring**: Track cache hit rates and loading performance
+
+   **Implementation Details**:
+   - Create `@vivafolio/block-resources-cache` package with HTTP client and local storage
+   - Extend block loader to integrate with cache service instead of direct resource loading
+   - Implement cache-first strategy: check cache before network requests
+   - Add cache management API for clearing, preloading, and monitoring
+   - **Acceptance**: Automated tests verify cache hit/miss ratios, integrity validation, and cross-webview sharing
+   - **Reference**: Caching requirements in spec `docs/spec/BlockProtocol-in-Vivafolio.md` section 5.4.4
+
+4. **Milestone G4 — Hook Mechanism for Nested Blocks (Planned)**
+   **Objective**: Implement the Block Protocol hook mechanism to enable true nested block composition with dynamic loading and real-time communication.
+
+   **Story: How Nested Block Hooks Work**
+   1. **Parent Block Rendering**: Parent block (Kanban board) renders with placeholder elements for child blocks
+   2. **Hook Message Dispatch**: Parent sends `hook` message with `vivafolio:embed:entity` type to request child block
+   3. **Mini-Host Interception**: Block loader's mini-host intercepts hook message (not sent to extension)
+   4. **Block Resolution**: Mini-host looks up appropriate child block type for entity in current graph
+   5. **Dynamic Loading**: If child block not loaded, fetch from BlockResourcesCache
+   6. **Live Mounting**: Child block is mounted directly into parent DOM using React/Vue/etc.
+   7. **Real-Time Communication**: Parent and child blocks share the same JavaScript context for live interaction
+   8. **Lifecycle Management**: Child blocks are unmounted when parent updates or is destroyed
+
+   **Implementation Details**:
+   - Extend `@vivafolio/block-loader` with hook interception and mini-host functionality
+   - Implement Block Protocol `useHook` and related hooks for parent blocks
+   - Add dynamic block mounting system with framework-specific renderers
+   - Create shared graph context for parent-child block communication
+   - **Acceptance**: Automated tests verify hook message interception, dynamic loading, and nested block lifecycle
+   - **Reference**: Hook mechanism in spec `docs/spec/BlockProtocol-in-Vivafolio.md` sections 4.4 and 5.2.2
+
+5. **Milestone G5 — Vivafolio Extension Integration** (Future)
    - Integrate framework compilation system into main Vivafolio extension
    - Port Block Protocol scenarios to VS Code extension environment
    - Validate end-to-end workflow in real VS Code context
 
-4. **Milestone G4 — Framework Ecosystem Expansion** (Future)
+6. **Milestone G6 — Framework Ecosystem Expansion** (Future)
    - Add support for additional frameworks (Preact, Alpine.js, etc.)
    - Create framework-specific optimization plugins
    - Expand cross-framework interoperability testing
