@@ -149,6 +149,41 @@ test-blockprotocol-standalone-build:
 	  echo "✅ Standalone server build and startup test passed" || echo "❌ Test failed"
 
 # -----------------------------
+# Block Protocol POC Demo Commands
+# Based on documented scripts in apps/blockprotocol-poc/package.json
+# -----------------------------
+
+# Launch Block Protocol POC dev server (basic mode)
+dev-blockprotocol-poc:
+	cd apps/blockprotocol-poc && \
+	  npm run dev
+
+# Launch Block Protocol POC dev server once (with timeout, for testing)
+dev-blockprotocol-poc-once:
+	cd apps/blockprotocol-poc && \
+	  npm run dev:once
+
+# Launch Block Protocol POC dev server with framework watching
+dev-blockprotocol-poc-frameworks:
+	cd apps/blockprotocol-poc && \
+	  npm run dev:frameworks
+
+# Launch Block Protocol POC dev server with frameworks once (with timeout)
+dev-blockprotocol-poc-frameworks-once:
+	cd apps/blockprotocol-poc && \
+	  npm run dev:once-frameworks
+
+# Launch Block Protocol POC production server
+start-blockprotocol-poc:
+	cd apps/blockprotocol-poc && \
+	  npm run start
+
+# Launch Block Protocol POC standalone server
+start-blockprotocol-poc-standalone:
+	cd apps/blockprotocol-poc && \
+	  npm run start:standalone
+
+# -----------------------------
 # Build commands
 # -----------------------------
 

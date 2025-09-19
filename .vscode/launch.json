@@ -96,6 +96,55 @@
         "group": "lsp",
         "order": 1
       }
+    },
+    {
+      "name": "Debug Block Protocol POC Server",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/node_modules/.bin/tsx",
+      "args": [
+        "watch",
+        "${workspaceFolder}/apps/blockprotocol-poc/src/server.ts"
+      ],
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "cwd": "${workspaceFolder}/apps/blockprotocol-poc",
+      "console": "integratedTerminal",
+      "sourceMaps": true,
+      "skipFiles": [
+        "<node_internals>/**",
+        "node_modules/**"
+      ],
+      "presentation": {
+        "group": "blockprotocol",
+        "order": 1
+      }
+    },
+    {
+      "name": "Debug Block Protocol POC Server (Frameworks)",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/node_modules/.bin/tsx",
+      "args": [
+        "watch",
+        "${workspaceFolder}/apps/blockprotocol-poc/src/server.ts"
+      ],
+      "env": {
+        "NODE_ENV": "development",
+        "ENABLE_FRAMEWORK_WATCH": "true"
+      },
+      "cwd": "${workspaceFolder}/apps/blockprotocol-poc",
+      "console": "integratedTerminal",
+      "sourceMaps": true,
+      "skipFiles": [
+        "<node_internals>/**",
+        "node_modules/**"
+      ],
+      "presentation": {
+        "group": "blockprotocol",
+        "order": 2
+      }
     }
   ],
   "compounds": [
