@@ -1,36 +1,25 @@
 const React = require('react')
 
-// TableViewBlock - Container block that displays entities in a table format (Svelte implementation)
+// TableViewBlock - Container block that displays entities in a table format (React implementation)
 function TableViewBlock({ graph }) {
   const { blockEntity, readonly } = graph
 
-  // Mock data for demonstration - in a real implementation, this would come from the graph
-  const mockTasks = [
-    {
-      id: 'task-1',
-      title: 'Design new API',
-      description: 'Create REST API for user management',
-      status: 'in-progress',
-      assignees: ['alice'],
-      priority: 'high'
-    },
-    {
-      id: 'task-2',
-      title: 'Update documentation',
-      description: 'Update API documentation with new endpoints',
-      status: 'todo',
-      assignees: ['bob', 'carol'],
-      priority: 'medium'
-    },
-    {
-      id: 'task-3',
-      title: 'Fix login bug',
-      description: 'Users unable to login with social accounts',
-      status: 'done',
-      assignees: ['dave'],
-      priority: 'high'
-    }
-  ]
+  // Get entities from the graph - these come from initialGraph
+  const entities = graph.initialGraph?.entities || []
+
+  // Filter entities that look like table rows (from vivafolio_data! constructs)
+  const tableEntities = entities.filter(entity =>
+    entity.entityId && entity.entityId.includes('-row-')
+  )
+
+  // Extract table data from entities
+  const tableData = tableEntities.map(entity => ({
+    id: entity.entityId,
+    ...entity.properties
+  }))
+
+  // Extract column headers from the first entity
+  const columns = tableData.length > 0 ? Object.keys(tableData[0]).filter(key => key !== 'id') : []
 
   const statusConfig = {
     'todo': { label: 'To Do', color: '#6b7280', bgColor: '#f3f4f6' },
@@ -128,55 +117,34 @@ function TableViewBlock({ graph }) {
     }, config.label)
   }
 
-  const renderTableRow = (task) => {
+  const renderTableRow = (row) => {
     return React.createElement('tr', {
-      key: task.id,
+      key: row.id,
       style: {
         borderBottom: '1px solid #e5e7eb'
       }
-    }, [
-      // Title
-      React.createElement('td', {
-        key: 'title',
-        style: {
-          padding: '12px 8px',
-          fontWeight: '500'
-        }
-      }, task.title),
+    }, columns.map(column => {
+      const value = row[column]
+      let cellContent = value
 
-      // Description
-      React.createElement('td', {
-        key: 'description',
+      // Special rendering for known column types
+      if (column.toLowerCase().includes('status') && statusConfig[value]) {
+        cellContent = renderStatusPill(value)
+      } else if (column.toLowerCase().includes('priority') && priorityConfig[value]) {
+        cellContent = renderPriority(value)
+      }
+
+      return React.createElement('td', {
+        key: column,
         style: {
           padding: '12px 8px',
-          color: '#6b7280',
           maxWidth: '200px',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap'
         }
-      }, task.description),
-
-      // Status
-      React.createElement('td', {
-        key: 'status',
-        style: { padding: '12px 8px' }
-      }, renderStatusPill(task.status)),
-
-      // Assignees
-      React.createElement('td', {
-        key: 'assignees',
-        style: { padding: '12px 8px' }
-      }, React.createElement('div', {
-        style: { display: 'flex', flexWrap: 'wrap' }
-      }, task.assignees.map(personId => renderPersonChip(personId)))),
-
-      // Priority
-      React.createElement('td', {
-        key: 'priority',
-        style: { padding: '12px 8px' }
-      }, renderPriority(task.priority))
-    ])
+      }, cellContent)
+    }))
   }
 
   return React.createElement('div', {
@@ -206,7 +174,7 @@ function TableViewBlock({ graph }) {
           fontWeight: '600',
           color: '#111827'
         }
-      }, 'Tasks Table View'),
+      }, 'Data Table View'),
       React.createElement('p', {
         key: 'subtitle',
         style: {
@@ -214,7 +182,7 @@ function TableViewBlock({ graph }) {
           fontSize: '14px',
           color: '#6b7280'
         }
-      }, 'Spreadsheet-style view of project tasks')
+      }, `Live data from vivafolio_data!() constructs • ${tableData.length} rows`)
     ]),
 
     // Table
@@ -238,58 +206,22 @@ function TableViewBlock({ graph }) {
         }
       }, React.createElement('tr', {
         key: 'header-row'
-      }, [
+      }, columns.map(column =>
         React.createElement('th', {
-          key: 'title',
+          key: column,
           style: {
             padding: '12px 8px',
             textAlign: 'left',
             fontWeight: '600',
             color: '#374151'
           }
-        }, 'Title'),
-        React.createElement('th', {
-          key: 'description',
-          style: {
-            padding: '12px 8px',
-            textAlign: 'left',
-            fontWeight: '600',
-            color: '#374151'
-          }
-        }, 'Description'),
-        React.createElement('th', {
-          key: 'status',
-          style: {
-            padding: '12px 8px',
-            textAlign: 'left',
-            fontWeight: '600',
-            color: '#374151'
-          }
-        }, 'Status'),
-        React.createElement('th', {
-          key: 'assignees',
-          style: {
-            padding: '12px 8px',
-            textAlign: 'left',
-            fontWeight: '600',
-            color: '#374151'
-          }
-        }, 'Assignees'),
-        React.createElement('th', {
-          key: 'priority',
-          style: {
-            padding: '12px 8px',
-            textAlign: 'left',
-            fontWeight: '600',
-            color: '#374151'
-          }
-        }, 'Priority')
-      ])),
+        }, column.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())) // Convert camelCase to Title Case
+      ))),
 
       // Table body
       React.createElement('tbody', {
         key: 'tbody'
-      }, mockTasks.map(task => renderTableRow(task)))
+      }, tableData.map(row => renderTableRow(row)))
     ])),
 
     // Footer
@@ -302,7 +234,7 @@ function TableViewBlock({ graph }) {
         fontSize: '12px',
         color: '#6b7280'
       }
-    }, `Showing ${mockTasks.length} tasks • Framework: Svelte`)
+    }, `Showing ${tableData.length} rows • ${columns.length} columns • Powered by Indexing Service`)
   ])
 }
 

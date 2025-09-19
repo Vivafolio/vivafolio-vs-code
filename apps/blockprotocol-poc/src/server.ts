@@ -23,10 +23,13 @@ import express from 'express'
 import compression from 'compression'
 import { createServer as createHttpServer } from 'http'
 import { WebSocketServer, type WebSocket } from 'ws'
+import { IndexingService } from '../../../packages/indexing-service/dist/IndexingService.js'
+import { IndexingServiceTransportLayer, WebSocketTransport } from './TransportLayer.js'
+import { SidecarLspClient, MockLspServerImpl } from './SidecarLspClient.js'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs/promises'
-import { readFileSync, existsSync, watch } from 'fs'
+import { readFileSync, existsSync, watch, statSync } from 'fs'
 import crypto from 'crypto'
 
 import type { ViteDevServer } from 'vite'
@@ -1189,21 +1192,55 @@ const scenarios: Record<string, ScenarioDefinition> = {
     description: 'Demonstrates the TableViewBlock - spreadsheet-style task display',
     createState: () => ({
       graph: {
-        entities: [{
-          entityId: 'table-view-entity',
-          entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
-          properties: {
-            'https://blockprotocol.org/@blockprotocol/types/property-type/name/': 'Table View Example',
-            'https://blockprotocol.org/@blockprotocol/types/property-type/name/v/1': 'Table View Example'
+        entities: [
+          // Main table entity
+          {
+            entityId: 'table-view-entity',
+            entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
+            properties: {
+              'https://blockprotocol.org/@blockprotocol/types/property-type/name/': 'Table View Example',
+              'https://blockprotocol.org/@blockprotocol/types/property-type/name/v/1': 'Table View Example'
+            }
+          },
+          // Mock table row entities (simulating what indexing service would provide)
+          {
+            entityId: 'project_tasks-row-0',
+            properties: {
+              'Task Name': 'Design new API',
+              'Assignee': 'Alice',
+              'Status': 'In Progress',
+              'Priority': 'High',
+              'Due Date': '2025-09-20'
+            }
+          },
+          {
+            entityId: 'project_tasks-row-1',
+            properties: {
+              'Task Name': 'Update documentation',
+              'Assignee': 'Bob',
+              'Status': 'Completed',
+              'Priority': 'Medium',
+              'Due Date': '2025-09-15'
+            }
+          },
+          {
+            entityId: 'project_tasks-row-2',
+            properties: {
+              'Task Name': 'Fix login bug',
+              'Assignee': 'Charlie',
+              'Status': 'Not Started',
+              'Priority': 'Low',
+              'Due Date': '2025-09-25'
+            }
           }
-        }],
+        ],
         links: []
       }
     }),
     buildNotifications: (state) => [
       {
         blockId: 'table-view-example-1',
-        blockType: 'https://vivafolio.dev/blocks/table-view/v1',
+        blockType: 'https://blockprotocol.org/@local/blocks/table-view/v1',
         entityId: state.graph.entities[0]?.entityId ?? 'table-view-entity',
         displayMode: 'multi-line',
         initialGraph: state.graph,
@@ -1617,6 +1654,24 @@ export async function startServer(options: StartServerOptions = {}) {
   // Framework watchers and bundles
   let frameworkWatchers: FrameworkWatcher[] = []
 
+  // Initialize indexing service
+  const indexingService = new IndexingService({
+    watchPaths: [
+      // Only scan for direct data files - CSV and Markdown files
+      // vivafolio_data! constructs in .viv files are handled via LSP notifications
+      path.join(ROOT_DIR, '..', '..', 'test', 'projects')
+    ],
+    supportedExtensions: ['csv', 'md'], // Only direct data files, not source files
+    excludePatterns: ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/vivafolio-data-examples/**']
+  })
+
+  // Initialize transport layer
+  const transportLayer = new IndexingServiceTransportLayer(indexingService)
+
+  // Initialize mock LSP server and sidecar client
+  const lspServer = new MockLspServerImpl()
+  const sidecarLspClient = new SidecarLspClient(indexingService, lspServer)
+
   console.log('[blockprotocol-poc] html template dir', HTML_TEMPLATE_BLOCK_DIR)
 
   await ensureHtmlTemplateAssets()
@@ -1630,6 +1685,22 @@ export async function startServer(options: StartServerOptions = {}) {
     } catch (error) {
       console.error('[framework-watch] Failed to setup framework watchers:', error)
     }
+  }
+
+  // Start indexing service
+  try {
+    await indexingService.start()
+    console.log('[indexing-service] Indexing service started')
+  } catch (error) {
+    console.error('[indexing-service] Failed to start indexing service:', error)
+  }
+
+  // Start sidecar LSP client
+  try {
+    await sidecarLspClient.start()
+    console.log('[sidecar-lsp] Sidecar LSP client started')
+  } catch (error) {
+    console.error('[sidecar-lsp] Failed to start sidecar LSP client:', error)
   }
 
   // Static asset serving with production optimizations
@@ -1725,7 +1796,7 @@ export async function startServer(options: StartServerOptions = {}) {
           id: bundle.id,
           size: bundle.assets.reduce((total, asset) => {
             try {
-              const stat = fs.statSync(path.join(ROOT_DIR, 'dist/frameworks', watcher.framework, asset))
+              const stat = statSync(path.join(ROOT_DIR, 'dist/frameworks', watcher.framework, asset))
               return total + stat.size
             } catch {
               return total
@@ -1776,55 +1847,128 @@ export async function startServer(options: StartServerOptions = {}) {
 
     const requestUrl = new URL(request.url ?? '/ws', 'http://localhost')
     const scenarioId = requestUrl.searchParams.get('scenario') ?? 'hello-world'
-    const scenario = scenarios[scenarioId] ?? scenarios['hello-world']
-    const state = scenario.createState()
-    socketStates.set(socket, { scenario, state })
+    const useIndexingService = requestUrl.searchParams.get('useIndexingService') === 'true'
 
-    entityGraph.entities = state.graph.entities
-    entityGraph.links = state.graph.links
+    if (useIndexingService) {
+      // Register transport for indexing service communication
+      const transport = new WebSocketTransport(socket)
+      const transportId = transportLayer.registerTransport(transport)
+      console.log(`[transport] Registered transport ${transportId} for indexing service`)
 
-    socket.send(
-      JSON.stringify({
-        type: 'connection_ack',
-        timestamp: new Date().toISOString(),
-        entityGraph: state.graph,
-        scenario: { id: scenario.id, title: scenario.title, description: scenario.description }
+      // Send initial entity data from indexing service
+      const allEntities = indexingService.getAllEntities()
+      const entities = allEntities.map((metadata: any) => ({
+        entityId: metadata.entityId,
+        properties: metadata.properties,
+        sourceType: metadata.sourceType,
+        lastModified: metadata.lastModified
+      }))
+
+      socket.send(
+        JSON.stringify({
+          type: 'connection_ack',
+          timestamp: new Date().toISOString(),
+          entityGraph: { entities, links: [] },
+          scenario: { id: 'indexing-service', title: 'Indexing Service Demo', description: 'Real-time file indexing with Block Protocol' },
+          transportId
+        })
+      )
+
+      // Send block notification for table view
+      socket.send(
+        JSON.stringify({
+          type: 'vivafolioblock-notification',
+          payload: {
+            blockId: 'table-view-block-1',
+            blockType: 'https://blockprotocol.org/@local/blocks/table-view/v1',
+            entityId: 'table-view-entity',
+            displayMode: 'multi-line',
+            initialGraph: { entities, links: [] },
+            resources: [
+              {
+                logicalName: 'block-metadata.json',
+                physicalPath: '/examples/blocks/table-view/block-metadata.json'
+              },
+              {
+                logicalName: 'main.js',
+                physicalPath: '/examples/blocks/table-view/main.js'
+              }
+            ],
+            supportsHotReload: false,
+            initialHeight: 400
+          }
+        })
+      )
+
+      socket.on('close', () => {
+        transportLayer.unregisterTransport(transportId)
+        console.log(`[transport] Unregistered transport ${transportId}`)
       })
-    )
 
-    dispatchScenarioNotifications(socket, scenario, state)
+    } else {
+      // Original scenario-based behavior
+      const scenario = scenarios[scenarioId] ?? scenarios['hello-world']
+      const state = scenario.createState()
+      socketStates.set(socket, { scenario, state })
+
+      entityGraph.entities = state.graph.entities
+      entityGraph.links = state.graph.links
+
+      socket.send(
+        JSON.stringify({
+          type: 'connection_ack',
+          timestamp: new Date().toISOString(),
+          entityGraph: state.graph,
+          scenario: { id: scenario.id, title: scenario.title, description: scenario.description }
+        })
+      )
+
+      dispatchScenarioNotifications(socket, scenario, state)
+    }
 
     socket.on('close', () => {
       liveSockets.delete(socket)
       socketStates.delete(socket)
+      // Transport cleanup is handled above in the useIndexingService branch
     })
 
     socket.on('message', (raw) => {
       try {
         const payload = JSON.parse(String(raw))
-        if (payload?.type !== 'graph/update') return
 
-        const connection = socketStates.get(socket)
-        if (!connection || !connection.scenario.applyUpdate) return
+        // Check if this connection is using the indexing service
+        const requestUrl = new URL(request.url ?? '/ws', 'http://localhost')
+        const useIndexingService = requestUrl.searchParams.get('useIndexingService') === 'true'
 
-        connection.scenario.applyUpdate({
-          state: connection.state,
-          update: payload.payload as GraphUpdate,
-          socket,
-          broadcast: (notification) => {
-            socket.send(
-              JSON.stringify({
-                type: 'vivafolioblock-notification',
-                payload: notification
-              })
-            )
-          }
-        })
-        entityGraph.entities = connection.state.graph.entities
-        entityGraph.links = connection.state.graph.links
+        if (useIndexingService) {
+          // Messages handled by transport layer
+          console.log(`[transport] Message received: ${payload.type}`)
+        } else {
+          // Original scenario-based message handling
+          if (payload?.type !== 'graph/update') return
 
-        socket.send(JSON.stringify({ type: 'graph/ack', receivedAt: new Date().toISOString() }))
-        dispatchScenarioNotifications(socket, connection.scenario, connection.state)
+          const connection = socketStates.get(socket)
+          if (!connection || !connection.scenario.applyUpdate) return
+
+          connection.scenario.applyUpdate({
+            state: connection.state,
+            update: payload.payload as GraphUpdate,
+            socket,
+            broadcast: (notification) => {
+              socket.send(
+                JSON.stringify({
+                  type: 'vivafolioblock-notification',
+                  payload: notification
+                })
+              )
+            }
+          })
+          entityGraph.entities = connection.state.graph.entities
+          entityGraph.links = connection.state.graph.links
+
+          socket.send(JSON.stringify({ type: 'graph/ack', receivedAt: new Date().toISOString() }))
+          dispatchScenarioNotifications(socket, connection.scenario, connection.state)
+        }
       } catch (error) {
         console.error('[blockprotocol-poc] failed to process message', error)
       }
@@ -1847,6 +1991,22 @@ export async function startServer(options: StartServerOptions = {}) {
     }
     liveSockets.clear()
     socketStates.clear()
+
+    // Stop sidecar LSP client
+    try {
+      await sidecarLspClient.stop()
+      console.log('[sidecar-lsp] Sidecar LSP client stopped')
+    } catch (error) {
+      console.error('[sidecar-lsp] Failed to stop sidecar LSP client:', error)
+    }
+
+    // Stop indexing service
+    try {
+      await indexingService.stop()
+      console.log('[indexing-service] Indexing service stopped')
+    } catch (error) {
+      console.error('[indexing-service] Failed to stop indexing service:', error)
+    }
 
     await new Promise<void>((resolve) => {
       wss.close(() => resolve())

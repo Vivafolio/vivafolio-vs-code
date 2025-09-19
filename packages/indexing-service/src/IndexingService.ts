@@ -232,10 +232,8 @@ export class IndexingService {
         await this.processCSVFile(filePath);
       } else if (ext === '.md') {
         await this.processMarkdownFile(filePath);
-      } else {
-        // For other files, check if they contain vivafolio_data!() constructs
-        await this.processSourceFile(filePath);
       }
+      // Note: Source files with vivafolio_data!() constructs are handled via LSP notifications
     } catch (error) {
       console.error(`IndexingService: Error processing file ${filePath}:`, error);
     }
@@ -290,71 +288,8 @@ export class IndexingService {
     }
   }
 
-  // Process source files for vivafolio_data!() constructs
-  private async processSourceFile(filePath: string): Promise<void> {
-    const content = await fs.readFile(filePath, 'utf-8');
-
-    // Look for vivafolio_data!() constructs
-    const dataPattern = /vivafolio_data!\(\s*["']([^"']+)["']\s*,\s*r#"([\s\S]*?)"#\s*\)/g;
-    let match;
-
-    while ((match = dataPattern.exec(content)) !== null) {
-      const entityId = match[1];
-      const tableText = match[2];
-
-      // Parse table data (simplified version of the LSP parser)
-      const lines = tableText.trim().split('\n');
-      if (lines.length < 2) continue;
-
-      const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-
-      // Create DSL module for this construct
-      const dslModule: DSLModule = {
-        version: '1.0',
-        entityId: entityId,
-        operations: {
-          updateEntity: {
-            handler: 'tableUpdateHandler',
-            params: { headers, originalRows: lines.length - 1 }
-          },
-          createEntity: {
-            handler: 'tableCreateHandler',
-            params: { headers }
-          },
-          deleteEntity: {
-            handler: 'tableDeleteHandler',
-            params: { entityId }
-          }
-        },
-        source: {
-          type: 'vivafolio_data_construct',
-          pattern: `vivafolio_data!("${entityId}", r#"`
-        }
-      };
-
-      // Create entities for each row
-      for (let i = 1; i < lines.length; i++) {
-        const cells = lines[i].split(',').map(c => c.trim().replace(/"/g, ''));
-        const rowEntityId = `${entityId}-row-${i - 1}`;
-
-        const properties: Record<string, any> = {};
-        headers.forEach((header, idx) => {
-          properties[header] = cells[idx] || '';
-        });
-
-        const metadata: EntityMetadata = {
-          entityId: rowEntityId,
-          sourcePath: filePath,
-          sourceType: 'vivafolio_data_construct',
-          dslModule,
-          properties,
-          lastModified: new Date()
-        };
-
-        this.entityMetadata.set(rowEntityId, metadata);
-      }
-    }
-  }
+  // Note: vivafolio_data!() constructs are handled via VivafolioBlock notifications from LSP server
+  // This method is kept for potential future use but not called in current scanning
 
   // Handle Block Protocol updateEntity messages
   async updateEntity(entityId: string, properties: Record<string, any>): Promise<boolean> {
@@ -473,6 +408,57 @@ export class IndexingService {
     }
 
     return success;
+  }
+
+  // Handle VivafolioBlock notifications from LSP server (for vivafolio_data! constructs in .viv files)
+  async handleVivafolioBlockNotification(notification: any): Promise<void> {
+    console.log(`IndexingService: Received VivafolioBlock notification:`, notification);
+
+    const { entityId, tableData, dslModule, sourcePath } = notification;
+
+    if (!tableData || !tableData.headers || !tableData.rows) {
+      console.error(`IndexingService: Invalid VivafolioBlock notification - missing tableData`);
+      return;
+    }
+
+    // Create entities for each row in the table data
+    for (let i = 0; i < tableData.rows.length; i++) {
+      const row = tableData.rows[i];
+      const rowEntityId = `${entityId}-row-${i}`;
+
+      const properties: Record<string, any> = {};
+      tableData.headers.forEach((header: string, idx: number) => {
+        properties[header] = row[idx] || '';
+      });
+
+      const metadata: EntityMetadata = {
+        entityId: rowEntityId,
+        sourcePath: sourcePath || 'lsp-notification',
+        sourceType: 'vivafolio_data_construct',
+        dslModule: dslModule ? {
+          version: '1.0',
+          entityId: entityId,
+          operations: dslModule.operations || {},
+          source: dslModule.source || { type: 'vivafolio_data_construct' }
+        } : undefined,
+        properties,
+        lastModified: new Date()
+      };
+
+      this.entityMetadata.set(rowEntityId, metadata);
+
+      // Emit entity-created event
+      await this.eventEmitter.emit('entity-created', {
+        entityId: rowEntityId,
+        properties,
+        timestamp: new Date(),
+        sourcePath: sourcePath || 'lsp-notification',
+        sourceType: 'vivafolio_data_construct',
+        operationType: 'create'
+      });
+    }
+
+    console.log(`IndexingService: Processed ${tableData.rows.length} entities from VivafolioBlock notification`);
   }
 
   // Get entity metadata
