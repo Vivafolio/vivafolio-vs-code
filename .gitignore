@@ -22,6 +22,11 @@ packages/*/dist/
 packages/*/build/
 packages/*/*.tsbuildinfo
 
+# Framework package build outputs
+apps/blockprotocol-poc/libs/block-frameworks/*/dist/
+apps/blockprotocol-poc/libs/block-frameworks/*/build/
+apps/blockprotocol-poc/libs/block-frameworks/*/*.tsbuildinfo
+
 # Editor and IDE files
 .vscode/
 .idea/

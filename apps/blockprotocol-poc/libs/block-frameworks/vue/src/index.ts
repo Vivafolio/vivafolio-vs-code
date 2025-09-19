@@ -52,7 +52,7 @@ export function createBlock<T = {}>(
         type: Object as () => GraphService,
         required: true
       },
-      ...(component.props || {})
+      ...((component as any).props || {})
     }
   })
 }
@@ -217,7 +217,7 @@ export function registerBlockElement(
 
   class VueBlockElement extends HTMLElement {
     private app?: App
-    private root?: HTMLElement
+    private root?: ShadowRoot
 
     constructor() {
       super()

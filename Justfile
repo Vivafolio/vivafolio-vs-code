@@ -238,10 +238,25 @@ watch:
 package:
 	npm run -s package:vsix | cat
 
-# Build extension and run basic compilation check
+# Build extension and all framework packages
 build-all:
+	@echo "Building main Vivafolio extension..."
 	npm run -s compile | cat
-	@echo "Build completed successfully"
+	@echo "Building indexing service package..."
+	-cd packages/indexing-service && npm run build && echo "✅ Indexing service built successfully" || echo "❌ Indexing service build failed"
+	@echo "Building block loader package..."
+	-cd packages/block-loader && npm run build && echo "✅ Block loader built successfully" || echo "❌ Block loader build failed"
+	@echo "Building SolidJS framework package..."
+	-cd apps/blockprotocol-poc/libs/block-frameworks/solidjs && npm run build && echo "✅ SolidJS built successfully" || echo "❌ SolidJS build failed"
+	@echo "Building Vue framework package..."
+	-cd apps/blockprotocol-poc/libs/block-frameworks/vue && npm run build && echo "✅ Vue built successfully" || echo "❌ Vue build failed"
+	@echo "Building Svelte framework package..."
+	-cd apps/blockprotocol-poc/libs/block-frameworks/svelte && npm run build && echo "✅ Svelte built successfully" || echo "❌ Svelte build failed"
+	@echo "Building Lit framework package..."
+	-cd apps/blockprotocol-poc/libs/block-frameworks/lit && npm run build && echo "✅ Lit built successfully" || echo "❌ Lit build failed"
+	@echo "Building Angular framework package..."
+	-cd apps/blockprotocol-poc/libs/block-frameworks/angular && npm run build && echo "✅ Angular built successfully" || echo "❌ Angular build failed"
+	@echo "Build process completed (check individual results above)"
 
 # -----------------------------
 # Test commands (continued)

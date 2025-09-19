@@ -1,4 +1,5 @@
-import { LitElement, html, css, property, type TemplateResult, type CSSResult } from 'lit'
+import { LitElement, html, css, type TemplateResult, type CSSResult } from 'lit'
+import { property } from 'lit/decorators.js'
 import { customElement } from 'lit/decorators.js'
 
 // Block Protocol types

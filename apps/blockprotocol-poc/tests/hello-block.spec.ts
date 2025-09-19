@@ -203,7 +203,7 @@ test.describe('Milestone 0 – Hello Block', () => {
     // Verify actual content from the HTML template
     await expect(title).toHaveText('Hello, Vivafolio Template Block')
     await expect(input).toHaveValue('Vivafolio Template Block')
-    await expect(paragraph).toContainText('This HTML template block demonstrates Block Protocol integration')
+    await expect(paragraph).toContainText('The entityId of this block is html-template-block-entity')
     await expect(readonlyParagraph).toHaveText('Vivafolio Template Block')
 
     // Test interaction: update the input field

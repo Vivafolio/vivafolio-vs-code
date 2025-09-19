@@ -446,11 +446,18 @@ export class VivafolioBlockLoader implements BlockLoader {
 
           // Execute the JavaScript in a try-catch
           try {
-            // Create a script element to execute the code
+            // Check if this should be executed as a module
+            // For HTML template blocks, the JavaScript should run as a module
             const script = document.createElement('script')
-            script.textContent = jsCode
+            script.type = 'module'
+
+            // For modules, we need to create a blob URL since we can't use textContent with type="module"
+            const blob = new Blob([jsCode], { type: 'application/javascript' })
+            const url = URL.createObjectURL(blob)
+            script.src = url
+
             container.appendChild(script)
-            console.log('[BlockLoader] JavaScript executed')
+            console.log('[BlockLoader] JavaScript module executed')
           } catch (error) {
             console.error('[BlockLoader] JavaScript execution failed:', error)
           }

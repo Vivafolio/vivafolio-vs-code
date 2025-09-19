@@ -133,7 +133,7 @@ export function registerBlockElement(
 
   class SvelteBlockElement extends HTMLElement {
     private app?: any
-    private root?: HTMLElement
+    private root?: ShadowRoot
 
     constructor() {
       super()
