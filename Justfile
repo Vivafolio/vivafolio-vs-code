@@ -61,6 +61,7 @@ test-runtime-vivafolioblock:
 # - test-blockprotocol-standalone: Standalone server & CLI (standalone-server.spec.ts)
 # - test-blockprotocol-assets: Static asset loading (static-assets.spec.ts)
 # - test-blockprotocol-devserver: Dev server smoke tests (tests-node/dev-server-smoke.test.ts)
+# - test-blockprotocol-hooks: Hook mechanism & nested blocks (block-loader hooks tests)
 # - test-blockprotocol-standalone-build: Standalone server build & distribution testing
 #
 # Use test-blockprotocol-all to run all suites individually
@@ -109,8 +110,11 @@ test-blockprotocol-devserver:
 	cd apps/blockprotocol-poc && \
 	  npm run test:devserver | cat
 
+# Run hook mechanism tests (mini-host, React hooks, nested blocks)
+test-blockprotocol-hooks: test-block-loader-hooks
+
 # Run all Block Protocol POC test suites individually
-test-blockprotocol-all: test-blockprotocol-core test-blockprotocol-frameworks test-blockprotocol-scaffold test-blockprotocol-standalone test-blockprotocol-assets test-blockprotocol-devserver test-blockprotocol-standalone-build
+test-blockprotocol-all: test-blockprotocol-core test-blockprotocol-frameworks test-blockprotocol-scaffold test-blockprotocol-standalone test-blockprotocol-assets test-blockprotocol-devserver test-blockprotocol-hooks test-blockprotocol-standalone-build
 
 # Run Block Protocol tests in headed mode (for debugging)
 test-blockprotocol-headed:
@@ -284,12 +288,16 @@ test-block-resources-cache-watch:
 test-block-loader:
 	cd packages/block-loader && npm test | cat
 
+# Run block-loader package tests with hooks coverage
+test-block-loader-hooks:
+	cd packages/block-loader && npm test -- --testPathPattern="hooks.test.ts" | cat
+
 # Run indexing-service package tests
 test-indexing-service:
 	cd packages/indexing-service && npm test | cat
 
 # Run all package tests
-test-packages: test-block-resources-cache test-block-loader test-indexing-service
+test-packages: test-block-resources-cache test-block-loader test-block-loader-hooks test-indexing-service
 
 # -----------------------------
 # Vendored language servers

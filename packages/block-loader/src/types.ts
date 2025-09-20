@@ -72,11 +72,37 @@ export interface HtmlTemplateHandlers {
   setReadonly: (readonly: boolean) => void
 }
 
+export interface HookData {
+  node: HTMLElement | null
+  type: string
+  path: (string | number)[]
+  hookId: string | null
+  entityId: string
+}
+
+export interface HookResponse {
+  hookId: string
+}
+
+export interface NestedBlockOptions {
+  entityId: string
+  entityTypeId: string
+  container: HTMLElement
+  onBlockUpdate?: (payload: { entityId: string; properties: Record<string, unknown> }) => void
+}
+
+export interface MiniHost {
+  handleHookMessage: (data: HookData) => Promise<HookResponse | null>
+  mountNestedBlock: (options: NestedBlockOptions) => Promise<HTMLElement>
+  unmountNestedBlock: (entityId: string) => void
+}
+
 export interface BlockLoader {
   loadBlock(notification: VivafolioBlockNotification, container: HTMLElement): Promise<HTMLElement>
   updateBlock(notification: VivafolioBlockNotification): void
   destroy(): void
   getDiagnostics(): BlockLoaderDiagnostics | null
+  getMiniHost(): MiniHost
 }
 
 export interface BlockLoaderFactory {

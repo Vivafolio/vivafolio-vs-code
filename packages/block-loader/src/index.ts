@@ -17,9 +17,14 @@ export type {
   BlockResource,
   Entity,
   EntityGraph,
-  HtmlTemplateHandlers
+  HtmlTemplateHandlers,
+  HookData,
+  HookResponse,
+  NestedBlockOptions,
+  MiniHost
 } from './types'
 export { DEFAULT_ALLOWED_DEPENDENCIES } from './types'
+export * from './hooks'
 
 // Factory function for creating block loaders
 export function createBlockLoader(options?: import('./types').BlockLoaderOptions): import('./types').BlockLoader {

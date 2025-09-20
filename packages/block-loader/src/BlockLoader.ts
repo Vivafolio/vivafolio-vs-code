@@ -20,6 +20,18 @@ declare global {
     }
   }
 }
+
+// Hook message types
+interface HookMessage {
+  type: 'hook'
+  data: {
+    node: HTMLElement | null
+    type: string
+    path: (string | number)[]
+    hookId: string | null
+    entityId: string
+  }
+}
 import {
   Entity,
   EntityGraph,
@@ -30,7 +42,11 @@ import {
   HtmlTemplateHandlers,
   BlockLoader,
   BlockResourcesCache,
-  DEFAULT_ALLOWED_DEPENDENCIES
+  DEFAULT_ALLOWED_DEPENDENCIES,
+  HookData,
+  HookResponse,
+  NestedBlockOptions,
+  MiniHost
 } from './types'
 
 interface LocalModuleEntry {
@@ -132,6 +148,10 @@ export class VivafolioBlockLoader implements BlockLoader {
   // HTML template support
   private htmlTemplateHandlers?: HtmlTemplateHandlers
 
+  // Mini-host for nested blocks
+  private miniHost: MiniHost
+  private mountedBlocks = new Map<string, HTMLElement>()
+
   constructor(notification: VivafolioBlockNotification, options: BlockLoaderOptions = {}) {
     this.notification = notification
     this.resourcesCache = options.resourcesCache
@@ -149,6 +169,9 @@ export class VivafolioBlockLoader implements BlockLoader {
     this.blockEntity = this.deriveBlockEntity(notification)
     this.blockGraph = this.deriveBlockGraph(notification)
     this.blockSubgraph = this.buildBlockEntitySubgraph(this.blockEntity, this.blockGraph)
+
+    // Initialize mini-host for nested blocks
+    this.miniHost = this.createMiniHost()
   }
 
   async loadBlock(notification: VivafolioBlockNotification, container: HTMLElement): Promise<HTMLElement> {
@@ -228,10 +251,137 @@ export class VivafolioBlockLoader implements BlockLoader {
     if (this.customElementInstance) {
       this.customElementInstance.remove()
     }
+
+    // Clean up mounted nested blocks
+    for (const [entityId, container] of this.mountedBlocks) {
+      this.miniHost.unmountNestedBlock(entityId)
+    }
+    this.mountedBlocks.clear()
   }
 
   getDiagnostics(): BlockLoaderDiagnostics | null {
     return this.diagnostics
+  }
+
+  getMiniHost(): MiniHost {
+    return this.miniHost
+  }
+
+  // Mini-host implementation
+  private createMiniHost(): MiniHost {
+    return {
+      handleHookMessage: async (data: HookData): Promise<HookResponse | null> => {
+        console.log('[MiniHost] Handling hook message:', data)
+
+        // Check if this is a vivafolio:embed:entity hook for nested blocks
+        if (data.type === 'vivafolio:embed:entity') {
+          return this.handleNestedBlockHook(data)
+        }
+
+        // For other hook types, return null to indicate not implemented
+        console.log('[MiniHost] Hook type not implemented:', data.type)
+        return null
+      },
+
+      mountNestedBlock: async (options: NestedBlockOptions): Promise<HTMLElement> => {
+        console.log('[MiniHost] Mounting nested block:', options.entityId)
+
+        // Create a new block loader instance for the nested block
+        const nestedLoader = new VivafolioBlockLoader({
+          blockId: `nested-${options.entityId}`,
+          blockType: this.deriveBlockTypeForEntity(options.entityTypeId),
+          displayMode: 'inline',
+          sourceUri: this.notification.sourceUri,
+          range: this.notification.range, // Use parent range for nested blocks
+          entityId: options.entityId,
+          resources: [], // Nested blocks get their resources from cache
+          entityGraph: this.notification.entityGraph // Share the parent graph
+        }, {
+          ...this.options,
+          onBlockUpdate: options.onBlockUpdate || this.options.onBlockUpdate
+        })
+
+        // Load the nested block
+        const nestedContainer = await nestedLoader.loadBlock({
+          blockId: `nested-${options.entityId}`,
+          blockType: this.deriveBlockTypeForEntity(options.entityTypeId),
+          displayMode: 'inline',
+          sourceUri: this.notification.sourceUri,
+          range: this.notification.range,
+          entityId: options.entityId,
+          resources: [],
+          entityGraph: this.notification.entityGraph
+        }, options.container)
+
+        // Store the mounted block for cleanup
+        this.mountedBlocks.set(options.entityId, nestedContainer)
+
+        return nestedContainer
+      },
+
+      unmountNestedBlock: (entityId: string): void => {
+        console.log('[MiniHost] Unmounting nested block:', entityId)
+        const container = this.mountedBlocks.get(entityId)
+        if (container) {
+          // Find and destroy the block loader instance
+          // Note: In a real implementation, we'd need to track block loader instances
+          container.remove()
+          this.mountedBlocks.delete(entityId)
+        }
+      }
+    }
+  }
+
+  private async handleNestedBlockHook(data: HookData): Promise<HookResponse> {
+    const { entityId, node } = data
+
+    if (!node) {
+      // This is a teardown request
+      this.miniHost.unmountNestedBlock(entityId)
+      return { hookId: 'teardown' }
+    }
+
+    // Find the entity in the graph
+    const entity = this.notification.entityGraph.entities.find(e => e.entityId === entityId)
+    if (!entity) {
+      throw new Error(`Entity not found: ${entityId}`)
+    }
+
+    // Derive entity type (simplified - in real implementation this would come from schema)
+    const entityTypeId = this.deriveEntityTypeId(entity)
+
+    // Mount the nested block
+    await this.miniHost.mountNestedBlock({
+      entityId,
+      entityTypeId,
+      container: node,
+      onBlockUpdate: this.options.onBlockUpdate
+    })
+
+    return { hookId: data.hookId || `nested-${entityId}` }
+  }
+
+  private deriveBlockTypeForEntity(entityTypeId: string): string {
+    // Map entity types to block types (simplified mapping)
+    const blockTypeMap: Record<string, string> = {
+      'https://blockprotocol.org/@alice/types/entity-type/person/v/1': 'person-chip-block',
+      'https://blockprotocol.org/@alice/types/entity-type/task/v/1': 'task-card-block',
+      'https://blockprotocol.org/@alice/types/entity-type/board/v/1': 'kanban-board-block'
+    }
+
+    return blockTypeMap[entityTypeId] || 'generic-entity-block'
+  }
+
+  private deriveEntityTypeId(entity: Entity): string {
+    // Simplified entity type derivation - in real implementation this would come from schema
+    // For now, we'll use a heuristic based on properties
+    if (entity.properties.name && entity.properties.email) {
+      return 'https://blockprotocol.org/@alice/types/entity-type/person/v/1'
+    }
+    if (entity.properties.title && entity.properties.status) {
+      return 'https://blockprotocol.org/@alice/types/entity-type/task/v/1'
+    }
+    return 'https://blockprotocol.org/@alice/types/entity-type/generic/v/1'
   }
 
   // Private implementation methods
@@ -536,6 +686,109 @@ export class VivafolioBlockLoader implements BlockLoader {
   private setupGraphEmbedder(container: HTMLElement): void {
     // The blocks get their data directly via props, so graph embedder is not needed
     // This is a placeholder for future compatibility with Block Protocol graph operations
+
+    // Set up hook interception for nested blocks
+    this.setupHookInterception(container)
+  }
+
+  private setupHookInterception(container: HTMLElement): void {
+    // Set up shared graph context
+    this.setupGraphContext(container)
+
+    // Create a hook embedder handler to intercept hook messages
+    const hookEmbedder = {
+      on: (messageName: string, handler: Function) => {
+        if (messageName === 'hook') {
+          // Intercept hook messages and route to mini-host
+          const originalHandler = handler
+          const interceptedHandler = async (message: any) => {
+            const hookData = message.data as HookData
+
+            // Try to handle with mini-host first
+            const miniHostResponse = await this.miniHost.handleHookMessage(hookData)
+
+            if (miniHostResponse) {
+              // Mini-host handled it, return the response
+              return { data: miniHostResponse }
+            } else {
+              // Mini-host didn't handle it, fall back to original handler
+              return originalHandler(message)
+            }
+          }
+
+          // Store the intercepted handler for later use
+          ;(container as any)._hookHandler = interceptedHandler
+        }
+      }
+    }
+
+    // Make the hook embedder available to blocks
+    ;(container as any)._hookEmbedder = hookEmbedder
+
+    // Also expose it globally for blocks that need it
+    if (!(window as any).__vivafolioHookEmbedder) {
+      (window as any).__vivafolioHookEmbedder = hookEmbedder
+    }
+  }
+
+  private setupGraphContext(container: HTMLElement): void {
+    // Create a shared graph context for parent-child block communication
+    const graphContext = {
+      // Current entity graph
+      graph: this.notification.entityGraph,
+
+      // Subscribe to entity updates
+      subscribeToEntity: (entityId: string, callback: (entity: Entity) => void) => {
+        const handler = (payload: { entityId: string; properties: Record<string, unknown> }) => {
+          if (payload.entityId === entityId) {
+            // Find the updated entity
+            const updatedEntity = this.notification.entityGraph.entities.find(e => e.entityId === entityId)
+            if (updatedEntity) {
+              callback(updatedEntity)
+            }
+          }
+        }
+
+        // Store the handler for cleanup
+        if (!(container as any)._entitySubscriptions) {
+          (container as any)._entitySubscriptions = new Map()
+        }
+        ;(container as any)._entitySubscriptions.set(callback, handler)
+
+        // Register with the block loader
+        const originalOnBlockUpdate = this.options.onBlockUpdate
+        this.options.onBlockUpdate = (payload) => {
+          handler(payload)
+          originalOnBlockUpdate(payload)
+        }
+
+        // Return unsubscribe function
+        return () => {
+          ;(container as any)._entitySubscriptions?.delete(callback)
+        }
+      },
+
+      // Get entity by ID
+      getEntity: (entityId: string): Entity | undefined => {
+        return this.notification.entityGraph.entities.find(e => e.entityId === entityId)
+      },
+
+      // Update entity
+      updateEntity: (entityId: string, properties: Record<string, unknown>) => {
+        this.options.onBlockUpdate({
+          entityId,
+          properties
+        })
+      }
+    }
+
+    // Make graph context available to blocks
+    ;(container as any)._graphContext = graphContext
+
+    // Also expose globally for hooks
+    if (!(window as any).__vivafolioGraphContext) {
+      (window as any).__vivafolioGraphContext = graphContext
+    }
   }
 
   private renderBlock(container: HTMLElement): void {
