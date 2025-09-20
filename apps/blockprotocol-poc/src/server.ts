@@ -1417,7 +1417,10 @@ function createCustomElementGraph(): EntityGraph {
     entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
     properties: {
       [namePropertyBase]: 'Custom Element Baseline',
-      [namePropertyVersioned]: 'Custom Element Baseline'
+      [namePropertyVersioned]: 'Custom Element Baseline',
+      title: 'Custom Element Baseline',
+      description: 'Demonstrates vanilla WebComponent integration',
+      status: 'todo'
     }
   }
 

@@ -10,7 +10,7 @@ function generateAssetHash(content: string): string {
   return crypto.createHash('sha256').update(content).digest('hex').slice(0, 8)
 }
 async function buildFrameworks() {
-  const rootDir = path.resolve(process.cwd(), '..')
+  const rootDir = process.cwd()
   const frameworksDir = path.join(rootDir, 'libs/block-frameworks')
   const outputDir = path.join(rootDir, 'dist/frameworks')
 

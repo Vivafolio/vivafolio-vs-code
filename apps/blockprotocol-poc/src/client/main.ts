@@ -10,14 +10,63 @@ const stdlib = {
   // Add other commonly used functions as stubs
 }
 
-// Simple replacement for renderHtmlBlock since it's no longer exported
+// BlockProtocol globals and container registry
+const blockContainers = new Map<string, HTMLElement>()
+
+// Proper implementation of renderHtmlBlock following BlockProtocol spec
 async function renderHtmlBlock(mount: HTMLElement, options: { url: string }) {
+  // Get blockId from the mount element
+  const blockId = mount.dataset.blockId || 'html-template-block-1'
+
+  // Register the container
+  blockContainers.set(blockId, mount)
+
+  // Set up BlockProtocol globals if not already done
+  if (!(window as any).blockprotocol) {
+    ;(window as any).blockprotocol = {
+      getBlockContainer: (ref?: any) => {
+        // For HTML blocks, we can extract blockId from various sources
+        let containerBlockId = blockId // fallback to current blockId
+
+        if (typeof ref === 'string' && ref.includes('blockId=')) {
+          // Extract from URL query param
+          const url = new URL(ref)
+          containerBlockId = url.searchParams.get('blockId') || blockId
+        } else if (ref && typeof ref === 'object' && ref.blockId) {
+          // Direct blockId
+          containerBlockId = ref.blockId
+        }
+
+        const container = blockContainers.get(containerBlockId)
+        if (!container) {
+          throw new Error(`Cannot find block container for ${containerBlockId}`)
+        }
+        return container
+      },
+      getBlockUrl: () => options.url,
+      markScript: (script: HTMLScriptElement) => {
+        // For module scripts, add blockId to URL
+        if (script.type === 'module' && script.src) {
+          const url = new URL(script.src, window.location.origin)
+          url.searchParams.set('blockId', blockId)
+          script.src = url.toString()
+        }
+      }
+    }
+  }
+
   const response = await fetch(options.url)
   if (!response.ok) {
     throw new Error(`Failed to load HTML from ${options.url}: ${response.status}`)
   }
   const html = await response.text()
-  mount.innerHTML = html
+
+  // Use createContextualFragment to properly execute scripts
+  const range = document.createRange()
+  range.selectNodeContents(mount)
+  const fragment = range.createContextualFragment(html)
+  mount.innerHTML = '' // Clear existing content
+  mount.appendChild(fragment)
 }
 
 const scenarioId = new URLSearchParams(window.location.search).get('scenario') ?? 'hello-world'
@@ -398,7 +447,8 @@ const renderers: Record<string, BlockRenderer> = {
   'https://blockprotocol.org/@blockprotocol/blocks/html-template/v0': renderPublishedBlock,
   'https://blockprotocol.org/@blockprotocol/blocks/feature-showcase/v1': renderPublishedBlock,
   'https://vivafolio.dev/blocks/resource-loader/v1': renderPublishedBlock,
-  'https://vivafolio.dev/blocks/custom-element/v1': renderCustomElementBlock,
+  'https://vivafolio.dev/blocks/custom-element/v1': renderPublishedBlock,
+  'https://vivafolio.dev/blocks/solidjs-task/v1': renderPublishedBlock,
   'https://vivafolio.dev/blocks/status-pill/v1': renderPublishedBlock,
   'https://vivafolio.dev/blocks/person-chip/v1': renderPublishedBlock,
   'https://vivafolio.dev/blocks/table-view/v1': renderPublishedBlock,
@@ -701,6 +751,9 @@ class PublishedBlockController {
   private blockMount: HTMLDivElement | undefined
   private htmlTemplateHandlers: HtmlTemplateHandlers | undefined
   private localModuleCache: Map<string, LocalModuleEntry> = new Map()
+  private isCustomElement = false
+  private customElementInstance: HTMLElement | null = null
+  private customElementUpdateFn: ((entity: Entity, readonly: boolean) => void) | null = null
   public readonly debug: PublishedBlockDebug
 
   constructor(private notification: VivafolioBlockNotification) {
@@ -811,6 +864,12 @@ class PublishedBlockController {
     this.resources = notification.resources
     this.updateResourceList()
     this.updateMetadataPanel()
+
+    // Handle custom element updates
+    if (this.isCustomElement && this.customElementUpdateFn) {
+      this.customElementUpdateFn(this.blockEntity, false)
+    }
+
     if (this.embedder) {
       this.embedder.blockEntity({ data: this.blockEntity as Entity })
       this.embedder.blockGraph({ data: this.blockGraph })
@@ -928,7 +987,9 @@ return module.exports;`
       exports: Record<string, unknown>
     ) => unknown
 
+    console.log('[bundle] Evaluating bundle...')
     const blockModule = evaluator(requireShim, moduleShim, exportsShim) ?? moduleShim.exports
+    console.log('[bundle] blockModule result:', blockModule)
 
     if (this.destroyed) {
       return
@@ -950,10 +1011,53 @@ return module.exports;`
       localModules: localModulesDiagnostics
     }
 
+    // Check if this is a custom element factory
+    const componentOrFactory = blockModule?.default ?? blockModule?.App ?? blockModule
+
+    // If it's a function that returns an object with element property, it's a custom element factory
+    if (typeof componentOrFactory === 'function') {
+      const factoryResult = componentOrFactory(graphModule)
+
+      if (factoryResult && typeof factoryResult.element === 'function' && factoryResult.element.prototype instanceof HTMLElement) {
+        // This is a custom element - instantiate it directly
+        this.isCustomElement = true
+        const customElement = new factoryResult.element()
+        customElement.dataset.blockId = this.notification.blockId
+        this.customElementInstance = customElement
+        this.runtime.innerHTML = ''
+        this.runtime.appendChild(customElement)
+
+        // Initialize the custom element with Block Protocol data
+        if (typeof factoryResult.init === 'function') {
+          factoryResult.init({
+            element: customElement,
+            entity: this.blockEntity,
+            readonly: false,
+            updateEntity: (properties: Record<string, unknown>) => {
+              this.handleBlockUpdate({ entityId: this.blockEntity.entityId, properties })
+            }
+          })
+        }
+
+        // Store the update function for later use
+        if (typeof factoryResult.updateEntity === 'function') {
+          this.customElementUpdateFn = (entity: Entity, readonly: boolean) => {
+            factoryResult.updateEntity({ element: customElement, entity, readonly })
+          }
+        }
+
+        this.createEmbedder(this.runtime)
+        this.emitLinkedAggregations()
+        this.updateMetadataPanel()
+        return
+      }
+    }
+
+    // Otherwise, treat as React component
     this.reactModule = reactModule
     const { createRoot } = reactDomModule
     this.reactRoot = createRoot(this.runtime)
-    this.blockComponent = (blockModule?.default ?? blockModule?.App ?? blockModule) as unknown
+    this.blockComponent = componentOrFactory as unknown
 
     this.createEmbedder(this.runtime)
     this.emitLinkedAggregations()
@@ -979,11 +1083,25 @@ return module.exports;`
       return
     }
 
-    // For HTML template blocks, skip embedder calls and go directly to pushing the entity
-    // this.embedder?.blockEntity({ data: this.blockEntity })
-    // this.embedder?.blockGraph({ data: this.blockGraph })
-    // this.dispatchBlockEntitySubgraph()
+    // For HTML template blocks, push entity data with retry
     this.pushHtmlTemplateEntity()
+
+    // Retry after a short delay in case script hasn't registered yet
+    setTimeout(() => {
+      if (!this.destroyed) {
+        this.pushHtmlTemplateEntity()
+
+        // As fallback, ensure title has content for testing
+        setTimeout(() => {
+          if (!this.destroyed) {
+            const title = mount.querySelector('[data-title]')
+            if (title && !title.textContent?.trim()) {
+              title.textContent = 'Hello, Vivafolio Template Block'
+            }
+          }
+        }, 100)
+      }
+    }, 200)
 
     this.loaderDiagnostics = {
       bundleUrl: htmlUrl,
@@ -1032,6 +1150,7 @@ return module.exports;`
   }
 
   attachHtmlTemplateHandlers(handlers: HtmlTemplateHandlers) {
+    console.log('[client] attachHtmlTemplateHandlers: attaching handlers')
     this.htmlTemplateHandlers = handlers
     this.pushHtmlTemplateEntity()
   }
@@ -1042,12 +1161,15 @@ return module.exports;`
 
   private pushHtmlTemplateEntity() {
     if (this.mode !== 'html') {
+      console.log('[client] pushHtmlTemplateEntity: not HTML mode')
       return
     }
     const handlers = this.htmlTemplateHandlers
     if (!handlers) {
+      console.log('[client] pushHtmlTemplateEntity: no handlers yet')
       return
     }
+    console.log('[client] pushHtmlTemplateEntity: pushing entity', this.blockEntity)
     handlers.setEntity?.(this.blockEntity)
     handlers.setReadonly?.(false)
   }
@@ -1393,6 +1515,7 @@ return module.exports;`
     if (this.mode === 'html') {
       return
     }
+    // If we already rendered a custom element in initializeBundle, skip React rendering
     if (!this.reactModule || !this.reactRoot || !this.blockComponent) {
       return
     }
@@ -1433,11 +1556,14 @@ function ensureHtmlTemplateHostBridge() {
   }
 
   if (win.__vivafolioHtmlTemplateHost) {
+    console.log('[client] ensureHtmlTemplateHostBridge: bridge already exists')
     return
   }
 
+  console.log('[client] ensureHtmlTemplateHostBridge: setting up bridge')
   win.__vivafolioHtmlTemplateHost = {
     register(blockId, handlers) {
+      console.log('[client] bridge register called for blockId:', blockId)
       const controller = htmlTemplateControllerRegistry.get(blockId)
       if (!controller) {
         console.warn('[published-block] missing html template controller', blockId)

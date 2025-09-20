@@ -595,7 +595,7 @@ export async function startStandaloneServer(options: StandaloneServerOptions = {
 /**
  * CLI entry point for npx usage
  */
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] === new URL(import.meta.url).pathname) {
   const args = process.argv.slice(2)
   const options: StandaloneServerOptions = {}
 

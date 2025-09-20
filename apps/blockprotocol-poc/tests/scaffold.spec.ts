@@ -269,7 +269,11 @@ export default ${framework}Block
 
     // Invalid names should be sanitized appropriately
     invalidNames.forEach(name => {
-      const sanitized = name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+      let sanitized = name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+      // If sanitized name starts with a number, prefix with 'block-'
+      if (/^[0-9]/.test(sanitized)) {
+        sanitized = 'block-' + sanitized
+      }
       // After sanitization, they should be valid
       expect(sanitized).toMatch(/^[a-z][a-z0-9-]*$/)
     })

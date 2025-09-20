@@ -1,8 +1,7 @@
 const React = require('react')
 
-// StatusPillBlock - Property renderer for status values (SolidJS implementation)
-function StatusPillBlock({ graph }) {
-  const { blockEntity, readonly } = graph
+// StatusPillBlock - Property renderer for status values
+function StatusPillBlock({ entity, readonly, updateEntity }) {
 
   // Status configuration with colors and labels
   const statusConfig = {
@@ -13,13 +12,12 @@ function StatusPillBlock({ graph }) {
     'review': { label: 'Review', color: '#8b5cf6', bgColor: '#e9d5ff' }
   }
 
-  const currentStatus = blockEntity?.properties?.status || 'todo'
+  const currentStatus = entity?.properties?.status || 'todo'
   const config = statusConfig[currentStatus] || statusConfig.todo
 
   const handleStatusChange = (newStatus) => {
-    if (!readonly) {
-      // In a real implementation, this would call the Block Protocol updateEntity method
-      console.log('StatusPillBlock: Status changed to', newStatus)
+    if (!readonly && updateEntity) {
+      updateEntity({ status: newStatus })
     }
   }
 
