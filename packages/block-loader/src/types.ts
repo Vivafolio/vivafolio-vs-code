@@ -47,11 +47,24 @@ export interface BlockLoaderDiagnostics {
   }>
 }
 
+// Block identifier for cache operations
+export interface BlockIdentifier {
+  name: string
+  version?: string
+  registry?: string
+}
+
+// Local interface for block resources cache (to avoid circular dependencies)
+export interface BlockResourcesCache {
+  fetchBlock(identifier: BlockIdentifier, options?: any): Promise<any>
+}
+
 export interface BlockLoaderOptions {
   allowedDependencies?: Set<string>
   enableIntegrityChecking?: boolean
   enableDiagnostics?: boolean
   onBlockUpdate?: (payload: { entityId: string; properties: Record<string, unknown> }) => void
+  resourcesCache?: BlockResourcesCache
 }
 
 export interface HtmlTemplateHandlers {
@@ -79,5 +92,8 @@ export const DEFAULT_ALLOWED_DEPENDENCIES = new Set([
   'react-dom/client',
   '@blockprotocol/graph',
   '@blockprotocol/graph/stdlib',
-  '@blockprotocol/graph/custom-element'
+  '@blockprotocol/graph/custom-element',
+  'solid-js',
+  'solid-js/web',
+  'solid-js/store'
 ])

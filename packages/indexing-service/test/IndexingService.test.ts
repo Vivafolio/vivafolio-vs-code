@@ -92,17 +92,29 @@ This is a test document.`;
     });
 
     it('should process source files with vivafolio_data constructs', async () => {
-      const sourceContent = `vivafolio_data!("tasks", r#"
-Task,Assignee,Status
-Write code,Alice,Done
-Test code,Bob,In Progress
-"#);`;
+      // Create a VivafolioBlock notification as would come from LSP
+      const notification = {
+        entityId: 'tasks',
+        sourcePath: '/test/tasks.rs',
+        tableData: {
+          headers: ['Task', 'Assignee', 'Status'],
+          rows: [
+            ['Write code', 'Alice', 'Done'],
+            ['Test code', 'Bob', 'In Progress']
+          ]
+        },
+        dslModule: {
+          operations: {
+            updateEntity: 'function updateEntity(entityId, properties) { /* mock */ }',
+            createEntity: 'function createEntity(properties) { /* mock */ }',
+            deleteEntity: 'function deleteEntity(entityId) { /* mock */ }'
+          },
+          source: { type: 'vivafolio_data_construct' }
+        }
+      };
 
-      mockedFs.readFile.mockResolvedValue(sourceContent);
-
-      // Access private method for testing
-      const processSourceFile = (service as any).processSourceFile.bind(service);
-      await processSourceFile('/test/tasks.rs');
+      // Process the VivafolioBlock notification
+      await service.handleVivafolioBlockNotification(notification);
 
       const entities = service.getAllEntities();
       expect(entities).toHaveLength(2);

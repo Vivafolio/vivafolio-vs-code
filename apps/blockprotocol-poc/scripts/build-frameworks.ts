@@ -150,13 +150,16 @@ async function createViteConfig(framework: string, entryPath: string, outputDir:
   return config
 }
 
-async function buildFrameworkBundle(framework: string, sourcePath: string, outputDir: string): Promise<FrameworkBundle> {
+async function buildFrameworkBundle(framework: string, sourcePath: string, outputDir: string, blockName?: string): Promise<FrameworkBundle> {
   console.log(`[build-frameworks] Building ${framework} block from ${sourcePath}`)
 
   const sourceContent = await fs.readFile(sourcePath, 'utf8')
   const hash = generateAssetHash(sourceContent)
 
-  const viteConfig = await createViteConfig(framework, sourcePath, outputDir)
+  // For SolidJS, create separate directory for each block
+  const actualOutputDir = framework === 'solidjs' && blockName ? path.join(outputDir, blockName) : outputDir
+
+  const viteConfig = await createViteConfig(framework, sourcePath, actualOutputDir)
 
   try {
     await viteBuild(viteConfig)
@@ -167,7 +170,7 @@ async function buildFrameworkBundle(framework: string, sourcePath: string, outpu
   }
 
   // Check what files were created
-  const outputFiles = await fs.readdir(outputDir)
+  const outputFiles = await fs.readdir(actualOutputDir)
   const assets = outputFiles.filter(file => file.endsWith('.js') || file.endsWith('.css'))
 
   if (assets.length === 0) {
@@ -190,6 +193,53 @@ async function buildFrameworkBundle(framework: string, sourcePath: string, outpu
   }
 }
 
+async function buildGeneralBlocks() {
+  const rootDir = process.cwd()
+  const examplesDir = path.join(rootDir, 'examples/blocks')
+  const outputDir = path.join(rootDir, 'dist/frameworks')
+  const builtBundles: FrameworkBundle[] = []
+
+  if (!existsSync(examplesDir)) {
+    console.log('[build-frameworks] General examples directory not found, skipping...')
+    return builtBundles
+  }
+
+  console.log('[build-frameworks] Processing general example blocks...')
+
+  try {
+    const blockDirs = await fs.readdir(examplesDir)
+
+    for (const blockDir of blockDirs) {
+      const blockPath = path.join(examplesDir, blockDir)
+      const stat = await fs.stat(blockPath)
+
+      if (!stat.isDirectory()) continue
+
+      const mainFile = path.join(blockPath, 'main.js')
+      if (!existsSync(mainFile)) continue
+
+      console.log(`[build-frameworks] Building general block: ${blockDir}`)
+
+      const outputName = `${blockDir}-block`
+      const blockOutputDir = path.join(outputDir, blockDir)
+
+      try {
+        const bundle = await buildFrameworkBundle('general', mainFile, blockOutputDir)
+        // Update the bundle ID to use the block name instead of the file path
+        bundle.id = outputName
+        builtBundles.push(bundle)
+        console.log(`[build-frameworks] ✓ Built general block: ${blockDir}`)
+      } catch (error) {
+        console.error(`[build-frameworks] ✗ Failed to build general block ${blockDir}:`, error)
+      }
+    }
+  } catch (error) {
+    console.error('[build-frameworks] Error processing general blocks:', error)
+  }
+
+  return builtBundles
+}
+
 async function buildFrameworks() {
   const rootDir = process.cwd()
   const frameworksDir = path.join(rootDir, 'libs/block-frameworks')
@@ -200,6 +250,7 @@ async function buildFrameworks() {
   const frameworks = ['solidjs'] // Only build SolidJS for now to demonstrate production capabilities
   const builtBundles: FrameworkBundle[] = []
 
+  // Build framework-specific blocks
   for (const framework of frameworks) {
     const sourceDir = path.join(frameworksDir, framework, 'examples')
     const frameworkOutputDir = path.join(outputDir, framework)
@@ -217,7 +268,8 @@ async function buildFrameworks() {
       for (const file of files) {
         if (file.endsWith('.tsx') || file.endsWith('.ts') || file.endsWith('.js') || file.endsWith('.vue') || file.endsWith('.svelte')) {
           const sourcePath = path.join(sourceDir, file)
-          const bundle = await buildFrameworkBundle(framework, sourcePath, frameworkOutputDir)
+          const blockName = file.replace(/\.(tsx|ts|js|vue|svelte)$/, '')
+          const bundle = await buildFrameworkBundle(framework, sourcePath, frameworkOutputDir, blockName)
           builtBundles.push(bundle)
 
           console.log(`[build-frameworks] ✓ ${bundle.id} -> ${bundle.entryPoint}`)
@@ -228,6 +280,10 @@ async function buildFrameworks() {
       throw error
     }
   }
+
+  // Build general example blocks
+  const generalBundles = await buildGeneralBlocks()
+  builtBundles.push(...generalBundles)
 
   // Generate bundle manifest
   const manifestPath = path.join(outputDir, 'manifest.json')

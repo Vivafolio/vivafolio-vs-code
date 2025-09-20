@@ -218,6 +218,10 @@ install-all:
 	cd apps/blockprotocol-poc && npm install
 	@echo "Installing dependencies in block-loader package..."
 	cd packages/block-loader && npm install && npm run build
+	@echo "Installing dependencies in block-resources-cache package..."
+	cd packages/block-resources-cache && npm install && npm run build
+	@echo "Installing dependencies in indexing-service package..."
+	cd packages/indexing-service && npm install && npm run build
 	@echo "Installing dependencies in mock language extension..."
 	cd mock-language-extension && npm install
 	@echo "All dependencies installed and packages built successfully"
@@ -246,6 +250,8 @@ build-all:
 	-cd packages/indexing-service && npm run build && echo "✅ Indexing service built successfully" || echo "❌ Indexing service build failed"
 	@echo "Building block loader package..."
 	-cd packages/block-loader && npm run build && echo "✅ Block loader built successfully" || echo "❌ Block loader build failed"
+	@echo "Building block resources cache package..."
+	-cd packages/block-resources-cache && npm run build && echo "✅ Block resources cache built successfully" || echo "❌ Block resources cache build failed"
 	@echo "Building SolidJS framework package..."
 	-cd apps/blockprotocol-poc/libs/block-frameworks/solidjs && npm run build && echo "✅ SolidJS built successfully" || echo "❌ SolidJS build failed"
 	@echo "Building Vue framework package..."
@@ -265,6 +271,25 @@ build-all:
 # Run all test suites
 test-all:
 	VIVAFOLIO_DEBUG=1 VIVAFOLIO_CAPTURE_WEBVIEW_LOGS=1 node test/run-all-tests.js
+
+# Run block-resources-cache package tests
+test-block-resources-cache:
+	cd packages/block-resources-cache && npm test | cat
+
+# Run block-resources-cache package tests in watch mode
+test-block-resources-cache-watch:
+	cd packages/block-resources-cache && npm run test:watch
+
+# Run block-loader package tests
+test-block-loader:
+	cd packages/block-loader && npm test | cat
+
+# Run indexing-service package tests
+test-indexing-service:
+	cd packages/indexing-service && npm test | cat
+
+# Run all package tests
+test-packages: test-block-resources-cache test-block-loader test-indexing-service
 
 # -----------------------------
 # Vendored language servers

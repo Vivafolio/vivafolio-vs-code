@@ -335,11 +335,20 @@ test.describe('F1 – Custom Element Baseline', () => {
 
   test.describe('Example Blocks from Coda/Notion Patterns', () => {
     test('status pill example block renders with correct styling', async ({ page }) => {
-      await page.goto('/?scenario=status-pill-example')
+      console.log('Starting status pill test')
+
+      // Listen for console messages from the page
+      page.on('console', msg => {
+        console.log('PAGE LOG:', msg.text())
+      })
+
+      await page.goto('/?scenario=status-pill-example&useIndexingService=true')
+      console.log('Page loaded, waiting for container...')
 
       // Wait for the block to load
       const container = page.locator('.published-block-container')
-      await expect(container).toBeAttached()
+      await expect(container).toBeAttached({ timeout: 15000 })
+      console.log('Container attached, waiting for content...')
 
       // Check for the status pill component
       const statusPill = container.locator('.status-pill-block')
@@ -358,7 +367,7 @@ test.describe('F1 – Custom Element Baseline', () => {
     })
 
     test('person chip example block renders with assignee data', async ({ page }) => {
-      await page.goto('/?scenario=person-chip-example')
+      await page.goto('/?scenario=person-chip-example&useIndexingService=true')
 
       // Wait for the block to load
       const container = page.locator('.published-block-container')
@@ -372,14 +381,22 @@ test.describe('F1 – Custom Element Baseline', () => {
       await expect(personChip).toContainText('Alice') // Default assignee from the block
     })
 
-    test.skip('table view example block renders table structure', async ({ page }) => {
-      // TODO: Fix table view block loading in static scenarios
-      // Currently the block works with WebSocket transport but not in static published mode
-      await page.goto('/?scenario=table-view-example')
+    test('table view example block renders table structure', async ({ page }) => {
+      console.log('Starting table view test')
+
+      // Listen for console messages from the page
+      page.on('console', msg => {
+        console.log('PAGE LOG:', msg.text())
+      })
+
+      await page.goto('/?scenario=table-view-example&useIndexingService=true')
+      console.log('Page loaded, waiting for container...')
 
       // Wait for the block to load
       const container = page.locator('.published-block-container')
-      await expect(container).toBeAttached()
+      await expect(container).toBeAttached({ timeout: 15000 })
+      console.log('Container attached, waiting for content...')
+
 
       // Check for table view block structure
       const tableView = container.locator('.table-view-block')
@@ -399,7 +416,7 @@ test.describe('F1 – Custom Element Baseline', () => {
     })
 
     test('board view example block renders kanban layout', async ({ page }) => {
-      await page.goto('/?scenario=board-view-example')
+      await page.goto('/?scenario=board-view-example&useIndexingService=true')
 
       // Wait for the block to load
       const container = page.locator('.published-block-container')

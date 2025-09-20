@@ -26,6 +26,7 @@ import { WebSocketServer, type WebSocket } from 'ws'
 import { IndexingService } from '../../../packages/indexing-service/dist/IndexingService.js'
 import { IndexingServiceTransportLayer, WebSocketTransport } from './TransportLayer.js'
 import { SidecarLspClient, MockLspServerImpl } from './SidecarLspClient.js'
+import { BlockResourcesCache } from '../../../packages/block-resources-cache/dist/index.js'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs/promises'
@@ -1132,7 +1133,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
         resources: [
           {
             logicalName: 'main.js',
-            physicalPath: '/examples/blocks/status-pill/main.js',
+            physicalPath: '/examples/blocks/status-pill/general-block.umd.js',
             cachingTag: nextCachingTag()
           }
         ]
@@ -1174,7 +1175,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
         resources: [
           {
             logicalName: 'main.js',
-            physicalPath: '/examples/blocks/person-chip/main.js',
+            physicalPath: '/examples/blocks/person-chip/general-block.umd.js',
             cachingTag: nextCachingTag()
           }
         ]
@@ -1240,7 +1241,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
     buildNotifications: (state) => [
       {
         blockId: 'table-view-example-1',
-        blockType: 'https://blockprotocol.org/@local/blocks/table-view/v1',
+        blockType: 'https://vivafolio.dev/blocks/table-view/v1',
         entityId: state.graph.entities[0]?.entityId ?? 'table-view-entity',
         displayMode: 'multi-line',
         initialGraph: state.graph,
@@ -1249,7 +1250,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
         resources: [
           {
             logicalName: 'main.js',
-            physicalPath: '/examples/blocks/table-view/main.js',
+            physicalPath: '/examples/blocks/table-view/general-block.umd.js',
             cachingTag: nextCachingTag()
           }
         ]
@@ -1290,7 +1291,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
         resources: [
           {
             logicalName: 'main.js',
-            physicalPath: '/examples/blocks/board-view/main.js',
+            physicalPath: '/examples/blocks/board-view/general-block.umd.js',
             cachingTag: nextCachingTag()
           }
         ]
@@ -1587,8 +1588,18 @@ function dispatchScenarioNotifications(
   // Sends VivafolioBlock notifications for a scenario to a connected WebSocket client
   // Converts scenario definition into Block Protocol notification payloads
   // Each notification tells the client to render a specific block with entity data
+  console.log('[Server] dispatchScenarioNotifications called for scenario:', scenario.id)
   const notifications = scenario.buildNotifications(state)
+  console.log('[Server] Built', notifications.length, 'notifications')
   for (const payload of notifications) {
+    console.log('[Server] Sending notification:', JSON.stringify({
+      type: 'vivafolioblock-notification',
+      payload: {
+        blockId: payload.blockId,
+        blockType: payload.blockType,
+        entityId: payload.entityId
+      }
+    }, null, 2))
     socket.send(
       JSON.stringify({
         type: 'vivafolioblock-notification',
@@ -1672,6 +1683,14 @@ export async function startServer(options: StartServerOptions = {}) {
   const lspServer = new MockLspServerImpl()
   const sidecarLspClient = new SidecarLspClient(indexingService, lspServer)
 
+  // Initialize block resources cache
+  const blockResourcesCache = new BlockResourcesCache({
+    maxSize: 100 * 1024 * 1024, // 100MB cache
+    ttl: 24 * 60 * 60 * 1000,   // 24 hours
+    maxEntries: 1000,
+    cacheDir: path.join(process.cwd(), '.block-cache'),
+  })
+
   console.log('[blockprotocol-poc] html template dir', HTML_TEMPLATE_BLOCK_DIR)
 
   await ensureHtmlTemplateAssets()
@@ -1703,20 +1722,63 @@ export async function startServer(options: StartServerOptions = {}) {
     console.error('[sidecar-lsp] Failed to start sidecar LSP client:', error)
   }
 
+  // Block resources cache middleware
+  app.use('/cache/:package/:version/*', async (req, res, next) => {
+    try {
+      const { package: packageName, version } = req.params
+      const resourcePath = req.params[0] // Everything after package/version/
+
+      const cacheResult = await blockResourcesCache.fetchBlock({
+        name: packageName,
+        version: version === 'latest' ? undefined : version
+      })
+
+      if (cacheResult.success && cacheResult.data) {
+        // Find the specific resource
+        const resource = cacheResult.data.resources.get(resourcePath)
+        if (resource) {
+          res.set({
+            'Content-Type': resource.contentType,
+            'Cache-Control': 'public, max-age=31536000', // 1 year
+            'X-Cache-Status': 'HIT',
+            'ETag': resource.etag || `"${resource.sha256.slice(0, 8)}"`
+          })
+          res.send(resource.content)
+          return
+        }
+      }
+
+      // Cache miss or error - add cache status header
+      res.set('X-Cache-Status', 'MISS')
+      next()
+    } catch (error) {
+      console.warn('[cache-middleware] Cache error:', error)
+      res.set('X-Cache-Status', 'ERROR')
+      next()
+    }
+  })
+
   // Static asset serving with production optimizations
   app.use('/external/html-template-block', express.static(HTML_TEMPLATE_PUBLIC_DIR, createOptimizedStaticOptions()))
   app.use('/external/resource-loader-block', express.static(RESOURCE_LOADER_BLOCK_DIR, createOptimizedStaticOptions()))
   app.use('/external/feature-showcase-block', express.static(path.resolve(ROOT_DIR, 'external/feature-showcase-block'), createOptimizedStaticOptions()))
   app.use('/external/custom-element-block', express.static(path.resolve(ROOT_DIR, 'external/custom-element-block'), createOptimizedStaticOptions()))
   app.use('/external/solidjs-task-block', express.static(path.resolve(ROOT_DIR, 'external/solidjs-task-block'), createOptimizedStaticOptions()))
-  app.use('/examples/blocks/status-pill', express.static(path.resolve(ROOT_DIR, 'examples/blocks/status-pill'), createOptimizedStaticOptions()))
-  app.use('/examples/blocks/person-chip', express.static(path.resolve(ROOT_DIR, 'examples/blocks/person-chip'), createOptimizedStaticOptions()))
-  app.use('/examples/blocks/table-view', express.static(path.resolve(ROOT_DIR, 'examples/blocks/table-view'), createOptimizedStaticOptions()))
-  app.use('/examples/blocks/board-view', express.static(path.resolve(ROOT_DIR, 'examples/blocks/board-view'), createOptimizedStaticOptions()))
+  app.use('/examples/blocks/status-pill', express.static(path.resolve(ROOT_DIR, 'dist/frameworks/status-pill'), createOptimizedStaticOptions()))
+  app.use('/examples/blocks/person-chip', express.static(path.resolve(ROOT_DIR, 'dist/frameworks/person-chip'), createOptimizedStaticOptions()))
+  app.use('/examples/blocks/table-view', express.static(path.resolve(ROOT_DIR, 'dist/frameworks/table-view'), createOptimizedStaticOptions()))
+  app.use('/examples/blocks/board-view', express.static(path.resolve(ROOT_DIR, 'dist/frameworks/board-view'), createOptimizedStaticOptions()))
   app.use('/templates', express.static(TEMPLATES_DIR, createOptimizedStaticOptions()))
 
   // Framework compiled assets with aggressive caching for hashed bundles
   app.use('/frameworks', express.static(path.resolve(ROOT_DIR, 'dist/frameworks'), createOptimizedStaticOptions()))
+
+  // Also serve general blocks from /frameworks/general/ for bundle size tests
+  app.use('/frameworks/general', express.static(path.resolve(ROOT_DIR, 'dist/frameworks'), createOptimizedStaticOptions()))
+
+  // Serve SolidJS blocks from their individual directories
+  app.use('/examples/blocks/solidjs-board-view', express.static(path.resolve(ROOT_DIR, 'dist/frameworks/solidjs/board-view'), createOptimizedStaticOptions()))
+  app.use('/examples/blocks/solidjs-table-view', express.static(path.resolve(ROOT_DIR, 'dist/frameworks/solidjs/table-view'), createOptimizedStaticOptions()))
 
   // Framework bundles API
   app.get('/api/frameworks/:framework/bundles', (req, res) => {
@@ -1846,11 +1908,12 @@ export async function startServer(options: StartServerOptions = {}) {
     liveSockets.add(socket)
 
     const requestUrl = new URL(request.url ?? '/ws', 'http://localhost')
-    const scenarioId = requestUrl.searchParams.get('scenario') ?? 'hello-world'
     const useIndexingService = requestUrl.searchParams.get('useIndexingService') === 'true'
+    const scenarioId = requestUrl.searchParams.get('scenario') ?? (useIndexingService ? 'indexing-service' : 'hello-world')
 
-    if (useIndexingService) {
-      // Register transport for indexing service communication
+
+    if (useIndexingService && scenarioId === 'indexing-service') {
+      // Use indexing service with hardcoded notifications
       const transport = new WebSocketTransport(socket)
       const transportId = transportLayer.registerTransport(transport)
       console.log(`[transport] Registered transport ${transportId} for indexing service`)
@@ -1861,6 +1924,7 @@ export async function startServer(options: StartServerOptions = {}) {
         entityId: metadata.entityId,
         properties: metadata.properties,
         sourceType: metadata.sourceType,
+        sourcePath: metadata.sourcePath,
         lastModified: metadata.lastModified
       }))
 
@@ -1880,7 +1944,7 @@ export async function startServer(options: StartServerOptions = {}) {
           type: 'vivafolioblock-notification',
           payload: {
             blockId: 'table-view-block-1',
-            blockType: 'https://blockprotocol.org/@local/blocks/table-view/v1',
+            blockType: 'https://vivafolio.dev/blocks/table-view/v1',
             entityId: 'table-view-entity',
             displayMode: 'multi-line',
             initialGraph: { entities, links: [] },
@@ -1891,7 +1955,7 @@ export async function startServer(options: StartServerOptions = {}) {
               },
               {
                 logicalName: 'main.js',
-                physicalPath: '/examples/blocks/table-view/main.js'
+                physicalPath: '/examples/blocks/table-view/general-block.es.js'
               }
             ],
             supportsHotReload: false,

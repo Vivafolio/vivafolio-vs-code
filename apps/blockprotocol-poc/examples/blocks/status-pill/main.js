@@ -1,6 +1,4 @@
-const React = require('react')
-
-// StatusPillBlock - Property renderer for status values
+// StatusPillBlock - Property renderer for status values (Vanilla JS implementation)
 function StatusPillBlock({ entity, readonly, updateEntity }) {
 
   // Status configuration with colors and labels
@@ -12,67 +10,57 @@ function StatusPillBlock({ entity, readonly, updateEntity }) {
     'review': { label: 'Review', color: '#8b5cf6', bgColor: '#e9d5ff' }
   }
 
-  const currentStatus = entity?.properties?.status || 'todo'
-  const config = statusConfig[currentStatus] || statusConfig.todo
+  const currentStatus = entity?.properties?.status || 'in-progress'
+  const config = statusConfig[currentStatus] || statusConfig['in-progress']
 
-  const handleStatusChange = (newStatus) => {
-    if (!readonly && updateEntity) {
-      updateEntity({ status: newStatus })
-    }
+  // Create the container div
+  const container = document.createElement('div')
+  container.className = 'status-pill-block'
+  container.style.cssText = `
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 8px;
+    border-radius: 12px;
+    background-color: ${config.bgColor};
+    border: 1px solid ${config.color}20;
+    font-size: 12px;
+    font-weight: 500;
+    color: ${config.color};
+    cursor: ${readonly ? 'default' : 'pointer'};
+    transition: all 0.2s ease;
+  `
+
+  // Status indicator dot
+  const dot = document.createElement('div')
+  dot.style.cssText = `
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: ${config.color};
+    margin-right: 6px;
+    flex-shrink: 0;
+  `
+  container.appendChild(dot)
+
+  // Status text
+  const textSpan = document.createElement('span')
+  textSpan.textContent = config.label
+  textSpan.style.whiteSpace = 'nowrap'
+  container.appendChild(textSpan)
+
+  // Dropdown arrow (only if not readonly)
+  if (!readonly) {
+    const arrow = document.createElement('div')
+    arrow.textContent = '▼'
+    arrow.style.cssText = `
+      margin-left: 4px;
+      font-size: 10px;
+      opacity: 0.6;
+    `
+    container.appendChild(arrow)
   }
 
-  return React.createElement('div', {
-    className: 'status-pill-block',
-    style: {
-      display: 'inline-flex',
-      alignItems: 'center',
-      padding: '4px 8px',
-      borderRadius: '12px',
-      backgroundColor: config.bgColor,
-      border: `1px solid ${config.color}20`,
-      fontSize: '12px',
-      fontWeight: '500',
-      color: config.color,
-      cursor: readonly ? 'default' : 'pointer',
-      transition: 'all 0.2s ease'
-    },
-    onClick: readonly ? null : () => {
-      // Cycle through statuses for demo
-      const statuses = Object.keys(statusConfig)
-      const currentIndex = statuses.indexOf(currentStatus)
-      const nextIndex = (currentIndex + 1) % statuses.length
-      handleStatusChange(statuses[nextIndex])
-    }
-  }, [
-    // Status indicator dot
-    React.createElement('div', {
-      key: 'dot',
-      style: {
-        width: '6px',
-        height: '6px',
-        borderRadius: '50%',
-        backgroundColor: config.color,
-        marginRight: '6px',
-        flexShrink: 0
-      }
-    }),
-    // Status text
-    React.createElement('span', {
-      key: 'text',
-      style: {
-        whiteSpace: 'nowrap'
-      }
-    }, config.label),
-    // Dropdown arrow (only if not readonly)
-    !readonly ? React.createElement('div', {
-      key: 'arrow',
-      style: {
-        marginLeft: '4px',
-        fontSize: '10px',
-        opacity: 0.6
-      }
-    }, '▼') : null
-  ].filter(Boolean))
+  return container
 }
 
 module.exports = StatusPillBlock

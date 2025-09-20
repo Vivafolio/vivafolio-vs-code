@@ -29,6 +29,7 @@ import {
   BlockLoaderOptions,
   HtmlTemplateHandlers,
   BlockLoader,
+  BlockResourcesCache,
   DEFAULT_ALLOWED_DEPENDENCIES
 } from './types'
 
@@ -99,6 +100,7 @@ interface BlockEntitySubgraph {
 export class VivafolioBlockLoader implements BlockLoader {
   private notification: VivafolioBlockNotification
   private options: Required<BlockLoaderOptions>
+  private resourcesCache?: BlockResourcesCache
 
   // Block state
   private blockEntity: Entity
@@ -132,12 +134,15 @@ export class VivafolioBlockLoader implements BlockLoader {
 
   constructor(notification: VivafolioBlockNotification, options: BlockLoaderOptions = {}) {
     this.notification = notification
+    this.resourcesCache = options.resourcesCache
+
     this.options = {
       allowedDependencies: options.allowedDependencies || DEFAULT_ALLOWED_DEPENDENCIES,
       enableIntegrityChecking: options.enableIntegrityChecking ?? true,
       enableDiagnostics: options.enableDiagnostics ?? true,
-      onBlockUpdate: options.onBlockUpdate || (() => {})
-    }
+      onBlockUpdate: options.onBlockUpdate || (() => {}),
+      resourcesCache: options.resourcesCache
+    } as Required<BlockLoaderOptions>
 
     // Initialize block state
     this.resources = notification.resources
@@ -154,8 +159,9 @@ export class VivafolioBlockLoader implements BlockLoader {
       allowedDependencies: new Set(DEFAULT_ALLOWED_DEPENDENCIES),
       enableIntegrityChecking: true,
       enableDiagnostics: true,
-      onBlockUpdate: () => {} // Will be set by caller
-    }
+      onBlockUpdate: () => {}, // Will be set by caller
+      resourcesCache: this.resourcesCache
+    } as Required<BlockLoaderOptions>
 
     // Extract block state from notification
     this.blockEntity = this.deriveBlockEntity(notification)
@@ -252,15 +258,22 @@ export class VivafolioBlockLoader implements BlockLoader {
       throw new Error('Bundle resource missing (main.js)')
     }
 
+    console.log('[BlockLoader] Bundle URL:', bundleUrl)
+
     await this.prefetchLocalResources('main.js')
 
-    const bundleResponse = await fetch(bundleUrl, { cache: 'no-store' })
+    console.log('[BlockLoader] Fetching bundle from:', bundleUrl)
+    const bundleResponse = await this.fetchResource(bundleUrl, { cache: 'no-store' as RequestCache })
     if (!bundleResponse.ok) {
+      console.error('[BlockLoader] Bundle request failed:', bundleResponse.status, bundleResponse.statusText)
       throw new Error(`Bundle request failed with ${bundleResponse.status}`)
     }
 
+    console.log('[BlockLoader] Bundle response OK, reading content...')
     const bundleBuffer = await bundleResponse.arrayBuffer()
     const bundleSource = new TextDecoder('utf-8').decode(bundleBuffer)
+    console.log('[BlockLoader] Bundle source length:', bundleSource.length)
+    console.log('[BlockLoader] Bundle source preview:', bundleSource.substring(0, 200) + '...')
     const integrity = this.options.enableIntegrityChecking ? await this.computeSha256Hex(bundleBuffer) : null
 
     const requiredDependencies: string[] = []
@@ -298,9 +311,19 @@ export class VivafolioBlockLoader implements BlockLoader {
     console.log('[BlockLoader] Evaluating bundle...')
     const moduleShim: { exports: unknown } = { exports: {} }
     const exportsShim = moduleShim.exports as Record<string, unknown>
-    const evaluator = new Function('require', 'module', 'exports', `${bundleSource}\nreturn module.exports;`)
-    const blockModule = evaluator(requireShim, moduleShim, exportsShim) ?? moduleShim.exports
-    console.log('[BlockLoader] Bundle evaluation result:', blockModule)
+    let blockModule: unknown
+    try {
+      const evaluator = new Function('require', 'module', 'exports', `${bundleSource}\nreturn module.exports;`)
+      blockModule = evaluator(requireShim, moduleShim, exportsShim) ?? moduleShim.exports
+      console.log('[BlockLoader] Bundle evaluation result:', blockModule)
+      console.log('[BlockLoader] Block module type:', typeof blockModule)
+      if (blockModule && typeof blockModule === 'object') {
+        console.log('[BlockLoader] Block module keys:', Object.keys(blockModule))
+      }
+    } catch (error) {
+      console.error('[BlockLoader] Bundle evaluation failed:', error)
+      throw error
+    }
 
     // Collect diagnostics
     if (this.options.enableDiagnostics) {
@@ -322,11 +345,13 @@ export class VivafolioBlockLoader implements BlockLoader {
     }
 
     // Handle different block types
-    const componentOrFactory = blockModule?.default ?? blockModule?.App ?? blockModule
+    const blockModuleObj = blockModule as Record<string, unknown> | undefined
+    const componentOrFactory = blockModuleObj?.default ?? blockModuleObj?.App ?? blockModule
     console.log('[BlockLoader] componentOrFactory:', componentOrFactory)
     console.log('[BlockLoader] typeof componentOrFactory:', typeof componentOrFactory)
 
     if (typeof componentOrFactory === 'function') {
+      console.log('[BlockLoader] Detected function component, attempting to call...')
       // Check if this is a factory function by calling it with graphModule
       let factoryResult: unknown
       try {
@@ -423,7 +448,7 @@ export class VivafolioBlockLoader implements BlockLoader {
     }
 
     console.log('[BlockLoader] Fetching HTML from:', htmlUrl)
-    const response = await fetch(htmlUrl)
+    const response = await this.fetchResource(htmlUrl)
     if (!response.ok) {
       throw new Error(`Failed to load HTML from ${htmlUrl}: ${response.status}`)
     }
@@ -439,7 +464,7 @@ export class VivafolioBlockLoader implements BlockLoader {
       const jsUrl = this.resolveResourceUrl('app.js')
       if (jsUrl) {
         console.log('[BlockLoader] Loading JavaScript from:', jsUrl)
-        const jsResponse = await fetch(jsUrl)
+        const jsResponse = await this.fetchResource(jsUrl)
         if (jsResponse.ok) {
           const jsCode = await jsResponse.text()
           console.log('[BlockLoader] Executing JavaScript, length:', jsCode.length)
@@ -553,9 +578,34 @@ export class VivafolioBlockLoader implements BlockLoader {
       }
     }
 
-    // Render React component
-    console.log('[BlockLoader] Rendering React component:', this.blockComponent)
-    console.log('[BlockLoader] Component props:', componentProps)
+    // Check if the component is a vanilla JavaScript function that returns DOM elements
+    console.log('[BlockLoader] Checking component type:', typeof this.blockComponent)
+
+    let result: unknown
+    try {
+      // Try to call the component to see what it returns
+      result = (this.blockComponent as Function)(componentProps)
+      console.log('[BlockLoader] Component call result:', result)
+      console.log('[BlockLoader] Result type:', typeof result)
+    } catch (error) {
+      console.error('[BlockLoader] Error calling component:', error)
+      container.innerHTML = '<div style="color: red;">Error calling component</div>'
+      return
+    }
+
+    // Check if the result is a DOM element (vanilla JavaScript component)
+    if (result && typeof result === 'object' && 'nodeType' in result && result.nodeType === Node.ELEMENT_NODE) {
+      console.log('[BlockLoader] Detected vanilla JavaScript DOM element, appending directly')
+      if (this.blockMount) {
+        this.blockMount.appendChild(result as Element)
+      } else {
+        container.appendChild(result as Element)
+      }
+      return
+    }
+
+    // Otherwise, try to render as React component
+    console.log('[BlockLoader] Attempting React rendering')
     console.log('[BlockLoader] React module available:', !!this.reactModule)
     console.log('[BlockLoader] React DOM module available:', !!this.reactDomModule)
 
@@ -614,6 +664,58 @@ export class VivafolioBlockLoader implements BlockLoader {
     return url.pathname + url.search
   }
 
+  private async fetchResource(url: string, options: RequestInit = {}): Promise<Response> {
+    // Check if this is a local resource (starts with /examples/blocks/)
+    const isLocalResource = url.startsWith('/examples/blocks/')
+
+    // If cache is available and this is not a local resource, try to get from cache first
+    if (this.resourcesCache && !isLocalResource) {
+      try {
+        // Parse the URL to extract package info for caching
+        const urlObj = new URL(url, window.location.origin)
+        const pathParts = urlObj.pathname.split('/')
+
+        // Try to extract package name from URL path
+        // This is a heuristic - in practice, the cache key would be determined
+        // by the block loader based on the block type and version
+        const packageName = pathParts.find(part => part.startsWith('@') || !part.includes('/'))
+        const version = urlObj.searchParams.get('cache') || 'latest'
+
+        if (packageName) {
+          const cacheResult = await this.resourcesCache.fetchBlock({
+            name: packageName,
+            version: version
+          })
+
+          if (cacheResult.success && cacheResult.data) {
+            // Find the specific resource in the cached block
+            const resourceName = pathParts[pathParts.length - 1]
+            const cachedResource = cacheResult.data.resources.get(resourceName)
+
+            if (cachedResource) {
+              // Return a Response-like object from cached data
+              return new Response(cachedResource.content, {
+                status: 200,
+                statusText: 'OK',
+                headers: {
+                  'content-type': cachedResource.contentType,
+                  'cache-control': 'public, max-age=31536000', // 1 year
+                  'x-cache-status': 'HIT'
+                }
+              })
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('[BlockLoader] Cache fetch failed, falling back to network:', error)
+      }
+    }
+
+    // Fall back to direct fetch
+    const response = await fetch(url, { ...options, headers: { 'x-cache-status': 'MISS', ...options.headers } })
+    return response
+  }
+
   private async prefetchLocalResources(mainLogicalName: string): Promise<void> {
     this.destroyLocalModules()
     const resources = this.resources ?? []
@@ -629,7 +731,7 @@ export class VivafolioBlockLoader implements BlockLoader {
       const absoluteUrl = new URL(relativeUrl, window.location.origin).toString()
 
       if (['js', 'cjs', 'mjs'].includes(extension)) {
-        const response = await fetch(absoluteUrl, { cache: 'no-store' })
+        const response = await this.fetchResource(absoluteUrl, { cache: 'no-store' as RequestCache })
         if (!response.ok) continue
 
         const source = await response.text()
@@ -646,7 +748,7 @@ export class VivafolioBlockLoader implements BlockLoader {
           executed: false
         })
       } else if (extension === 'css') {
-        const response = await fetch(absoluteUrl, { cache: 'no-store' })
+        const response = await this.fetchResource(absoluteUrl, { cache: 'no-store' as RequestCache })
         if (!response.ok) continue
 
         const source = await response.text()

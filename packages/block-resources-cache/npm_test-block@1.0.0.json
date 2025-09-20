@@ -1,0 +1,21 @@
+{
+  "metadata": {
+    "name": "test-block",
+    "version": "1.0.0",
+    "description": "Mock block package",
+    "main": "index.js",
+    "files": [
+      "index.js",
+      "styles.css"
+    ],
+    "dist": {
+      "tarball": "https://registry.npmjs.org/test-block/-/test-block-1.0.0.tgz",
+      "shasum": "mockshasum"
+    }
+  },
+  "resources": {},
+  "cachedAt": "2025-09-19T21:10:17.870Z",
+  "version": "1.0.0",
+  "integrity": "3c40d989a54a0277b6cf7f5ceb43a70227f57b17274217c165f9193f7d7b4974",
+  "expiresAt": "2025-09-20T21:10:17.870Z"
+}

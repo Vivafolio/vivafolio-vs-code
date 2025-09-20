@@ -1,0 +1,52 @@
+{
+  "name": "@vivafolio/block-resources-cache",
+  "version": "0.1.0",
+  "description": "Centralized caching system for Block Protocol block resources with integrity verification and cross-webview sharing",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "lint": "eslint src/**/*.ts",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "block-protocol",
+    "vivafolio",
+    "caching",
+    "resources",
+    "integrity",
+    "webview"
+  ],
+  "author": "Vivafolio Team",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "node-cache": "^5.1.2",
+    "semver": "^7.5.4"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "@types/node": "^20.0.0",
+    "@types/semver": "^7.5.0",
+    "jest": "^29.5.0",
+    "nock": "^13.3.0",
+    "ts-jest": "^29.1.0",
+    "typescript": "^5.0.0"
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "testMatch": [
+      "<rootDir>/test/**/*.test.ts"
+    ]
+  }
+}

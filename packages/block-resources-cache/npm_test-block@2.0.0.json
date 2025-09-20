@@ -1,0 +1,12 @@
+{
+  "metadata": {
+    "name": "test-block",
+    "version": "1.0.0",
+    "description": "Test block"
+  },
+  "resources": {},
+  "cachedAt": "2025-09-19T21:09:23.725Z",
+  "version": "2.0.0",
+  "integrity": "integrity-hash",
+  "expiresAt": "2025-09-20T21:09:23.725Z"
+}

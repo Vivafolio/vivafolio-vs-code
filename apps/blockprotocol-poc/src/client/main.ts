@@ -70,7 +70,9 @@ async function renderHtmlBlock(mount: HTMLElement, options: { url: string }) {
   mount.appendChild(fragment)
 }
 
-const scenarioId = new URLSearchParams(window.location.search).get('scenario') ?? 'hello-world'
+const urlParams = new URLSearchParams(window.location.search)
+const scenarioId = urlParams.get('scenario') ?? 'hello-world'
+const useIndexingService = urlParams.get('useIndexingService') === 'true'
 
 document.querySelectorAll<HTMLElement>('[data-scenario-link]').forEach((link) => {
   if (link.dataset.scenarioLink === scenarioId) {
@@ -726,37 +728,48 @@ function renderFallback(notification: VivafolioBlockNotification): HTMLElement {
 }
 
 function renderPublishedBlock(notification: VivafolioBlockNotification): HTMLElement {
+  console.log('[POC] renderPublishedBlock called for:', notification.blockId, notification.blockType)
+
   // Use the actual block loader to load and execute real block packages
   let loader = publishedLoaders.get(notification.blockId)
   if (!loader) {
+    console.log('[POC] Creating new VivafolioBlockLoader for:', notification.blockId)
     const adaptedNotification = adaptBlockNotification(notification)
+    console.log('[POC] Adapted notification:', JSON.stringify(adaptedNotification, null, 2))
     loader = new VivafolioBlockLoader(adaptedNotification, {
       allowedDependencies: DEFAULT_ALLOWED_DEPENDENCIES,
       enableIntegrityChecking: true,
       enableDiagnostics: true,
       onBlockUpdate: (payload) => {
+        console.log('[POC] Block update received:', payload)
         handleBlockUpdate({ ...payload, blockId: notification.blockId })
       }
     })
     publishedLoaders.set(notification.blockId, loader)
+  } else {
+    console.log('[POC] Reusing existing loader for:', notification.blockId)
   }
 
   // Create container for the block loader
   const container = document.createElement('div')
   container.className = 'published-block-container'
   container.dataset.blockId = notification.blockId
+  console.log('[POC] Created container with ID:', notification.blockId)
 
   // Actually use the block loader to load the real block
   console.log('[POC] Starting block loader for:', notification.blockId)
   const adaptedNotification = adaptBlockNotification(notification)
   console.log('[POC] Adapted notification resources:', adaptedNotification.resources)
 
+  console.log('[POC] About to call loader.loadBlock...')
   loader.loadBlock(adaptedNotification, container).then(() => {
     console.log('[POC] Block loaded successfully:', notification.blockId)
     console.log('[POC] Container HTML after load:', container.innerHTML)
+    console.log('[POC] Container children count:', container.children.length)
     container.style.display = 'block'
   }).catch(error => {
     console.error('[POC] Block loader failed:', error.message)
+    console.error('[POC] Full error:', error)
     // Show proper error instead of fake content
     container.innerHTML = `
       <div class="block-error" style="
@@ -879,14 +892,22 @@ function handleEnvelope(data: ServerEnvelope) {
       break
     }
   case 'vivafolioblock-notification': {
+    console.log('[Client] Received vivafolioblock-notification:', {
+      blockId: data.payload.blockId,
+      blockType: data.payload.blockType,
+      entityId: data.payload.entityId
+    })
     clearPlaceholder()
     latestPayloads.set(data.payload.blockId, data.payload)
     const renderer = renderers[data.payload.blockType] ?? renderFallback
+    console.log('[Client] Using renderer:', renderer.name || 'renderFallback')
     if (!renderers[data.payload.blockType]) {
       console.warn('[blockprotocol-poc] missing renderer for', data.payload.blockType)
       console.warn('[blockprotocol-poc] available renderers', Object.keys(renderers))
     }
+    console.log('[Client] Calling renderer for block:', data.payload.blockId)
     const element = renderer(data.payload)
+    console.log('[Client] Renderer returned element:', element)
       const existing = blockRegion.querySelector<HTMLElement>(
         `[data-block-id="${data.payload.blockId}"]`
       )
@@ -921,25 +942,45 @@ function requestFrameInit(blockId: string) {
 }
 
 function bootstrap() {
+  console.log('[Client] Bootstrap called')
+  console.log('[Client] scenarioId:', scenarioId)
+  console.log('[Client] useIndexingService:', useIndexingService)
+  console.log('[Client] URL params:', location.search)
+
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const socket = new WebSocket(`${protocol}//${location.host}/ws?scenario=${encodeURIComponent(scenarioId)}`)
+  const params = new URLSearchParams()
+  params.set('scenario', scenarioId)
+  if (useIndexingService) {
+    params.set('useIndexingService', 'true')
+  }
+  const wsUrl = `${protocol}//${location.host}/ws?${params.toString()}`
+  console.log('[Client] Connecting to WebSocket:', wsUrl)
+  const socket = new WebSocket(wsUrl)
   liveSocket = socket
 
   socket.addEventListener('open', () => {
+    console.log('[Client] WebSocket connected')
     setStatus('connected', 'connected')
   })
 
   socket.addEventListener('close', () => {
+    console.log('[Client] WebSocket disconnected')
     setStatus('disconnected', 'disconnected')
   })
 
   socket.addEventListener('message', (event) => {
+    console.log('[Client] WebSocket message received:', event.data)
     try {
       const data: ServerEnvelope = JSON.parse(event.data)
+      console.log('[Client] Parsed message type:', data.type)
       handleEnvelope(data)
     } catch (error) {
       console.error('Failed to parse message', error)
     }
+  })
+
+  socket.addEventListener('error', (error) => {
+    console.error('[Client] WebSocket error:', error)
   })
 }
 

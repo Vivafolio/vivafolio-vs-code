@@ -43,8 +43,18 @@ test.describe('Bundle Size Validation', () => {
 
       // Test that all assets are accessible
       for (const asset of bundle.assets) {
-        const assetResponse = await request.get(`/frameworks/${bundle.framework}/${asset}`)
-        expect(assetResponse.ok(), `Asset ${asset} should be accessible`).toBeTruthy()
+        // Handle general blocks which are served from individual directories
+        let assetUrl: string
+        if (bundle.framework === 'general') {
+          // For general blocks, extract block name from bundle ID (e.g., "board-view-block" -> "board-view")
+          const blockName = bundle.id.replace('-block', '')
+          assetUrl = `/frameworks/${blockName}/${asset}`
+        } else {
+          assetUrl = `/frameworks/${bundle.framework}/${asset}`
+        }
+
+        const assetResponse = await request.get(assetUrl)
+        expect(assetResponse.ok(), `Asset ${asset} should be accessible at ${assetUrl}`).toBeTruthy()
 
         // Check content type based on file extension
         const contentType = assetResponse.headers()['content-type'] || ''
@@ -119,14 +129,24 @@ test.describe('Bundle Size Validation', () => {
     for (const bundle of manifest.bundles) {
       for (const asset of bundle.assets) {
         if (asset.endsWith('.js')) {
+          // Handle general blocks which are served from individual directories
+          let assetUrl: string
+          if (bundle.framework === 'general') {
+            // For general blocks, extract block name from bundle ID (e.g., "board-view-block" -> "board-view")
+            const blockName = bundle.id.replace('-block', '')
+            assetUrl = `/frameworks/${blockName}/${asset}`
+          } else {
+            assetUrl = `/frameworks/${bundle.framework}/${asset}`
+          }
+
           // Test uncompressed size
-          const uncompressedResponse = await request.get(`/frameworks/${bundle.framework}/${asset}`)
+          const uncompressedResponse = await request.get(assetUrl)
           expect(uncompressedResponse.ok()).toBeTruthy()
 
           const uncompressedSize = parseInt(uncompressedResponse.headers()['content-length'] || '0')
 
           // Test compressed size (accept gzip)
-          const compressedResponse = await request.get(`/frameworks/${bundle.framework}/${asset}`, {
+          const compressedResponse = await request.get(assetUrl, {
             headers: { 'Accept-Encoding': 'gzip' }
           })
           expect(compressedResponse.ok()).toBeTruthy()

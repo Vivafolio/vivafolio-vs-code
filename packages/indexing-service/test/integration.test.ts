@@ -56,13 +56,40 @@ fn main() {
     println!("Hello from Vivafolio!");
 }`;
 
-      const sourcePath = `${tempDir}/users.rs`;
-      mockedFs.readFile.mockResolvedValue(sourceContent);
-      mockedFg.mockResolvedValue([sourcePath]);
+      // Create a VivafolioBlock notification as would come from LSP
+      const notification = {
+        entityId: 'user_profiles',
+        sourcePath: `${tempDir}/users.rs`,
+        tableData: {
+          headers: ['Name', 'Age', 'Department', 'Role'],
+          rows: [
+            ['Alice Johnson', '28', 'Engineering', 'Senior Developer'],
+            ['Bob Smith', '32', 'Design', 'Lead Designer'],
+            ['Charlie Brown', '25', 'Engineering', 'Junior Developer']
+          ]
+        },
+        dslModule: {
+          operations: {
+            updateEntity: 'function updateEntity(entityId, properties) { /* mock */ }',
+            createEntity: 'function createEntity(properties) { /* mock */ }',
+            deleteEntity: 'function deleteEntity(entityId) { /* mock */ }'
+          },
+          source: { type: 'vivafolio_data_construct' }
+        }
+      };
 
-      // Mock file scanning
-      const scanFiles = (service as any).scanFiles.bind(service);
-      await scanFiles();
+      // Mock file system reads for DSL operations
+      const userProfilesSourceContent = `vivafolio_data!("user_profiles", r#"
+Name,Age,Department,Role
+Alice Johnson,28,Engineering,Senior Developer
+Bob Smith,32,Design,Lead Designer
+Charlie Brown,25,Engineering,Junior Developer
+"#);`;
+
+      mockedFs.readFile.mockResolvedValue(userProfilesSourceContent);
+
+      // Process the VivafolioBlock notification
+      await service.handleVivafolioBlockNotification(notification);
 
       // Verify entities were extracted
       let entities = service.getAllEntities();
@@ -108,7 +135,7 @@ fn main() {
       }, {
         sourceType: 'vivafolio_data_construct',
         dslModule: entities[0].dslModule,
-        sourcePath: sourcePath
+        sourcePath: notification.sourcePath
       });
 
       expect(createResult).toBe(true);
@@ -246,15 +273,25 @@ Project overview here...
 
   describe('Event System Integration', () => {
     it('should emit events during editing operations', async () => {
-      // Mock source file
-      const sourceContent = `vivafolio_data!("test_data", r#"
-Name,Value
-Test,123
-"#);`;
-
-      const sourcePath = `${tempDir}/test.rs`;
-      mockedFs.readFile.mockResolvedValue(sourceContent);
-      mockedFg.mockResolvedValue([sourcePath]);
+      // Create VivafolioBlock notification
+      const notification = {
+        entityId: 'test_data',
+        sourcePath: `${tempDir}/test.rs`,
+        tableData: {
+          headers: ['Name', 'Value'],
+          rows: [
+            ['Test', '123']
+          ]
+        },
+        dslModule: {
+          operations: {
+            updateEntity: 'function updateEntity(entityId, properties) { /* mock */ }',
+            createEntity: 'function createEntity(properties) { /* mock */ }',
+            deleteEntity: 'function deleteEntity(entityId) { /* mock */ }'
+          },
+          source: { type: 'vivafolio_data_construct' }
+        }
+      };
 
       // Set up event listeners
       const entityUpdatedHandler = jest.fn();
@@ -265,9 +302,16 @@ Test,123
       service.on('entity-created', entityCreatedHandler);
       service.on('entity-deleted', entityDeletedHandler);
 
-      // Process file
-      const scanFiles = (service as any).scanFiles.bind(service);
-      await scanFiles();
+      // Mock file system reads for DSL operations
+      const testDataSourceContent = `vivafolio_data!("test_data", r#"
+Name,Value
+Test,123
+"#);`;
+
+      mockedFs.readFile.mockResolvedValue(testDataSourceContent);
+
+      // Process the VivafolioBlock notification
+      await service.handleVivafolioBlockNotification(notification);
 
       // Update entity
       await service.updateEntity('test_data-row-0', { Name: 'Updated Test' });
@@ -284,7 +328,7 @@ Test,123
       await service.createEntity('test_data-row-1', { Name: 'New Item', Value: '456' }, {
         sourceType: 'vivafolio_data_construct',
         dslModule: service.getAllEntities()[0].dslModule,
-        sourcePath: sourcePath
+        sourcePath: notification.sourcePath
       });
 
       expect(entityCreatedHandler).toHaveBeenCalledWith(expect.objectContaining({
