@@ -190,7 +190,7 @@ vivafolio_square!()`
         if (message.includes('vivafolio:')) {
           const jsonStr = message.substring(message.indexOf('vivafolio:') + 'vivafolio:'.length)
           const payload = JSON.parse(jsonStr)
-          if (payload.initialGraph?.entities?.[0]?.properties?.color === '#00ff00') {
+          if (payload.entityGraph?.entities?.[0]?.properties?.color === '#00ff00') {
             foundUpdatedColor = true
             break
           }

@@ -93,7 +93,7 @@ interface VivafolioBlockNotificationPayload {
   blockType: string
   entityId: string
   displayMode: 'multi-line' | 'inline'
-  initialGraph: EntityGraph
+  entityGraph: EntityGraph
   supportsHotReload?: boolean
   initialHeight?: number
   resources?: Array<{
@@ -279,7 +279,7 @@ const defaultScenarios: Record<string, ScenarioDefinition> = {
       blockType: 'https://blockprotocol.org/@blockprotocol/blocks/hello-world/v1',
       entityId: state.graph.entities[0]?.entityId || 'hello-entity',
       displayMode: 'multi-line',
-      initialGraph: state.graph,
+      entityGraph: state.graph,
       supportsHotReload: false,
       initialHeight: 200
     }],

@@ -8,7 +8,7 @@
     "dev:frameworks": "cross-env NODE_ENV=development ENABLE_FRAMEWORK_WATCH=true tsx watch src/server.ts",
     "dev:once": "cross-env TSX_NO_CACHE=1 NODE_ENV=development tsx src/server.ts",
     "dev:once-frameworks": "cross-env TSX_NO_CACHE=1 NODE_ENV=development ENABLE_FRAMEWORK_WATCH=true tsx src/server.ts",
-    "build": "rimraf dist && cross-env NODE_ENV=production tsc -p tsconfig.server.json && vite build",
+    "build": "rimraf dist && cross-env NODE_ENV=production tsc -p tsconfig.server.json && vite build && npm run build:frameworks",
     "build:standalone": "tsc --project tsconfig.standalone.json",
     "start": "cross-env NODE_ENV=production node dist/server/server.js",
     "start:standalone": "tsx src/standalone-server.ts",

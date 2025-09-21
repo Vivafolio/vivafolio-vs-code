@@ -25,9 +25,9 @@ if (blocks.length > 0 && blocks[0].kind === 'data_table') {
 
   console.log('Payload created:', JSON.stringify(payload, null, 2));
 
-  if (payload.initialGraph && payload.initialGraph.entities) {
+  if (payload.entityGraph && payload.entityGraph.entities) {
     console.log('✅ Payload contains entities from table data');
-    console.log('Entities count:', payload.initialGraph.entities.length);
+    console.log('Entities count:', payload.entityGraph.entities.length);
   }
 
   if (payload.dslModule) {

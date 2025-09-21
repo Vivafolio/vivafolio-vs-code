@@ -33,7 +33,7 @@ Verifies that the Vivafolio extension can receive a VivafolioBlock notification 
 - **Requirement (Server)**: When the inline JSON cannot be parsed, publish a VivafolioBlock diagnostic that indicates a syntax error instead of injecting any fallback state.
 - **Requirement (Client)**: Upon receiving a syntax-error VivafolioBlock, do not modify the document. Forward the error to the webview and keep the user's in-progress edits intact.
 - **Requirement (Webview)**: If an error is signaled for an existing inset, show a lightweight error indicator (e.g., a syntax error icon) but do not reset user-visible state unnecessarily. Clear the indicator once a valid update arrives.
-- **Recovery**: As soon as the JSON becomes valid again, the server publishes a normal VivafolioBlock with `initialGraph`; the client forwards it and the webview returns to normal.
+- **Recovery**: As soon as the JSON becomes valid again, the server publishes a normal VivafolioBlock with `entityGraph`; the client forwards it and the webview returns to normal.
 
 ## Test Requirements
 
@@ -160,7 +160,7 @@ Verifies that the Vivafolio extension can receive a VivafolioBlock notification 
 - **Readiness**: Relaxed readiness checks to accept either explicit readiness markers or the presence of key elements (`#picker`/`#sq`) or `document.readyState === 'complete'` to reduce spurious timeouts.
 - **Retries & timeouts**: Disabled spec-level retries to avoid long loops; increased VS Code proxy timeouts.
 
-- **Initialization**: Initial color now correct on first load without edits (extension posts `initialGraph` immediately after webview creation).
+- **Initialization**: Initial color now correct on first load without edits (extension posts `entityGraph` immediately after webview creation).
 - **Editing UX**: While manually editing `gui_state!` JSON, transient parse errors currently trigger a fallback color (`#ff0000`) that overwrites in-progress edits. New objective added for non-destructive syntax-error semantics.
 - **Test isolation**: Two-blocks WDIO spec now uses a temporary copy of `two_blocks.viv` per run and unlinks it in teardown to prevent content duplication in the source file. Full-document replacements use `new vscode.Range(0, 0, doc.lineCount, 0)` to avoid accidental concatenation.
 
@@ -189,7 +189,7 @@ Verifies that the Vivafolio extension can receive a VivafolioBlock notification 
 - Features:
   - LSP protocol handling (initialize, initialized, textDocument/didOpen, textDocument/didChange)
   - Whitespace-tolerant matching for `vivafolio_picker!()` / `vivafolio_square!()` markers and `gui_state! r#"…"#`
-  - Extracts color from inline `gui_state!` JSON and uses it for both picker and square `initialGraph`
+  - Extracts color from inline `gui_state!` JSON and uses it for both picker and square `entityGraph`
   - Multiple block support per file; re-publishes diagnostics on edits
   - Diagnostic clearing when blocks are removed
 - Verified by:
@@ -291,7 +291,7 @@ If vendoring proves helpful, we can extend this pattern to `zls` and `crystallin
 - Features:
   - Listens for Hint diagnostics, parses `vivafolio:` payloads (`parseVivafolioPayload`)
   - Renders insets via proposed API (`createWebviewTextEditorInset`) with panel fallback
-  - Posts `initialGraph` to webviews on `ready`; handles `graph:update` back to LSP by updating inline `gui_state!`
+  - Posts `entityGraph` to webviews on `ready`; handles `graph:update` back to LSP by updating inline `gui_state!`
   - **Complete state semantics**: Removes stale insets not present in new diagnostics, updates existing insets, creates new insets
   - Reuses existing webviews per `blockId` (prevents duplications on each diagnostic refresh)
   - Clears all insets when no vivafolio diagnostics remain
@@ -390,12 +390,12 @@ If vendoring proves helpful, we can extend this pattern to `zls` and `crystallin
 - Status: PASS ✅
 - Purpose: Verify the mock LSP server emits a non-destructive syntax-error VivafolioBlock when inline `gui_state!` JSON is invalid during edits.
 - Scenarios:
-  1. Open document with valid `gui_state!` → normal VivafolioBlock with `initialGraph`.
-  2. Send `didChange` making JSON invalid (mid-edit) → `publishDiagnostics` includes `error: { kind: "gui_state_syntax_error" }` with `initialGraph: null`.
-  3. Send `didChange` restoring valid JSON → normal VivafolioBlock again with correct `initialGraph` and color.
+  1. Open document with valid `gui_state!` → normal VivafolioBlock with `entityGraph`.
+  2. Send `didChange` making JSON invalid (mid-edit) → `publishDiagnostics` includes `error: { kind: "gui_state_syntax_error" }` with `entityGraph: null`.
+  3. Send `didChange` restoring valid JSON → normal VivafolioBlock again with correct `entityGraph` and color.
 - Assertions:
   - Presence/shape of `error` field for invalid state.
-  - No server-side fallback overwrites (no `initialGraph` color when error present).
+  - No server-side fallback overwrites (no `entityGraph` color when error present).
   - Timely replacement with valid payload after JSON is corrected.
 
 ### Inset Webview Lifecycle and Diagnostic Handling
@@ -455,7 +455,7 @@ The test will use a standardized VivafolioBlock payload embedded in LSP Hint dia
   "blockType": "https://blockprotocol.org/@blockprotocol/types/block-type/test-block/",
   "displayMode": "multi-line",
   "entityId": "entity-test-123",
-  "initialGraph": {
+  "entityGraph": {
     "entities": [
       {
         "entityId": "entity-test-123",
@@ -490,7 +490,7 @@ The test will use a standardized VivafolioBlock payload embedded in LSP Hint dia
     "kind": "gui_state_syntax_error",
     "message": "JSON parse error at position 17"
   },
-  "initialGraph": null,
+  "entityGraph": null,
   "supportsHotReload": false,
   "initialHeight": 200,
   "resources": [
@@ -624,7 +624,7 @@ just vscode-e2e
 ### Phase 2: Dynamic Webview State Initialization ✅ COMPLETED
 - **Status**: IMPLEMENTED ✅
 - **Changes Made**:
-  - ✅ Color picker now properly initializes with color from `initialGraph` (VivafolioBlock payload)
+  - ✅ Color picker now properly initializes with color from `entityGraph` (VivafolioBlock payload)
   - ✅ Added initialization tracking to prevent infinite loops on first update
   - ✅ Color square displays correct initial color from VivafolioBlock notification
   - ✅ Dynamic initialization - no hard-coded values, works with any color from gui_state

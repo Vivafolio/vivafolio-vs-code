@@ -7,9 +7,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 VIV="${SCRIPT_DIR%/scripts}"
 WS="$VIV/test/projects/vivafolioblock-test"
-EXT1="$VIV/mock-language-extension"
+EXT1="$VIV/mocklang-extension"
 EXT2="$VIV"
-FILE="$WS/two_blocks.viv"
+FILE="$WS/two_blocks.mocklang"
 
 # Fresh temporary profile by default, override with PERSIST_PROFILE=1
 if [[ -n "${PERSIST_PROFILE:-}" ]]; then

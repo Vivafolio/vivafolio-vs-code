@@ -27,7 +27,7 @@ console.log('--------------------------------')
 console.log('6. ✅ Diagnostics received: 2 hints detected')
 console.log('7. ✅ Inset creation: Created picker inset at line 3')
 console.log('8. ✅ Inset creation: Created square inset at line 5')
-console.log('9. ✅ Initial state: Sent initialGraph with color "#ff0000"')
+console.log('9. ✅ Initial state: Sent entityGraph with color "#ff0000"')
 console.log('10. ✅ Webview ready: Both webviews sent ready messages')
 
 console.log('\n⏱️  TIMING:')

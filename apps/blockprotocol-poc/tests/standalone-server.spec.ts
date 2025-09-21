@@ -279,7 +279,7 @@ const customScenarios = {
       blockType: 'https://test.com/blocks/test/v1',
       entityId: state.graph.entities[0]?.entityId || 'test-entity',
       displayMode: 'multi-line',
-      initialGraph: state.graph,
+      entityGraph: state.graph,
       supportsHotReload: false,
       initialHeight: 150
     }],

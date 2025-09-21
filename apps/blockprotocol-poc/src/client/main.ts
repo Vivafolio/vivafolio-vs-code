@@ -119,7 +119,7 @@ function adaptBlockNotification(notification: VivafolioBlockNotification): Loade
     },
     entityId: notification.entityId,
     resources: notification.resources || [],
-    entityGraph: notification.initialGraph
+    entityGraph: notification.entityGraph
   }
 }
 
@@ -148,7 +148,7 @@ type VivafolioBlockNotification = {
   blockType: string
   entityId: string
   displayMode: 'multi-line' | 'inline'
-  initialGraph: EntityGraph
+  entityGraph: EntityGraph
   resources?: Array<{
     logicalName: string
     physicalPath: string
@@ -269,8 +269,8 @@ function buildBlockEntitySubgraph(blockEntity: Entity, graph: BlockGraphState): 
 
 function deriveBlockEntity(notification: VivafolioBlockNotification): Entity {
   const entity =
-    notification.initialGraph.entities.find((item) => item.entityId === notification.entityId) ??
-    notification.initialGraph.entities[0] ?? {
+    notification.entityGraph.entities.find((item) => item.entityId === notification.entityId) ??
+    notification.entityGraph.entities[0] ?? {
       entityId: notification.entityId,
       entityTypeId: DEFAULT_ENTITY_TYPE_ID,
       properties: {}
@@ -282,7 +282,7 @@ function deriveBlockEntity(notification: VivafolioBlockNotification): Entity {
 function deriveBlockGraph(notification: VivafolioBlockNotification): BlockGraphState {
   return {
     depth: 1,
-    linkedEntities: notification.initialGraph.entities.map((entity) => normalizeEntity(entity)),
+    linkedEntities: notification.entityGraph.entities.map((entity) => normalizeEntity(entity)),
     linkGroups: []
   }
 }
@@ -465,7 +465,7 @@ function renderHelloBlock(notification: VivafolioBlockNotification): HTMLElement
   container.dataset.blockId = notification.blockId
 
   const heading = createElement('h2', undefined, 'Hello Block')
-  const entity = notification.initialGraph.entities[0]
+  const entity = notification.entityGraph.entities[0]
   const name = String(entity?.properties?.name ?? 'Unknown')
   const summary = createElement('p')
   summary.innerHTML = `👋 Greetings, <strong>${name}</strong>!`
@@ -480,7 +480,7 @@ function renderHelloBlock(notification: VivafolioBlockNotification): HTMLElement
 
 function renderKanbanBoard(notification: VivafolioBlockNotification): HTMLElement {
   const entityMap = new Map<string, Entity>()
-  notification.initialGraph.entities.forEach((entity) => {
+  notification.entityGraph.entities.forEach((entity) => {
     entityMap.set(entity.entityId, entity)
   })
 
@@ -554,7 +554,7 @@ function renderTaskList(notification: VivafolioBlockNotification): HTMLElement {
   container.appendChild(header)
 
   const list = createElement('ul', 'task-list__items')
-  const tasks = notification.initialGraph.entities.filter(
+  const tasks = notification.entityGraph.entities.filter(
     (entity) => entity.entityTypeId === 'https://vivafolio.dev/entity-types/task/v1'
   )
 
@@ -935,7 +935,7 @@ function requestFrameInit(blockId: string) {
     {
       type: 'graph:init',
       blockId,
-      graph: payload.initialGraph
+      graph: payload.entityGraph
     },
     '*'
   )

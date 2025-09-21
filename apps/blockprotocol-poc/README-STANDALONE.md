@@ -173,7 +173,7 @@ const customScenarios: Record<string, ScenarioDefinition> = {
       blockType: 'https://example.com/blocks/custom/v1',
       entityId: state.graph.entities[0]?.entityId || 'custom-entity',
       displayMode: 'multi-line',
-      initialGraph: state.graph,
+      entityGraph: state.graph,
       supportsHotReload: true,
       initialHeight: 200
     }],

@@ -47,7 +47,7 @@ emit_vivafolioblock_notification <- function(block_id, block_type, entity_id, in
     blockType = paste0("https://blockprotocol.org/@blockprotocol/types/block-type/", block_type, "/"),
     displayMode = "multi-line",
     entityId = entity_id,
-    initialGraph = initial_graph,
+    entityGraph = initial_graph,
     supportsHotReload = FALSE,
     initialHeight = 200
   )

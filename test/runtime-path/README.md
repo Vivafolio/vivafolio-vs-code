@@ -49,8 +49,8 @@ ruby test/runtime-path/ruby/two_blocks.rb
 Programs emit JSON Lines to stdout:
 
 ```json
-{"blockId": "picker-123", "blockType": "color-picker", "initialGraph": {...}}
-{"blockId": "square-456", "blockType": "color-square", "initialGraph": {...}}
+{"blockId": "picker-123", "blockType": "color-picker", "entityGraph": {...}}
+{"blockId": "square-456", "blockType": "color-square", "entityGraph": {...}}
 ```
 
 ## State Persistence

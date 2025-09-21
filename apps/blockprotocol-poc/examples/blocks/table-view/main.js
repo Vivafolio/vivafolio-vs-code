@@ -2,7 +2,7 @@
 function TableViewBlock({ graph }) {
   const { blockEntity, readonly } = graph
 
-  // Get entities from the graph - these come from initialGraph
+  // Get entities from the graph - these come from entityGraph
   const entities = graph?.blockGraph?.linkedEntities || []
 
   // Filter entities that look like table rows (from vivafolio_data! constructs)

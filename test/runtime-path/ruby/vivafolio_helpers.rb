@@ -57,7 +57,7 @@ module VivafolioHelpers
       "blockType" => "https://blockprotocol.org/@blockprotocol/types/block-type/#{block_type}/",
       "displayMode" => "multi-line",
       "entityId" => entity_id,
-      "initialGraph" => initial_graph,
+      "entityGraph" => initial_graph,
       "supportsHotReload" => false,
       "initialHeight" => 200
     }

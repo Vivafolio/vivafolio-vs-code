@@ -52,7 +52,7 @@ Emit a VivafolioBlock notification to stdout for the Vivafolio extension.
 """
 function emit_vivafolioblock_notification(block_id, block_type, entity_id, initial_graph, resources=nothing)
   # Manually construct JSON string
-  json_str = """{"blockId":"$(block_id)","blockType":"https://blockprotocol.org/@blockprotocol/types/block-type/$(block_type)/","displayMode":"multi-line","entityId":"$(entity_id)","initialGraph":{"entities":[{"entityId":"$(entity_id)","properties":{"color":"$(initial_graph["entities"][1]["properties"]["color"])"}}],"links":[]},"supportsHotReload":false,"initialHeight":200"""
+  json_str = """{"blockId":"$(block_id)","blockType":"https://blockprotocol.org/@blockprotocol/types/block-type/$(block_type)/","displayMode":"multi-line","entityId":"$(entity_id)","entityGraph":{"entities":[{"entityId":"$(entity_id)","properties":{"color":"$(initial_graph["entities"][1]["properties"]["color"])"}}],"links":[]},"supportsHotReload":false,"initialHeight":200"""
 
   if resources !== nothing
     json_str *= ""","resources":[{"logicalName":"$(resources[1]["logicalName"])","physicalPath":"$(resources[1]["physicalPath"])","cachingTag":"$(resources[1]["cachingTag"])"}]"""

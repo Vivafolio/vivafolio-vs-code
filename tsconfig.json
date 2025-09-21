@@ -9,7 +9,13 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "types": ["node"]
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@vivafolio/block-loader": ["packages/block-loader/dist/index"],
+      "@vivafolio/block-resources-cache": ["packages/block-resources-cache/dist/index"],
+      "@vivafolio/indexing-service": ["packages/indexing-service/dist/index"]
+    }
   },
   "include": ["src/**/*.ts"]
 }

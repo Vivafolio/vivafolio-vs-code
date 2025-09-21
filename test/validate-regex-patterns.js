@@ -176,7 +176,7 @@ function testLanguageValidation() {
 
   const testCases = [
     { languageId: 'vivafolio', shouldProcess: true, description: 'Correct vivafolio language' },
-    { languageId: 'vivafolio-mock', shouldProcess: true, description: 'Correct vivafolio-mock language (test environment)' },
+    { languageId: 'mocklang', shouldProcess: true, description: 'Correct mocklang language (test environment)' },
     { languageId: 'javascript', shouldProcess: false, description: 'Wrong language - JavaScript' },
     { languageId: 'typescript', shouldProcess: false, description: 'Wrong language - TypeScript' },
     { languageId: 'python', shouldProcess: false, description: 'Wrong language - Python' },
@@ -184,7 +184,7 @@ function testLanguageValidation() {
   ]
 
   testCases.forEach(({ languageId, shouldProcess, description }) => {
-    const shouldSkip = languageId !== 'vivafolio' && languageId !== 'vivafolio-mock'
+    const shouldSkip = languageId !== 'vivafolio' && languageId !== 'mocklang'
     const isCorrect = (shouldSkip === !shouldProcess) // shouldSkip should be the opposite of shouldProcess
     const status = isCorrect ? '✅' : '❌'
     console.log(`   ${status} ${description}`)

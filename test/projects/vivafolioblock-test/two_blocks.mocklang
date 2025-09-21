@@ -1,0 +1,11 @@
+// Vivafolio two blocks interaction demo
+// This file demonstrates interaction between a color picker and color square
+
+vivafolio_picker!() gui_state! r#"{"color":"#2e9997"}"#
+// Color square that will reflect the picker's color
+vivafolio_square!()
+
+// Regular code below
+fn main() {
+    println!("Vivafolio blocks above will show interactive editors!");
+}

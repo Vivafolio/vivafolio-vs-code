@@ -45,7 +45,7 @@ suite('Vivafolio Mock LSP diagnostics', () => {
     })
     assert.strictEqual(ready, true)
 
-    // Verify host sent initial graph:update based on initialGraph
+    // Verify host sent initial graph:update based on entityGraph
     const posted = await vscode.commands.executeCommand('vivafolio.getLastPosted')
     assert.ok(posted && posted.type === 'graph:update', 'Host did not post initial graph:update')
     assert.ok(posted.payload && Array.isArray(posted.payload.entities), 'graph:update payload missing entities')

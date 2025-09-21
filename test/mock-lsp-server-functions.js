@@ -76,7 +76,28 @@ function extractVivafolioBlocks(text) {
       blocks.push({
         line: i,
         blockId: blockId,
-        entityId: entityId
+        entityId: entityId,
+        kind: 'generic'
+      })
+    }
+    // Look for vivafolio_picker!() pattern
+    else if (/vivafolio_picker!\s*\(\s*\)/.test(line)) {
+      const blockId = `picker-${i}`
+      blocks.push({
+        line: i,
+        blockId: blockId,
+        entityId: 'color-picker',
+        kind: 'picker'
+      })
+    }
+    // Look for vivafolio_square!() pattern
+    else if (/vivafolio_square!\s*\(\s*\)/.test(line)) {
+      const blockId = `square-${i}`
+      blocks.push({
+        line: i,
+        blockId: blockId,
+        entityId: 'color-square',
+        kind: 'square'
       })
     }
   }
@@ -116,7 +137,7 @@ function extractVivafolioBlocks(text) {
 function createVivafolioBlockPayload(blockId, entityId, options = {}) {
   const { tableData, dslModule, error } = options
 
-  let initialGraph = {
+  let entityGraph = {
     entities: [{
       entityId: entityId,
       properties: {
@@ -152,7 +173,7 @@ function createVivafolioBlockPayload(blockId, entityId, options = {}) {
       }, {})
     }))
 
-    initialGraph = {
+    entityGraph = {
       entities: entities,
       links: []
     }
@@ -163,7 +184,7 @@ function createVivafolioBlockPayload(blockId, entityId, options = {}) {
     blockType: blockType,
     displayMode: "multi-line",
     entityId: entityId,
-    initialGraph: initialGraph,
+    entityGraph: entityGraph,
     supportsHotReload: false,
     initialHeight: tableData ? 300 : 200,
     resources: resources

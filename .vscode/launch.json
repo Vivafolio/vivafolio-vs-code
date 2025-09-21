@@ -41,7 +41,7 @@
       "request": "launch",
       "args": [
         "--extensionDevelopmentPath=${workspaceFolder}",
-        "--extensionDevelopmentPath=${workspaceFolder}/mock-language-extension",
+        "--extensionDevelopmentPath=${workspaceFolder}/mocklang-extension",
         "--enable-proposed-api local.vivafolio",
         "--disable-workspace-trust"
       ],
@@ -144,6 +144,93 @@
       "presentation": {
         "group": "blockprotocol",
         "order": 2
+      }
+    },
+    {
+      "name": "Extension Development (Block Focus)",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}/mocklang-extension",
+        "--extensionDevelopmentPath=${workspaceFolder}",
+        "--enable-proposed-api local.vivafolio",
+        "--disable-workspace-trust",
+        "--new-window",
+        "${workspaceFolder}/test/projects/vivafolio-data-examples"
+      ],
+      "env": {
+        "VIVAFOLIO_DEBUG": "1",
+        "VIVAFOLIO_CAPTURE_WEBVIEW_LOGS": "1"
+      },
+      "outFiles": ["${workspaceFolder}/out/**/*.js"],
+      "presentation": {
+        "group": "extension",
+        "order": 4
+      }
+    },
+    {
+      "name": "Extension + Block Dev Server",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}/mocklang-extension",
+        "--extensionDevelopmentPath=${workspaceFolder}",
+        "--enable-proposed-api local.vivafolio",
+        "--disable-workspace-trust",
+        "--new-window",
+        "${workspaceFolder}/test/projects/vivafolio-data-examples"
+      ],
+      "env": {
+        "VIVAFOLIO_DEBUG": "1",
+        "VIVAFOLIO_CAPTURE_WEBVIEW_LOGS": "1",
+        "BLOCK_DEV_SERVER_PORT": "3001"
+      },
+      "outFiles": ["${workspaceFolder}/out/**/*.js"],
+      "preLaunchTask": "npm: watch",
+      "postDebugTask": "build-blocks-watch",
+      "presentation": {
+        "group": "extension",
+        "order": 5
+      }
+    },
+    {
+      "name": "Block Development Only",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/node_modules/.bin/npm",
+      "args": ["run", "watch"],
+      "cwd": "${workspaceFolder}/blocks/color-picker",
+      "console": "integratedTerminal",
+      "presentation": {
+        "group": "block-dev",
+        "order": 1
+      }
+    },
+    {
+      "name": "Block Protocol E2E Tests",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/node_modules/.bin/mocha",
+      "args": [
+        "test/e2e-blockprotocol-integration-complete.js",
+        "--timeout",
+        "60000"
+      ],
+      "console": "integratedTerminal",
+      "presentation": {
+        "group": "test",
+        "order": 2
+      }
+    },
+    {
+      "name": "Runtime Path Tests",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/test/validate-runtime-vivafolioblock.js",
+      "console": "integratedTerminal",
+      "presentation": {
+        "group": "test",
+        "order": 3
       }
     }
   ],

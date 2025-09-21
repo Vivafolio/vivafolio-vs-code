@@ -68,7 +68,7 @@ vivafolio_square!()`
   const extractedColor = getColorFromText(testContent)
   const payload = {
     blockId: 'test-block',
-    initialGraph: {
+    entityGraph: {
       entities: [{
         entityId: 'test-entity',
         properties: { color: extractedColor || '#ff0000' }
@@ -77,8 +77,8 @@ vivafolio_square!()`
     }
   }
 
-  const status = payload.initialGraph.entities[0].properties.color === color ? '✅' : '❌'
-  console.log(`   ${status} ${color} → VivafolioBlock payload color: ${payload.initialGraph.entities[0].properties.color}`)
+  const status = payload.entityGraph.entities[0].properties.color === color ? '✅' : '❌'
+  console.log(`   ${status} ${color} → VivafolioBlock payload color: ${payload.entityGraph.entities[0].properties.color}`)
 })
 
 console.log('\n🎉 Dynamic color initialization validation complete!')
@@ -86,5 +86,5 @@ console.log('\nKey improvements:')
 console.log('✅ Color picker initializes with EXACT color from gui_state (no hard-coding)')
 console.log('✅ LSP server extracts colors dynamically from current document content')
 console.log('✅ VivafolioBlock notifications contain precise colors from source code')
-console.log('✅ Webview receives correct initial state from initialGraph')
+console.log('✅ Webview receives correct initial state from entityGraph')
 console.log('✅ No fallback to hard-coded colors - everything is dynamic')

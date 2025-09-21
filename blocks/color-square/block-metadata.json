@@ -1,0 +1,50 @@
+{
+  "blockprotocol": {
+    "displayName": "Color Square",
+    "blockType": {
+      "entryPoint": "1.0",
+      "tag": "color-square"
+    },
+    "examples": [
+      {
+        "name": "Basic Color Square",
+        "description": "A visual square that displays a selected color",
+        "entity": {
+          "entityId": "color-square-entity",
+          "properties": {
+            "color": "#ff0000"
+          }
+        }
+      }
+    ],
+    "icon": "▢",
+    "image": "preview.png",
+    "name": "@vivafolio/color-square",
+    "protocol": "0.3",
+    "schema": "block-schema.json",
+    "source": "https://github.com/vivafolio/color-square",
+    "variants": [
+      {
+        "description": "Default color square implementation",
+        "displayName": "Color Square",
+        "icon": "▢",
+        "name": "default"
+      }
+    ],
+    "version": "1.0.0"
+  },
+  "vivafolio": {
+    "build": {
+      "entry": "src/index.html",
+      "output": "dist/index.html"
+    },
+    "development": {
+      "port": 3002,
+      "hotReload": true
+    },
+    "resources": {
+      "caching": "aggressive",
+      "integrity": true
+    }
+  }
+}

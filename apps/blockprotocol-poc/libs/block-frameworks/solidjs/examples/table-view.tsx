@@ -44,7 +44,7 @@ function createBlockElement(
 
 // Table View Component - export the component directly for BlockLoader compatibility
 const TableViewComponent = (props: BlockProps) => {
-  // Get entities from the graph - these come from initialGraph
+  // Get entities from the graph - these come from entityGraph
   const entities = createMemo(() => props.graph?.blockGraph?.linkedEntities || [])
 
   // Filter entities that look like table rows (from vivafolio_data! constructs)

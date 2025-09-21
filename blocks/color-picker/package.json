@@ -1,0 +1,19 @@
+{
+  "name": "@vivafolio/color-picker",
+  "version": "1.0.0",
+  "description": "Color Picker Block for Vivafolio Block Protocol",
+  "main": "dist/index.html",
+  "scripts": {
+    "build": "mkdir -p dist && cp src/index.html dist/ && echo 'Built color-picker block'",
+    "dev": "npm run build && echo 'Development build complete'",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "blockprotocol",
+    "vivafolio",
+    "color-picker",
+    "block"
+  ],
+  "author": "Vivafolio Team",
+  "license": "MIT"
+}

@@ -2,6 +2,10 @@ import * as vscode from 'vscode'
 import * as fs from 'fs'
 import * as path from 'path'
 import { spawn } from 'child_process'
+import { IndexingService, IndexingServiceConfig } from '../packages/indexing-service/dist/index'
+import { BlockResourcesCache } from '../packages/block-resources-cache/dist/index'
+import { VivafolioBlockLoader } from '../packages/block-loader/dist/cjs/index'
+import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient/node'
 
 // Vivafolio: inline webview widgets triggered by specially-formatted Hint diagnostics.
 // Diagnostic message format (language-agnostic):
@@ -18,11 +22,438 @@ let usedInset: boolean = false
 let lastInsetLine: number | undefined
 const webviewsByBlockId = new Map<string, { post: (m: any) => void, dispose: () => void, line: number, docPath: string }>()
 
+// Block Protocol infrastructure
+let indexingService: IndexingService | undefined
+let blockResourcesCache: BlockResourcesCache | undefined
+let blockLoader: VivafolioBlockLoader | undefined
+
+// LSP client
+let languageClient: LanguageClient | undefined
+
 // Logging infra: OutputChannel + optional file logging (enable with VIVAFOLIO_DEBUG=1 or VIVAFOLIO_LOG_TO_FILE=1)
 let outputChannel: vscode.OutputChannel | undefined
 let logFilePath: string | undefined
 const logToFileEnabled: boolean = (typeof process !== 'undefined' && process?.env?.VIVAFOLIO_DEBUG === '1') || (typeof process !== 'undefined' && process?.env?.VIVAFOLIO_LOG_TO_FILE === '1')
 const captureWebviewLogs: boolean = (typeof process !== 'undefined' && process?.env?.VIVAFOLIO_CAPTURE_WEBVIEW_LOGS === '1')
+
+// Initialize Block Protocol infrastructure
+async function initializeBlockProtocolInfrastructure(context: vscode.ExtensionContext): Promise<void> {
+  try {
+    logLine('info', 'Initializing Block Protocol infrastructure...')
+
+    // Initialize block resources cache
+    blockResourcesCache = new BlockResourcesCache({
+      cacheDir: path.join(context.globalStorageUri?.fsPath || context.extensionPath, 'block-cache'),
+      maxSize: 100 * 1024 * 1024, // 100MB
+      ttl: 24 * 60 * 60 * 1000 // 24 hours
+    })
+
+    // Initialize indexing service
+    const workspaceFolders = vscode.workspace.workspaceFolders
+    const watchPaths = workspaceFolders ? workspaceFolders.map(f => f.uri.fsPath) : []
+
+    const indexingConfig: IndexingServiceConfig = {
+      watchPaths,
+      supportedExtensions: ['.md', '.csv', '.viv'],
+      excludePatterns: ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/build/**']
+    }
+
+    indexingService = new IndexingService(indexingConfig)
+
+    // Set up event listeners for indexing service
+    indexingService.on('entity-updated', (event: any) => {
+      logLine('info', `Entity updated: ${event.entityId}`)
+      broadcastToWebviews({
+        type: 'graph:update',
+        payload: {
+          entities: [{
+            entityId: event.entityId,
+            ...event.properties
+          }],
+          links: []
+        }
+      })
+    })
+
+    indexingService.on('entity-created', (event: any) => {
+      logLine('info', `Entity created: ${event.entityId}`)
+      broadcastToWebviews({
+        type: 'graph:update',
+        payload: {
+          entities: [{
+            entityId: event.entityId,
+            ...event.properties
+          }],
+          links: []
+        }
+      })
+    })
+
+    indexingService.on('entity-deleted', (event: any) => {
+      logLine('info', `Entity deleted: ${event.entityId}`)
+      broadcastToWebviews({
+        type: 'graph:delete',
+        payload: {
+          entityIds: [event.entityId]
+        }
+      })
+    })
+
+    // Start indexing service
+    await indexingService.start()
+    logLine('info', 'Indexing service started')
+
+    // Block loader will be created on-demand when processing diagnostics
+    // since it requires a VivafolioBlockNotification
+
+    // Initialize LSP client for language server integration
+    await initializeLanguageClient(context)
+
+    logLine('info', 'Block Protocol infrastructure initialized successfully')
+
+  } catch (error) {
+    logLine('error', `Failed to initialize Block Protocol infrastructure: ${error}`)
+  }
+}
+
+
+// Handle Block Protocol messages from webviews via VS Code messaging
+async function handleBlockProtocolMessage(message: any, webview: vscode.Webview): Promise<void> {
+  try {
+    logLine('info', `Received Block Protocol message: ${message.type} with payload: ${JSON.stringify(message.payload)}`)
+
+    switch (message.type) {
+      case 'graph:update':
+        if (message.payload?.entities?.[0]) {
+          const entity = message.payload.entities[0]
+          const success = await indexingService?.updateEntity(entity.entityId, entity) ?? false
+          if (success) {
+            logLine('info', `Entity ${entity.entityId} updated successfully`)
+            // Broadcast the update to other webviews
+            broadcastToWebviews(message, webview)
+
+            // Update the source code if this is a color change
+            if (entity.properties?.color && entity.entityId === 'color-picker') {
+              logLine('info', `Updating source code with new color: ${entity.properties.color}`)
+              await applyColorMarker(JSON.stringify(entity.properties), entity.entityId)
+            }
+          } else {
+            logLine('error', `Failed to update entity ${entity.entityId}`)
+          }
+        }
+        break
+
+      case 'graph:create':
+        if (message.payload?.entities?.[0]) {
+          const entity = message.payload.entities[0]
+          // For now, assume CSV source type for new entities
+          const success = await indexingService?.createEntity(entity.entityId, entity, { sourceType: 'csv' }) ?? false
+          if (success) {
+            logLine('info', `Entity ${entity.entityId} created successfully`)
+            // Broadcast the creation to other webviews
+            broadcastToWebviews(message, webview)
+          } else {
+            logLine('error', `Failed to create entity ${entity.entityId}`)
+          }
+        }
+        break
+
+      case 'graph:delete':
+        if (message.payload?.entityIds?.[0]) {
+          const entityId = message.payload.entityIds[0]
+          const success = await indexingService?.deleteEntity(entityId) ?? false
+          if (success) {
+            logLine('info', `Entity ${entityId} deleted successfully`)
+            // Broadcast the deletion to other webviews
+            broadcastToWebviews(message, webview)
+          } else {
+            logLine('error', `Failed to delete entity ${entityId}`)
+          }
+        }
+        break
+
+      case 'graph:query':
+        const entities = indexingService?.getAllEntities() ?? []
+        const formattedEntities = entities.map((e: any) => ({
+          entityId: e.entityId,
+          ...e.properties
+        }))
+        logLine('info', `Responding to graph:query with ${entities.length} entities: ${JSON.stringify(formattedEntities)}`)
+        webview.postMessage({
+          type: 'graph:update',
+          payload: {
+            entities: formattedEntities,
+            links: []
+          }
+        })
+        break
+
+      case 'log':
+        // Handle webview log messages when capture is enabled
+        const level = message.level || 'info'
+        const text = `[WEBVIEW] ${message.text || ''}`
+        logLine(level, text)
+        break
+
+      case 'ready':
+        // Block is ready - acknowledge
+        logLine('info', `Block ready message received`)
+        break
+
+      default:
+        logLine('warn', `Unknown message type: ${message.type}`)
+    }
+  } catch (error) {
+    logLine('error', `Error handling Block Protocol message: ${error}`)
+  }
+}
+
+// Initialize LSP client for language server integration
+async function initializeLanguageClient(context: vscode.ExtensionContext): Promise<void> {
+  try {
+    // Check if mocklang extension is available (for testing)
+    const mockLangExt = vscode.extensions.getExtension('local.mocklang-extension')
+    if (mockLangExt) {
+      logLine('info', 'Mocklang extension found, LSP integration enabled')
+      // The mock extension handles its own LSP client
+      return
+    }
+
+    // For production, we would configure real language servers here
+    // For now, we'll rely on external LSP servers or the mock extension
+
+    logLine('info', 'LSP client initialization skipped (no language servers configured)')
+  } catch (error) {
+    logLine('error', `Failed to initialize LSP client: ${error}`)
+  }
+}
+
+// Broadcast Block Protocol message to all connected webviews (except sender)
+function broadcastToWebviews(message: any, excludeWebview?: vscode.Webview): void {
+  for (const [blockId, webviewInfo] of webviewsByBlockId.entries()) {
+    try {
+      if (excludeWebview && webviewInfo.post === excludeWebview.postMessage) {
+        continue // Skip the sender
+      }
+      webviewInfo.post(message)
+    } catch (error) {
+      logLine('error', `Error broadcasting to webview ${blockId}: ${error}`)
+      // Remove failed webview
+      webviewsByBlockId.delete(blockId)
+    }
+  }
+}
+
+// Convert diagnostic payload to VivafolioBlock notification format
+function createVivafolioBlockNotification(payload: any, document: vscode.TextDocument, diagnostic: vscode.Diagnostic): any {
+  try {
+    // The payload from the LSP server should already be a complete VivafolioBlock notification
+    // We just need to ensure it has the correct sourceUri and range from the diagnostic
+    const notification = {
+      ...payload,
+      sourceUri: document.uri.toString(),
+      range: {
+        start: {
+          line: diagnostic.range.start.line,
+          character: diagnostic.range.start.character
+        },
+        end: {
+          line: diagnostic.range.end.line,
+          character: diagnostic.range.end.character
+        }
+      }
+    }
+
+    logLine('info', `Created VivafolioBlock notification: ${notification.blockId} (${notification.blockType})`)
+    return notification
+  } catch (error) {
+    logLine('error', `Failed to create VivafolioBlock notification: ${error}`)
+    return null
+  }
+}
+
+// Render Block Protocol block using the block loader
+async function renderBlockProtocolBlock(notification: any, line: number, container?: HTMLElement): Promise<void> {
+  try {
+    if (!blockResourcesCache) {
+      logLine('error', 'Block resources cache not initialized')
+      return
+    }
+
+    // Create a block loader instance for this specific block
+    const blockLoader = new VivafolioBlockLoader(notification, {
+      resourcesCache: blockResourcesCache,
+      enableIntegrityChecking: true
+    })
+
+    // Add block entities to indexing service so webview can query them
+    if (notification.entityGraph?.entities) {
+      logLine('info', `Adding ${notification.entityGraph.entities.length} entities to indexing service`)
+      for (const entity of notification.entityGraph.entities) {
+        await indexingService?.createEntity(entity.entityId, entity, { sourceType: 'lsp' })
+        logLine('info', `Added entity ${entity.entityId} to indexing service`)
+      }
+    }
+
+    // Create webview HTML that will load the block
+    const blockHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { margin: 0; padding: 0; font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); }
+    .block-container { width: 100%; height: 100%; }
+  </style>
+</head>
+<body>
+  <div id="block-container" class="block-container"></div>
+  <script>
+    // VS Code webview messaging for Block Protocol
+    console.log('[WEBVIEW] Template script starting');
+    const vscode = acquireVsCodeApi();
+    console.log('[WEBVIEW] acquireVsCodeApi() called');
+
+    // Request initial entity data on load
+    console.log('[WEBVIEW] Sending graph:query');
+    vscode.postMessage({ type: 'graph:query' });
+    console.log('[WEBVIEW] graph:query sent');
+
+    // Listen for messages from extension
+    window.addEventListener('message', event => {
+      const message = event.data;
+      vscode.postMessage({ type: 'log', level: 'info', text: 'Received VS Code message: ' + JSON.stringify(message) });
+
+      // Forward messages to block loader if needed
+      if (window.vivafolioBlockLoader) {
+        window.vivafolioBlockLoader.handleMessage(message);
+      }
+    });
+
+    // Global function for block loader to send messages
+    window.vivafolioSendMessage = (message) => {
+      vscode.postMessage(message);
+    };
+
+    console.log('Block Protocol webview initialized');
+  </script>
+</body>
+</html>`
+
+    // Load block HTML content
+    let blockContent = '<div>Block loading...</div>'
+    if (notification.resources) {
+      const htmlResource = notification.resources.find((r: any) => r.logicalName === 'app.html')
+      if (htmlResource && htmlResource.physicalPath) {
+        try {
+          const fs = require('fs')
+          const filePath = htmlResource.physicalPath.replace('file://', '')
+          blockContent = fs.readFileSync(filePath, 'utf8')
+          logLine('info', `Pre-loaded block HTML from ${filePath}`)
+        } catch (fileError) {
+          logLine('error', `Failed to pre-load block HTML file: ${fileError}`)
+        }
+      }
+    }
+
+    const finalHtml = blockHtml.replace(
+      '<div id="block-container" class="block-container"></div>',
+      `<div id="block-container" class="block-container">${blockContent}</div>`
+    )
+
+    // Create webview inset
+    const editor = vscode.window.activeTextEditor
+    if (!editor) return
+
+    const forcePanel = process?.env?.VIVAFOLIO_FORCE_PANEL === '1'
+    const createInsetRaw = (vscode.window as any).createWebviewTextEditorInset as undefined | ((editor: vscode.TextEditor, line: number, height: number, opts?: any)=>any)
+    const createInset = forcePanel ? undefined : createInsetRaw
+    const initialHeight = computeDefaultInsetHeight(editor)
+
+    if (typeof createInset === 'function') {
+      usedInset = true
+      lastInsetLine = line
+
+      const inset = createInset(editor, line, initialHeight, { enableScripts: true, localResourceRoots: [] })
+
+      // Set the complete HTML with block content
+      inset.webview.html = finalHtml
+
+      const onMessage = async (msg: any) => {
+        // Handle Block Protocol messages
+        await handleBlockProtocolMessage(msg, inset.webview)
+      }
+
+      inset.webview.onDidReceiveMessage(onMessage)
+
+      const postFunc = { post: (m: any) => { try { inset.webview.postMessage(m) } catch {} } }
+      lastPost = postFunc
+      if (notification.blockId) {
+        try {
+          webviewsByBlockId.set(notification.blockId, {
+            post: postFunc.post.bind(postFunc),
+            dispose: () => { try { (inset as any).dispose?.() } catch {} },
+            line: line,
+            docPath: editor.document.uri.fsPath
+          })
+        } catch {}
+      }
+
+      inset.webview.html = finalHtml
+
+      // Proactively send initial entity data to avoid race on 'ready'
+      try {
+        if (notification.entityGraph !== undefined) {
+          const payload = { entities: notification.entityGraph?.entities ?? [], links: notification.entityGraph?.links ?? [] }
+          const msg = { type: 'graph:update', payload }
+          lastPosted = msg
+          // slight delay to let the webview load its script
+          setTimeout(() => { try { postFunc.post(msg) } catch {} }, 0)
+        }
+      } catch {}
+
+    } else {
+      // Fallback to panel
+      const panel = vscode.window.createWebviewPanel('vivafolio.blockprotocol', 'Vivafolio Block', { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true }, { enableScripts: true })
+      panel.webview.onDidReceiveMessage(async (msg: any) => {
+        if (msg?.type === 'ready') {
+          try {
+            // Load block using block loader
+            const blockElement = await blockLoader.loadBlock(notification, document.createElement('div'))
+            panel.webview.html = finalHtml.replace(
+              '<div id="block-container" class="block-container"></div>',
+              blockElement.outerHTML
+            )
+          } catch (error) {
+            logLine('error', `Failed to load block: ${error}`)
+          }
+        } else {
+          // Handle Block Protocol messages
+          await handleBlockProtocolMessage(msg, panel.webview)
+        }
+      })
+
+      const postFunc = { post: (m: any) => { try { panel.webview.postMessage(m) } catch {} } }
+      lastPost = postFunc
+      if (notification.blockId) {
+        try {
+          webviewsByBlockId.set(notification.blockId, {
+            post: postFunc.post.bind(postFunc),
+            dispose: () => { try { panel.dispose() } catch {} },
+            line: line,
+            docPath: editor.document.uri.fsPath
+          })
+        } catch {}
+      }
+
+      panel.webview.html = finalHtml
+    }
+
+    logLine('info', `Rendered Block Protocol block: ${notification.blockId}`)
+  } catch (error) {
+    logLine('error', `Failed to render Block Protocol block: ${error}`)
+  }
+}
 
 function logLine(level: 'info' | 'warn' | 'error', message: string) {
   try {
@@ -90,7 +521,7 @@ function injectAutoResize(html: string): string {
   }
 }
 
-async function renderInset(line: number, html?: string, init?: any, initialGraph?: any, blockId?: string) {
+async function renderInset(line: number, html?: string, init?: any, entityGraph?: any, blockId?: string) {
   const editor = vscode.window.activeTextEditor
   if (!editor) return
   const forcePanel = process?.env?.VIVAFOLIO_FORCE_PANEL === '1'
@@ -100,7 +531,7 @@ async function renderInset(line: number, html?: string, init?: any, initialGraph
   const htmlFinal = injectAutoResize(html ?? `<!DOCTYPE html><html><body><div>Vivafolio</div><script>try{(typeof acquireVsCodeApi==='function'&&acquireVsCodeApi().postMessage)?acquireVsCodeApi().postMessage({type:'ready'}):window.parent.postMessage({type:'ready'},'*')}catch(e){}</script></body></html>`) 
   let updateHeight: undefined | ((h: number) => void)
   try {
-    console.log('[Vivafolio] renderInset start', JSON.stringify({ line, forcePanel, hasCreateInset: typeof createInset === 'function', hasInitialGraph: !!initialGraph }))
+    console.log('[Vivafolio] renderInset start', JSON.stringify({ line, forcePanel, hasCreateInset: typeof createInset === 'function', hasEntityGraph: !!entityGraph }))
   } catch {}
   const onMessage = async (msg: any) => {
     lastMessage = msg
@@ -135,11 +566,20 @@ async function renderInset(line: number, html?: string, init?: any, initialGraph
     } else {
       console.log('Extension received message:', msg)
     }
-    if (msg?.type === 'ready' && initialGraph !== undefined) {
+    if (msg?.type === 'ready' && entityGraph !== undefined) {
       try {
-        const payload = { entities: initialGraph?.entities ?? [], links: initialGraph?.links ?? [] }
+        const payload = { entities: entityGraph?.entities ?? [], links: entityGraph?.links ?? [] }
         lastPosted = { type: 'graph:update', payload }
         lastPost?.post(lastPosted)
+      } catch {}
+    }
+    if (msg?.type === 'graph:query' && entityGraph !== undefined) {
+      try {
+        const payload = { entities: entityGraph?.entities ?? [], links: entityGraph?.links ?? [] }
+        const queryResponse = { type: 'graph:update', payload }
+        lastPosted = queryResponse
+        lastPost?.post(queryResponse)
+        logLine('info', 'Responded to graph:query with entity data')
       } catch {}
     }
     if (msg?.type === 'resize' && typeof msg.height === 'number') {
@@ -161,10 +601,10 @@ async function renderInset(line: number, html?: string, init?: any, initialGraph
     if (isPicker) pickerPost = postFunc
     try { console.log('[Vivafolio] setting inset.webview.html (inset path), isPicker=', isPicker) } catch {}
     inset.webview.html = htmlFinal
-    // Proactively post initialGraph to the newly created webview to avoid race on 'ready'
+    // Proactively post entityGraph to the newly created webview to avoid race on 'ready'
     try {
-      if (initialGraph !== undefined) {
-        const payload = { entities: initialGraph?.entities ?? [], links: initialGraph?.links ?? [] }
+      if (entityGraph !== undefined) {
+        const payload = { entities: entityGraph?.entities ?? [], links: entityGraph?.links ?? [] }
         const msg = { type: 'graph:update', payload }
         lastPosted = msg
         // slight delay to let the webview load its script
@@ -190,10 +630,10 @@ async function renderInset(line: number, html?: string, init?: any, initialGraph
     if (isPicker) pickerPost = postFunc
     try { console.log('[Vivafolio] setting panel.webview.html (fallback path), isPicker=', isPicker) } catch {}
     panel.webview.html = htmlFinal
-    // Proactively post initialGraph to the newly created webview to avoid race on 'ready'
+    // Proactively post entityGraph to the newly created webview to avoid race on 'ready'
     try {
-      if (initialGraph !== undefined) {
-        const payload = { entities: initialGraph?.entities ?? [], links: initialGraph?.links ?? [] }
+      if (entityGraph !== undefined) {
+        const payload = { entities: entityGraph?.entities ?? [], links: entityGraph?.links ?? [] }
         const msg = { type: 'graph:update', payload }
         lastPosted = msg
         setTimeout(() => { try { postFunc.post(msg) } catch {} }, 0)
@@ -225,10 +665,10 @@ async function applyColorMarker(completeJsonString: string, entityId?: string): 
 
     const doc = editor.document
 
-    // Check if this is a viv file (language-specific syntax)
-    // Accept both vivafolio (production) and vivafolio-mock (test) languages
-    if (doc.languageId !== 'vivafolio' && doc.languageId !== 'vivafolio-mock') {
-      console.log('applyColorMarker: skipping - not a vivafolio file (language:', doc.languageId + ')')
+    // Check if this is a supported file (language-specific syntax)
+    // Accept vivafolio (production), vivafolio-mock (old test), and mocklang (new test) languages
+    if (doc.languageId !== 'vivafolio' && doc.languageId !== 'vivafolio-mock' && doc.languageId !== 'mocklang') {
+      console.log('applyColorMarker: skipping - not a supported file (language:', doc.languageId + ')')
       return
     }
 
@@ -415,7 +855,7 @@ function parseRuntimeVivafolioBlock(lines: string[]): any[] {
       const parsed = JSON.parse(line.trim())
       // Validate it's a VivafolioBlock notification
       if (parsed && typeof parsed === 'object' &&
-          parsed.blockId && parsed.blockType && parsed.initialGraph) {
+          parsed.blockId && parsed.blockType && parsed.entityGraph) {
         notifications.push(parsed)
         console.log('[Vivafolio] Parsed VivafolioBlock notification:', parsed.blockId)
       }
@@ -493,6 +933,9 @@ export function activate(context: vscode.ExtensionContext) {
   hiddenDecoration = vscode.window.createTextEditorDecorationType({ textDecoration: 'none; opacity: 0;' })
   context.subscriptions.push(hiddenDecoration)
 
+  // Initialize Block Protocol infrastructure
+  initializeBlockProtocolInfrastructure(context)
+
   const diagnostics = vscode.languages.createDiagnosticCollection()
   context.subscriptions.push(diagnostics)
 
@@ -543,22 +986,29 @@ export function activate(context: vscode.ExtensionContext) {
               const existing = payload?.blockId ? webviewsByBlockId.get(String(payload.blockId)) : undefined
               try { if (existing) existing.post(lastPosted); else lastPost?.post(lastPosted) } catch {}
             } else {
-              const prePayload = { entities: payload?.initialGraph?.entities ?? [], links: payload?.initialGraph?.links ?? [] }
+              const prePayload = { entities: payload?.entityGraph?.entities ?? [], links: payload?.entityGraph?.links ?? [] }
               lastPosted = { type: 'graph:update', payload: prePayload }
               const existing = payload?.blockId ? webviewsByBlockId.get(String(payload.blockId)) : undefined
               try { if (existing) existing.post(lastPosted); else lastPost?.post(lastPosted) } catch {}
             }
           } catch {}
-          const htmlRes = (typeof payload?.html === 'string' && payload.html) ? payload.html : await readHtmlFromResources(payload)
-          if (payload?.blockId && webviewsByBlockId.has(String(payload.blockId))) {
-            const existingWebview = webviewsByBlockId.get(String(payload.blockId))
-            let isAlive = false
-            try { existingWebview?.post({ type: 'ping' }); isAlive = true } catch {}
-            if (isAlive) return
-            webviewsByBlockId.delete(String(payload.blockId))
-          }
-          const initialGraphArg = payload?.error ? undefined : payload?.initialGraph
-          await renderInset(line, htmlRes, viewstate, initialGraphArg, payload?.blockId)
+        // Create VivafolioBlock notification from diagnostic payload
+        const notification = createVivafolioBlockNotification(payload, active.document, d)
+        if (!notification) {
+          logLine('error', 'Failed to create VivafolioBlock notification')
+          return
+        }
+
+        if (notification.blockId && webviewsByBlockId.has(String(notification.blockId))) {
+          const existingWebview = webviewsByBlockId.get(String(notification.blockId))
+          let isAlive = false
+          try { existingWebview?.post({ type: 'ping' }); isAlive = true } catch {}
+          if (isAlive) return
+          webviewsByBlockId.delete(String(notification.blockId))
+        }
+
+        // Create new Block Protocol block
+        await renderBlockProtocolBlock(notification, line)
         })()
       }
     } catch {}
@@ -620,7 +1070,7 @@ export function activate(context: vscode.ExtensionContext) {
       void (async () => {
         // Precompute initial graph payload; store for tests and post to existing webview if any
         try {
-          const prePayload = { entities: payload?.initialGraph?.entities ?? [], links: payload?.initialGraph?.links ?? [] }
+          const prePayload = { entities: payload?.entityGraph?.entities ?? [], links: payload?.entityGraph?.links ?? [] }
           lastPosted = { type: 'graph:update', payload: prePayload }
           // Update existing webview for this blockId if present, else fall back to lastPost
           const existing = payload?.blockId ? webviewsByBlockId.get(String(payload.blockId)) : undefined
@@ -639,21 +1089,28 @@ export function activate(context: vscode.ExtensionContext) {
             }
           }
         } catch {}
-        const htmlRes = (typeof payload?.html === 'string' && payload.html) ? payload.html : await readHtmlFromResources(payload)
-        try { console.log('[Vivafolio] rendering inset at line', line, 'isHtml=', !!htmlRes, 'initialGraphEntities=', (payload?.initialGraph?.entities||[]).length) } catch {}
+        // Create VivafolioBlock notification from diagnostic payload
+        const notification = createVivafolioBlockNotification(payload, active.document, d)
+        if (!notification) {
+          logLine('error', 'Failed to create VivafolioBlock notification')
+          return
+        }
+
+        try { console.log('[Vivafolio] rendering Block Protocol block at line', line, 'blockId=', notification.blockId, 'blockType=', notification.blockType) } catch {}
+
         // If an inset for this block already exists, check if it's still alive
-        if (payload?.blockId && webviewsByBlockId.has(String(payload.blockId))) {
-          const existingWebview = webviewsByBlockId.get(String(payload.blockId))
+        if (notification.blockId && webviewsByBlockId.has(String(notification.blockId))) {
+          const existingWebview = webviewsByBlockId.get(String(notification.blockId))
           // Try to post to check if webview is still alive
           let isAlive = false
           try {
             existingWebview?.post({ type: 'ping' })
             isAlive = true
-            console.log('[Vivafolio] reusing existing webview for blockId', String(payload.blockId))
+            console.log('[Vivafolio] reusing existing webview for blockId', String(notification.blockId))
           } catch (error) {
-            console.log('[Vivafolio] webview for blockId', String(payload.blockId), 'is disposed, will recreate')
+            console.log('[Vivafolio] webview for blockId', String(notification.blockId), 'is disposed, will recreate')
             // Remove the disposed webview from our tracking
-            webviewsByBlockId.delete(String(payload.blockId))
+            webviewsByBlockId.delete(String(notification.blockId))
           }
 
           if (isAlive) {
@@ -661,9 +1118,10 @@ export function activate(context: vscode.ExtensionContext) {
           }
           // Fall through to create new webview if disposed
         }
-        // Create new inset for new blockId
-        console.log('[Vivafolio] creating new inset for blockId:', String(payload.blockId))
-        await renderInset(line, htmlRes, viewstate, payload?.initialGraph, payload?.blockId)
+
+        // Create new Block Protocol block
+        console.log('[Vivafolio] creating new Block Protocol block for blockId:', String(notification.blockId))
+        await renderBlockProtocolBlock(notification, line)
       })()
     }
   }))
@@ -740,6 +1198,20 @@ export function activate(context: vscode.ExtensionContext) {
       return false
     } catch { return false }
   }))
+  context.subscriptions.push(vscode.commands.registerCommand('vivafolio.handleVivafolioBlockNotification', async (notification: any) => {
+    try {
+      logLine('info', `Received VivafolioBlock notification: ${notification.blockId}`)
+      if (indexingService) {
+        await indexingService.handleVivafolioBlockNotification(notification)
+        logLine('info', `VivafolioBlock notification processed successfully`)
+      } else {
+        logLine('error', 'Indexing service not available to handle VivafolioBlock notification')
+      }
+    } catch (error) {
+      logLine('error', `Failed to handle VivafolioBlock notification: ${error}`)
+    }
+  }))
+
   context.subscriptions.push(vscode.commands.registerCommand('vivafolio.executeRuntimeFile', async () => {
     const editor = vscode.window.activeTextEditor
     if (!editor) {
@@ -783,4 +1255,35 @@ export function activate(context: vscode.ExtensionContext) {
   }))
 }
 
-export function deactivate() {}
+export async function deactivate() {
+  try {
+    logLine('info', 'Deactivating Vivafolio extension...')
+
+    // Stop indexing service
+    if (indexingService) {
+      await indexingService.stop()
+      indexingService = undefined
+    }
+
+    // Clean up block resources cache
+    if (blockResourcesCache) {
+      // BlockResourcesCache doesn't have a dispose method, but we can clear references
+      blockResourcesCache = undefined
+    }
+
+    // Clean up block loader
+    if (blockLoader) {
+      blockLoader = undefined
+    }
+
+    // Clean up language client
+    if (languageClient) {
+      await languageClient.stop()
+      languageClient = undefined
+    }
+
+    logLine('info', 'Vivafolio extension deactivated successfully')
+  } catch (error) {
+    logLine('error', `Error during deactivation: ${error}`)
+  }
+}

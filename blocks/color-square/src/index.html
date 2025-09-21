@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Color Square Block</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 12px;
+      background: transparent;
+    }
+
+    .color-square-container {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: flex-start;
+    }
+
+    .color-square {
+      width: 120px;
+      height: 120px;
+      border: 2px solid var(--vscode-panel-border, #3e3e42);
+      border-radius: 4px;
+      background-color: #000000;
+      transition: background-color 0.2s ease;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .color-square:hover {
+      border-color: var(--vscode-focusBorder, #0078d4);
+    }
+
+    .color-info {
+      font-size: 12px;
+      color: var(--vscode-descriptionForeground, #cccccc);
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+      user-select: all;
+    }
+
+    .error-indicator {
+      color: #f48771;
+      font-size: 16px;
+      display: none;
+      cursor: help;
+    }
+
+    .error-indicator.visible {
+      display: inline;
+    }
+  </style>
+</head>
+<body>
+  <div class="color-square-container">
+    <div id="colorSquare" class="color-square"></div>
+    <div class="color-info">Color: <span id="colorValue">#000000</span></div>
+    <span id="errorIndicator" class="error-indicator" title="Graph error occurred">⚠️</span>
+  </div>
+
+  <script>
+    const colorSquare = document.getElementById('colorSquare');
+    const colorValue = document.getElementById('colorValue');
+    const errorIndicator = document.getElementById('errorIndicator');
+
+    let vscodeApi = null;
+
+    // Logging utility
+    function log(message, level = 'info') {
+      const prefix = '[COLOR-SQUARE]';
+      const fullMessage = `${prefix} ${message}`;
+
+      switch (level) {
+        case 'error':
+          console.error(fullMessage);
+          break;
+        case 'warn':
+          console.warn(fullMessage);
+          break;
+        default:
+          console.log(fullMessage);
+      }
+
+      // Also send log to extension if available
+      if (vscodeApi) {
+        vscodeApi.postMessage({
+          type: 'log',
+          message: fullMessage,
+          level: level
+        });
+      }
+    }
+
+    // Message sending utility
+    function sendMessage(message) {
+      log(`Sending message: ${JSON.stringify(message)}`);
+
+      try {
+        // Acquire VS Code API only once
+        if (!vscodeApi && typeof acquireVsCodeApi === 'function') {
+          vscodeApi = acquireVsCodeApi();
+        }
+
+        // Send message via VS Code API or fallback to parent
+        (vscodeApi || parent).postMessage(message);
+      } catch (error) {
+        log(`Error sending message: ${error.message}`, 'error');
+      }
+    }
+
+    // Update the visual color display
+    function updateColorDisplay(color) {
+      const oldColor = colorSquare.style.backgroundColor;
+      colorSquare.style.backgroundColor = color;
+      colorValue.textContent = color;
+
+      log(`Updated color display from ${oldColor} to ${color}`);
+    }
+
+    // Handle graph update messages
+    function handleGraphUpdate(message) {
+      const entity = message.payload?.entities?.[0];
+      log(`Processing graph:update with entity: ${JSON.stringify(entity)}`);
+
+      if (entity && typeof entity.properties?.color === 'string') {
+        const newColor = entity.properties.color;
+        updateColorDisplay(newColor);
+
+        // Hide error indicator on successful update
+        errorIndicator.classList.remove('visible');
+
+        log('Color square updated successfully');
+      } else {
+        log(`Invalid entity data received: ${JSON.stringify(entity)}`, 'warn');
+      }
+    }
+
+    // Handle graph error messages
+    function handleGraphError(message) {
+      log(`Graph error received: ${JSON.stringify(message.error)}`, 'error');
+      errorIndicator.classList.add('visible');
+      errorIndicator.title = `Graph error: ${message.error?.message || 'Unknown error'}`;
+    }
+
+    // Message event listener
+    window.addEventListener('message', (event) => {
+      const message = event.data;
+
+      if (!message || typeof message !== 'object') {
+        return;
+      }
+
+      log(`Received message: ${JSON.stringify(message)}`);
+
+      switch (message.type) {
+        case 'graph:update':
+          handleGraphUpdate(message);
+          break;
+
+        case 'graph:error':
+          handleGraphError(message);
+          break;
+
+        case 'ready':
+          // Extension acknowledges our ready message
+          log('Extension acknowledged ready state');
+          break;
+
+        default:
+          log(`Ignoring unknown message type: ${message.type}`);
+      }
+    });
+
+    // Initialize with default color
+    updateColorDisplay('#000000');
+
+    // Send ready message to signal block is loaded
+    log('Color square block initialized and ready');
+    sendMessage({ type: 'ready' });
+  </script>
+</body>
+</html>

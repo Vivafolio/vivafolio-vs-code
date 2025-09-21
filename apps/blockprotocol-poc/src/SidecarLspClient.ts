@@ -14,10 +14,12 @@ export class SidecarLspClient {
   private indexingService: IndexingService
   private lspServer: MockLspServer
   private eventListenerIds: string[] = []
+  private broadcast?: (notification: any) => void
 
-  constructor(indexingService: IndexingService, lspServer: MockLspServer) {
+  constructor(indexingService: IndexingService, lspServer: MockLspServer, broadcast?: (notification: any) => void) {
     this.indexingService = indexingService
     this.lspServer = lspServer
+    this.broadcast = broadcast
   }
 
   // Start the sidecar client
@@ -58,6 +60,12 @@ export class SidecarLspClient {
       console.log('[sidecar-lsp] Received VivafolioBlock notification from LSP server:', notification)
       try {
         await this.indexingService.handleVivafolioBlockNotification(notification)
+
+        // Broadcast the block notification to WebSocket clients for rendering
+        if (this.broadcast) {
+          console.log('[sidecar-lsp] Broadcasting block notification to WebSocket clients:', notification.blockId)
+          this.broadcast(notification)
+        }
       } catch (error) {
         console.error('[sidecar-lsp] Error handling VivafolioBlock notification:', error)
       }
@@ -73,6 +81,12 @@ export class SidecarLspClient {
 
       for (const block of vivBlocks) {
         await this.indexingService.handleVivafolioBlockNotification(block)
+
+        // Broadcast the block notification to WebSocket clients for rendering
+        if (this.broadcast) {
+          console.log('[sidecar-lsp] Broadcasting initial block notification to WebSocket clients:', block.blockId)
+          this.broadcast(block)
+        }
       }
     } catch (error) {
       console.error('[sidecar-lsp] Error during initial .viv file scan:', error)
@@ -282,6 +296,17 @@ export class MockLspServerImpl implements MockLspServer {
         }
       }
     ]
+
+    // Notify all subscribers about the discovered blocks
+    for (const block of mockVivBlocks) {
+      for (const callback of this.vivafolioBlockCallbacks) {
+        try {
+          callback(block)
+        } catch (error) {
+          console.error('[mock-lsp] Error in VivafolioBlock notification callback:', error)
+        }
+      }
+    }
 
     // Notify all subscribers about the discovered blocks
     for (const block of mockVivBlocks) {

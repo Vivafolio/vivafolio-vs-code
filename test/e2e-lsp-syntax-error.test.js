@@ -33,7 +33,7 @@ async function run() {
 		// Start with valid JSON
 		let text = 'vivafolio_picker!() gui_state! r#"{ "color": "#00ff00" }"#\nvivafolio_square!()\n'
 		await conn.sendNotification('textDocument/didOpen', {
-			textDocument: { uri, languageId: 'vivafolio-mock', version: 1, text }
+			textDocument: { uri, languageId: 'mocklang', version: 1, text }
 		})
 		let diags = await waitForDiagnostics(conn, uri)
 		assert(Array.isArray(diags.diagnostics) && diags.diagnostics.length >= 2, 'expect two diagnostics initially')
@@ -55,10 +55,10 @@ async function run() {
 			try { return JSON.parse(String(d.message).slice('vivafolio: '.length)).error } catch { return undefined }
 		})
 		assert(errors.some(Boolean), 'at least one diagnostic should carry a syntax error')
-		// When error present, server must not inject an initialGraph override
+		// When error present, server must not inject an entityGraph override
 		const payloads = diags.diagnostics.map(d => { try { return JSON.parse(String(d.message).slice('vivafolio: '.length)) } catch { return {} } })
 		for (const p of payloads) {
-			if (p.error) assert(p.initialGraph == null, 'error payloads must have null initialGraph')
+			if (p.error) assert(p.entityGraph == null, 'error payloads must have null entityGraph')
 		}
 
 		// Restore valid JSON
@@ -70,8 +70,8 @@ async function run() {
 		diags = await waitForDiagnostics(conn, uri)
 		const restored = diags.diagnostics.map(d => JSON.parse(String(d.message).slice('vivafolio: '.length)))
 		assert(restored.every(p => !p.error), 'no error after restoring valid JSON')
-		assert(restored.every(p => p.initialGraph && p.initialGraph.entities && p.initialGraph.entities.length > 0), 'initialGraph present after recovery')
-		const colors = restored.map(p => p.initialGraph.entities[0].properties.color).filter(Boolean)
+		assert(restored.every(p => p.entityGraph && p.entityGraph.entities && p.entityGraph.entities.length > 0), 'entityGraph present after recovery')
+		const colors = restored.map(p => p.entityGraph.entities[0].properties.color).filter(Boolean)
 		assert(colors.includes('#123456'), 'recovered color should propagate')
 
 		console.log('LSP syntax error semantics test passed')

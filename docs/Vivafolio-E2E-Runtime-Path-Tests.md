@@ -65,8 +65,8 @@ Transform Vivafolio from a CTFE-only system into a universal interactive program
 ### **VivafolioBlock Output Format**
 Programs emit VivafolioBlock notifications to stdout in JSON Lines format:
 ```json
-{"blockId": "picker-123", "blockType": "color-picker", "initialGraph": {...}}
-{"blockId": "square-456", "blockType": "color-square", "initialGraph": {...}}
+{"blockId": "picker-123", "blockType": "color-picker", "entityGraph": {...}}
+{"blockId": "square-456", "blockType": "color-square", "entityGraph": {...}}
 ```
 
 ## 🚀 **IMPLEMENTATION STATUS**

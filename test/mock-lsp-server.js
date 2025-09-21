@@ -20,7 +20,7 @@ connection.onRequest('initialize', (params) => {
     capabilities: {
       textDocumentSync: 1 // Full sync
     },
-    serverInfo: { name: 'vivafolio-mock-language', version: '0.1' }
+    serverInfo: { name: 'mocklang-lsp-server', version: '0.1' }
   }
 })
 
@@ -30,10 +30,10 @@ connection.onNotification('initialized', () => {
   } catch {}
 })
 
-function createVivafolioBlockPayload(blockId, entityId, options = {}) {
+function createVivafolioBlockPayload(blockId, entityId, sourceUri, range, options = {}) {
   const { tableData, dslModule, error } = options
 
-  let initialGraph = {
+  let entityGraph = {
     entities: [{
       entityId: entityId,
       properties: {
@@ -69,7 +69,7 @@ function createVivafolioBlockPayload(blockId, entityId, options = {}) {
       }, {})
     }))
 
-    initialGraph = {
+    entityGraph = {
       entities: entities,
       links: []
     }
@@ -79,8 +79,10 @@ function createVivafolioBlockPayload(blockId, entityId, options = {}) {
     blockId: blockId,
     blockType: blockType,
     displayMode: "multi-line",
+    sourceUri: sourceUri,
+    range: range,
     entityId: entityId,
-    initialGraph: initialGraph,
+    entityGraph: entityGraph,
     supportsHotReload: false,
     initialHeight: tableData ? 300 : 200,
     resources: resources
@@ -275,40 +277,68 @@ connection.onNotification('textDocument/didOpen', (p) => {
       const diagnostics = blocks.map(block => {
         let payload
         if (block.kind === 'picker') {
-          payload = createVivafolioBlockPayload(block.blockId, block.entityId)
-          payload.resources[0].physicalPath = `file://${__dirname}/resources/blocks/color-picker.html`
+          const range = {
+            start: { line: block.line, character: 0 },
+            end: { line: block.line, character: 20 }
+          }
+          payload = createVivafolioBlockPayload(block.blockId, block.entityId, doc.uri, range)
+          // Use the color-picker block from the blocks directory
+          payload.blockType = "https://blockprotocol.org/@vivafolio/types/block-type/color-picker/"
+          payload.resources = [{
+            logicalName: "app.html",
+            physicalPath: `file://${__dirname}/../blocks/color-picker/dist/index.html`,
+            cachingTag: "color-picker-" + Date.now()
+          }]
           const gsHere = parseGuiStateFromText(doc.text)
           if (gsHere.present && gsHere.error) {
-            payload.initialGraph = null
+            payload.entityGraph = null
             payload.error = { kind: 'gui_state_syntax_error', message: gsHere.error }
             console.error('LSP didOpen: picker block', block.blockId, 'syntax error:', gsHere.error)
           } else {
             // Use parsed color if present; otherwise a benign default for initial display
             const currentColor = gsHere.color || '#ff0000'
-            payload.initialGraph.entities[0].properties = { color: currentColor }
+            payload.entityGraph.entities[0].properties = { color: currentColor }
             console.error('LSP didOpen: picker block', block.blockId, 'initialized with color', currentColor)
           }
         } else if (block.kind === 'square') {
-          payload = createVivafolioBlockPayload(block.blockId, block.entityId)
-          payload.resources[0].physicalPath = `file://${__dirname}/resources/blocks/color-square.html`
+          const range = {
+            start: { line: block.line, character: 0 },
+            end: { line: block.line, character: 20 }
+          }
+          payload = createVivafolioBlockPayload(block.blockId, block.entityId, doc.uri, range)
+          // Use the color-square block from the blocks directory
+          payload.blockType = "https://blockprotocol.org/@vivafolio/types/block-type/color-square/"
+          payload.resources = [{
+            logicalName: "app.html",
+            physicalPath: `file://${__dirname}/../blocks/color-square/dist/index.html`,
+            cachingTag: "color-square-" + Date.now()
+          }]
           const gsHere = parseGuiStateFromText(doc.text)
           if (gsHere.present && gsHere.error) {
-            payload.initialGraph = null
+            payload.entityGraph = null
             payload.error = { kind: 'gui_state_syntax_error', message: gsHere.error }
             console.error('LSP didOpen: square block', block.blockId, 'syntax error:', gsHere.error)
           } else {
             const currentColor = gsHere.color || '#ff0000'
-            payload.initialGraph.entities[0].properties = { color: currentColor }
+            payload.entityGraph.entities[0].properties = { color: currentColor }
             console.error('LSP didOpen: square block', block.blockId, 'initialized with color', currentColor)
           }
         } else if (block.kind === 'data_table') {
-          payload = createVivafolioBlockPayload(block.blockId, block.entityId, {
+          const range = {
+            start: { line: block.line, character: 0 },
+            end: { line: block.line, character: 50 }
+          }
+          payload = createVivafolioBlockPayload(block.blockId, block.entityId, doc.uri, range, {
             tableData: block.tableData,
             dslModule: block.dslModule,
             error: block.error
           })
         } else {
-          payload = createVivafolioBlockPayload(block.blockId, block.entityId)
+          const range = {
+            start: { line: block.line, character: 0 },
+            end: { line: block.line, character: 20 }
+          }
+          payload = createVivafolioBlockPayload(block.blockId, block.entityId, doc.uri, range)
         }
         return {
           range: {
@@ -316,7 +346,7 @@ connection.onNotification('textDocument/didOpen', (p) => {
             end: { line: block.line, character: 1 }
           },
           severity: 4, // Hint
-          source: 'vivafolio-mock-language',
+          source: 'mocklang-lsp-server',
           message: 'vivafolio: ' + JSON.stringify(payload)
         }
       })
@@ -372,39 +402,67 @@ connection.onNotification('textDocument/didChange', (p) => {
         console.error('LSP didChange: processing block', block.blockId, 'kind:', block.kind || 'generic')
         let payload
         if (block.kind === 'picker') {
-          payload = createVivafolioBlockPayload(block.blockId, block.entityId)
-          payload.resources[0].physicalPath = `file://${__dirname}/resources/blocks/color-picker.html`
+          const range = {
+            start: { line: block.line, character: 0 },
+            end: { line: block.line, character: 20 }
+          }
+          payload = createVivafolioBlockPayload(block.blockId, block.entityId, doc.uri, range)
+          // Use the color-picker block from the blocks directory
+          payload.blockType = "https://blockprotocol.org/@vivafolio/types/block-type/color-picker/"
+          payload.resources = [{
+            logicalName: "app.html",
+            physicalPath: `file://${__dirname}/../blocks/color-picker/dist/index.html`,
+            cachingTag: "color-picker-" + Date.now()
+          }]
           const gsHere = parseGuiStateFromText(doc)
           if (gsHere.present && gsHere.error) {
-            payload.initialGraph = null
+            payload.entityGraph = null
             payload.error = { kind: 'gui_state_syntax_error', message: gsHere.error }
             console.error('LSP didChange: picker block', block.blockId, 'syntax error:', gsHere.error)
           } else {
             const currentColor = gsHere.color || '#ff0000'
-            payload.initialGraph.entities[0].properties = { color: currentColor }
+            payload.entityGraph.entities[0].properties = { color: currentColor }
             console.error('LSP didChange: picker block', block.blockId, 'updated with color', currentColor)
           }
         } else if (block.kind === 'square') {
-          payload = createVivafolioBlockPayload(block.blockId, block.entityId)
-          payload.resources[0].physicalPath = `file://${__dirname}/resources/blocks/color-square.html`
+          const range = {
+            start: { line: block.line, character: 0 },
+            end: { line: block.line, character: 20 }
+          }
+          payload = createVivafolioBlockPayload(block.blockId, block.entityId, doc.uri, range)
+          // Use the color-square block from the blocks directory
+          payload.blockType = "https://blockprotocol.org/@vivafolio/types/block-type/color-square/"
+          payload.resources = [{
+            logicalName: "app.html",
+            physicalPath: `file://${__dirname}/../blocks/color-square/dist/index.html`,
+            cachingTag: "color-square-" + Date.now()
+          }]
           const gsHere = parseGuiStateFromText(doc)
           if (gsHere.present && gsHere.error) {
-            payload.initialGraph = null
+            payload.entityGraph = null
             payload.error = { kind: 'gui_state_syntax_error', message: gsHere.error }
             console.error('LSP didChange: square block', block.blockId, 'syntax error:', gsHere.error)
           } else {
             const currentColor = gsHere.color || '#ff0000'
-            payload.initialGraph.entities[0].properties = { color: currentColor }
+            payload.entityGraph.entities[0].properties = { color: currentColor }
             console.error('LSP didChange: square block', block.blockId, 'updated with color', currentColor)
           }
         } else if (block.kind === 'data_table') {
-          payload = createVivafolioBlockPayload(block.blockId, block.entityId, {
+          const range = {
+            start: { line: block.line, character: 0 },
+            end: { line: block.line, character: 50 }
+          }
+          payload = createVivafolioBlockPayload(block.blockId, block.entityId, doc.uri, range, {
             tableData: block.tableData,
             dslModule: block.dslModule,
             error: block.error
           })
         } else {
-          payload = createVivafolioBlockPayload(block.blockId, block.entityId)
+          const range = {
+            start: { line: block.line, character: 0 },
+            end: { line: block.line, character: 20 }
+          }
+          payload = createVivafolioBlockPayload(block.blockId, block.entityId, doc.uri, range)
         }
         return {
           range: {
@@ -412,7 +470,7 @@ connection.onNotification('textDocument/didChange', (p) => {
             end: { line: block.line, character: 1 }
           },
           severity: 4, // Hint
-          source: 'vivafolio-mock-language',
+          source: 'mocklang-lsp-server',
           message: 'vivafolio: ' + JSON.stringify(payload)
         }
       })

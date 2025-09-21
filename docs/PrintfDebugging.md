@@ -1,6 +1,32 @@
 # Printf Debugging for Vivafolio
 
-This guide explains how to capture rich logs from the extension host, webviews, the mock LSP server, VS Code, and WebdriverIO. Default runs remain quiet; enable deep logging only when investigating failures.
+This guide explains how to capture rich logs from the extension host, webviews, the mock LSP server, VS Code, WebdriverIO, and the block development workflow. Default runs remain quiet; enable deep logging only when investigating failures.
+
+## Quick Start (Block Development)
+
+### Development Workflow Logging
+
+```bash
+# Full development environment with logging
+just vscode-dev-full
+
+# Or manually:
+VIVAFOLIO_DEBUG=1 VIVAFOLIO_CAPTURE_WEBVIEW_LOGS=1 just vscode-dev &
+just watch-blocks &
+```
+
+### Check Development Status
+
+```bash
+# See what processes are running
+just dev-status
+
+# View extension logs in VS Code
+# Output Panel → "Vivafolio"
+
+# Check file logs
+tail -f ~/Library/Application\ Support/Code\ - Insiders/User/globalStorage/local.vivafolio/logs/vivafolio-*.log
+```
 
 ## Quick start (happy path)
 - Run manual E2E: `just vscode-e2e`
@@ -10,11 +36,20 @@ This guide explains how to capture rich logs from the extension host, webviews, 
   - `VIVAFOLIO_CAPTURE_WEBVIEW_LOGS=1` – proxies `console.log/warn/error` from webviews to the extension channel and file
 
 ## What gets logged where
-- Extension (Vivafolio): Output channel “Vivafolio”; optional file `vivafolio-<ts>.log`
-- Webviews (picker/square): forwarded to extension when `VIVAFOLIO_CAPTURE_WEBVIEW_LOGS=1`
-- Mock LSP server: logs to stderr; captured by test harness
-- VS Code internals: `Developer: Open Log File...` → main/renderer/exthost logs
-- WebdriverIO: runner logs and artifacts in `test-results`
+
+### Core Components
+- **Extension (Vivafolio)**: Output channel "Vivafolio"; optional file `vivafolio-<ts>.log` in `~/.vscode/extensions/globalStorage/local.vivafolio/logs/`
+- **Webviews (blocks)**: forwarded to extension when `VIVAFOLIO_CAPTURE_WEBVIEW_LOGS=1`
+- **Mock LSP server**: logs to stderr; appears in VS Code Output panel under "Mocklang Language Server" channel
+- **VS Code internals**: `Developer: Open Log File...` → main/renderer/exthost logs
+- **WebdriverIO**: runner logs and artifacts in `test-results`
+
+### Block Development
+- **POC Dev Server**: Framework compilation and Block Protocol scenario logs (`just dev-blockprotocol-poc*`)
+- **Production Block Dev Server**: Console output when `just block-dev-server`
+- **Block Building**: Build output when `just watch-blocks` or `just build-blocks`
+- **File Watching**: Change notifications when blocks are rebuilt
+- **Cache Invalidation**: Logs when block resources are updated
 
 ## Turn on full trace (when needed)
 - VS Code: `Developer: Set Log Level...` → Trace, then Reload Window
@@ -38,14 +73,28 @@ Open `combined.log` and search for tags below to follow the full sequence of eve
 ## Extension env flags
 - `VIVAFOLIO_DEBUG=1` or `VIVAFOLIO_LOG_TO_FILE=1` → file logging
 - `VIVAFOLIO_CAPTURE_WEBVIEW_LOGS=1` → proxy webview `console.*`
+- `BLOCK_DEV_SERVER_PORT=3001` → enable block dev server integration
 
 Set these in the shell before `just vscode-e2e` or WDIO env.
 
 ## Grep-friendly tags
+
+### Extension & Webview
 - `[Vivafolio]` – extension lifecycle/inset events
 - `renderInset start` – webview creation
 - `Extension received graph:update:` – inbound state
+- `Created VivafolioBlock notification:` – LSP diagnostic processed successfully
+- `Rendered Block Protocol block:` – block loaded and displayed
+- `Received Block Protocol message:` – webview-to-extension communication
 - `[WEBVIEW]` – proxied webview logs
+
+### Block Development
+- `Block file changed:` – file watcher notifications
+- `Building block:` – block rebuild events
+- `✅ <block-name> rebuilt` – successful rebuilds
+- `❌ <block-name> build failed` – build failures
+- `[COLOR-PICKER]` – color picker block logs
+- `[COLOR-SQUARE]` – color square block logs
 - `LSP didOpen:` / `LSP didChange:` – mock server state
 - `gui_state_syntax_error` – syntax error signaling
 
@@ -66,11 +115,48 @@ Examples:
 Prefer `console.log('[Vivafolio] renderInset start ...')`-style tags in extension code and concise one-line JSONs to keep logs grep-friendly.
 
 ## Suggested workflow
+
+### General Debugging
 1) Happy-path run (no flags)
 2) Flake/failure → re-run with `VIVAFOLIO_DEBUG=1 VIVAFOLIO_CAPTURE_WEBVIEW_LOGS=1` + VS Code Trace
 3) Inspect Output → Vivafolio, and `<globalStorage>/logs/vivafolio-*.log`
-4) If still unclear, open VS Code logs (main/renderer/exthost) via “Open Log File...”
+4) If still unclear, open VS Code logs (main/renderer/exthost) via "Open Log File..."
 5) Merge logs if needed: `cat /path/to/logs/**/*.log | sort > combined.log` (or use a log interleaver)
+
+### Block Development Debugging
+
+1) **Start development environment:**
+   ```bash
+   just vscode-dev-full  # Includes logging and file watching
+   ```
+
+2) **Check development status:**
+   ```bash
+   just dev-status  # See running processes
+   ```
+
+3) **Monitor block changes:**
+   - Watch terminal for `Block file changed:` messages
+   - Check for `✅ <block-name> rebuilt` confirmations
+   - Look for block-specific logs: `[COLOR-PICKER]`, `[COLOR-SQUARE]`
+
+4) **Debug block loading issues:**
+   ```bash
+   # Check block builds
+   just validate-blocks
+
+   # View block dev server logs
+   just block-dev-server  # In separate terminal
+   ```
+
+5) **Debug cache issues:**
+   ```bash
+   # Clear all caches
+   just clean-all
+
+   # Rebuild everything
+   just reset-dev
+   ```
 
 ## WDIO notes
 - Prefer extension-side assertions (`findInsetsForDocument`, `hasInsetAt`) to correlate with logs

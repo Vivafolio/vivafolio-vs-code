@@ -27,6 +27,9 @@ test-e2e-vivafolioblock:
 test-e2e-vivafolioblock-headed:
 	VIVAFOLIO_DEBUG=1 VIVAFOLIO_CAPTURE_WEBVIEW_LOGS=1 npm run -s test:e2e:vivafolioblock:headed | cat
 
+test-e2e-blockprotocol-integration:
+	node test/e2e-blockprotocol-integration.js | cat
+
 # Runtime Path Testing
 test-runtime-python:
 	python3 test/runtime-path/python/two_blocks.py
@@ -153,6 +156,234 @@ test-blockprotocol-standalone-build:
 	  echo "✅ Standalone server build and startup test passed" || echo "❌ Test failed"
 
 # -----------------------------
+# LSP Server Testing
+# -----------------------------
+
+# Test mock LSP server functions directly (no LSP protocol)
+test-lsp-direct:
+	node test/direct-test.js
+
+# Test mock LSP server through full LSP protocol
+test-lsp-protocol:
+	npm run test:e2e:mock-lsp-client
+
+# Test LSP syntax error reporting
+test-lsp-syntax-errors:
+	npm run test:e2e:lsp-syntax-error
+
+# Run all standalone LSP server tests
+test-lsp-standalone: test-lsp-direct test-lsp-protocol test-lsp-syntax-errors
+
+# -----------------------------
+# WDIO VS Code Integration Tests
+# -----------------------------
+
+# Run WDIO tests for VS Code integration
+test-wdio:
+	npm run test:wdio
+
+# Test single block creation and interaction
+test-wdio-single-block:
+	npm run test:wdio:single-block
+
+# Test two blocks interaction
+test-wdio-two-blocks:
+	npm run test:wdio:two-blocks
+
+# Test two blocks synchronization
+test-wdio-synchronization:
+	npm run test:wdio:synchronization
+
+# -----------------------------
+# Block Development Commands
+# -----------------------------
+
+# Build mock language extension if needed
+install-mocklang-extension:
+	@echo "Building mock language extension..."
+	@cd mocklang-extension && npm install >/dev/null 2>&1 && npm run compile >/dev/null 2>&1
+	@echo "Mock language extension ready"
+
+# Launch VS Code in development mode with extension
+vscode-dev: install-mocklang-extension
+	VIVAFOLIO_DEBUG=1 code-insiders \
+		--extensionDevelopmentPath="${PWD}/mocklang-extension" \
+		--extensionDevelopmentPath="${PWD}" \
+		--enable-proposed-api local.vivafolio \
+		--disable-workspace-trust \
+		--new-window \
+		"${PWD}/test/projects/vivafolio-data-examples"
+
+# Launch VS Code with debugging enabled
+vscode-debug: install-mocklang-extension
+	VIVAFOLIO_DEBUG=1 VIVAFOLIO_CAPTURE_WEBVIEW_LOGS=1 code-insiders \
+		--extensionDevelopmentPath="${PWD}/mocklang-extension" \
+		--extensionDevelopmentPath="${PWD}" \
+		--enable-proposed-api local.vivafolio \
+		--disable-workspace-trust \
+		--inspect-extensions=9229 \
+		--new-window \
+		"${PWD}/test/projects/vivafolio-data-examples"
+
+# Launch VS Code with clean state (no user data)
+vscode-clean: install-mocklang-extension
+	VIVAFOLIO_DEBUG=1 code-insiders \
+		--extensionDevelopmentPath="${PWD}/mocklang-extension" \
+		--extensionDevelopmentPath="${PWD}" \
+		--enable-proposed-api local.vivafolio \
+		--disable-workspace-trust \
+		--user-data-dir /tmp/vscode-clean \
+		--extensions-dir /tmp/vscode-clean-ext \
+		--new-window \
+		"${PWD}/test/projects/vivafolio-data-examples"
+
+# Full development environment: VS Code + extension watching + block watching
+vscode-dev-full: install-mocklang-extension
+	@echo "Starting full development environment..."
+	@echo "1. Starting extension file watcher..."
+	@npm run watch > /dev/null 2>&1 &
+	@echo "2. Starting block file watcher..."
+	@just watch-blocks > /dev/null 2>&1 &
+	@sleep 2
+	@echo "3. Launching VS Code..."
+	@VIVAFOLIO_DEBUG=1 VIVAFOLIO_CAPTURE_WEBVIEW_LOGS=1 code-insiders \
+		--extensionDevelopmentPath="${PWD}/mocklang-extension" \
+		--extensionDevelopmentPath="${PWD}" \
+		--enable-proposed-api local.vivafolio \
+		--disable-workspace-trust \
+		--new-window \
+		"${PWD}/test/projects/vivafolio-data-examples"
+
+# Launch VS Code with full logging enabled
+vscode-dev-logged: install-mocklang-extension
+	VIVAFOLIO_DEBUG=1 VIVAFOLIO_CAPTURE_WEBVIEW_LOGS=1 VIVAFOLIO_LOG_TO_FILE=1 code-insiders \
+		--extensionDevelopmentPath="${PWD}/mocklang-extension" \
+		--extensionDevelopmentPath="${PWD}" \
+		--enable-proposed-api local.vivafolio \
+		--disable-workspace-trust \
+		--new-window \
+		"${PWD}/test/projects/vivafolio-data-examples"
+
+# Launch VS Code with trace logging
+vscode-dev-trace: install-mocklang-extension
+	VIVAFOLIO_DEBUG=1 VIVAFOLIO_CAPTURE_WEBVIEW_LOGS=1 code-insiders \
+		--extensionDevelopmentPath="${PWD}/mocklang-extension" \
+		--extensionDevelopmentPath="${PWD}" \
+		--enable-proposed-api local.vivafolio \
+		--disable-workspace-trust \
+		--log-file /tmp/vscode-trace.log \
+		--log vscode \
+		--log-extension-host \
+		--verbose \
+		--new-window \
+		"${PWD}/test/projects/vivafolio-data-examples"
+
+# -----------------------------
+# Block Development Commands
+# -----------------------------
+
+# Build all blocks
+build-blocks:
+	cd blocks && npm run build
+
+# Watch blocks and rebuild automatically
+watch-blocks:
+	@echo "Watching block files for changes..."
+	@echo "Note: Manual watching - edit files and run 'just build-blocks' to rebuild"
+	@echo "For automatic watching, install fswatch: brew install fswatch"
+	@while true; do sleep 2; done
+
+# Clean all block builds
+clean-blocks:
+	cd blocks && npm run clean
+
+# Build blocks for production
+build-blocks-production:
+	cd blocks && npm run build:all
+
+# Start block development server
+block-dev-server:
+	@echo "Starting block development server..."
+	@cd blocks && npm run dev-server
+
+# Launch VS Code with block dev server
+vscode-with-server: install-mocklang-extension
+	@echo "Starting block dev server and VS Code..."
+	@just block-dev-server &
+	@sleep 3
+	@VIVAFOLIO_DEBUG=1 BLOCK_DEV_SERVER_PORT=3001 code-insiders \
+		--extensionDevelopmentPath="${PWD}/mocklang-extension" \
+		--extensionDevelopmentPath="${PWD}" \
+		--enable-proposed-api local.vivafolio \
+		--disable-workspace-trust \
+		--new-window \
+		"${PWD}/test/projects/vivafolio-data-examples"
+
+# Watch all blocks simultaneously
+watch-all-blocks:
+	@echo "Watching all block files..."
+	@fswatch -r blocks/*/src/ | xargs -n1 -I{} sh -c 'echo "Building block: {}"; block_name=$(basename $(dirname $(dirname {}))); cd blocks/$block_name && npm run build'
+
+# Test blocks
+test-blocks:
+	cd blocks && npm test
+
+# Run block-specific tests
+test-block-integration:
+	node test/e2e-blockprotocol-integration-complete.js
+
+# Validate block builds
+validate-blocks:
+	@echo "Validating block builds..."
+	@for dir in blocks/*/; do \
+		if [ -d "$dir" ] && [ -f "$dir/package.json" ]; then \
+			block_name=$(basename "$dir"); \
+			if [ -f "$dir/dist/index.html" ]; then \
+				echo "✅ $block_name: Build valid"; \
+			else \
+				echo "❌ $block_name: Missing dist/index.html"; \
+			fi; \
+		fi; \
+	done
+
+# Check development environment status
+dev-status:
+	@echo "Development Environment Status:"
+	@echo "================================"
+	@echo "Extension watching: $(pgrep -f "npm run watch" | wc -l) processes"
+	@echo "Block watching: $(pgrep -f "watch-blocks" | wc -l) processes"
+	@echo "VS Code instances: $(pgrep -f "code-insiders" | wc -l) processes"
+	@echo "Block dev server: $(pgrep -f "block-dev-server" | wc -l) processes"
+
+# Kill all development processes
+kill-dev:
+	@echo "Killing development processes..."
+	@pkill -f "npm run watch" || true
+	@pkill -f "watch-blocks" || true
+	@pkill -f "code-insiders" || true
+	@pkill -f "block-dev-server" || true
+	@echo "All development processes killed"
+
+# Reset development environment
+reset-dev:
+	@echo "Resetting development environment..."
+	@just kill-dev
+	@just clean-blocks
+	@just build-blocks
+	@echo "Development environment reset"
+
+# Clean everything (extension, blocks, caches)
+clean-all:
+	@echo "Cleaning all build artifacts and caches..."
+	@npm run clean
+	@just clean-blocks
+	@rm -rf out/
+	@rm -rf test-results/
+	@rm -rf apps/blockprotocol-poc/dist/
+	@rm -rf packages/*/dist/
+	@echo "All artifacts cleaned"
+
+# -----------------------------
 # Block Protocol POC Demo Commands
 # Based on documented scripts in apps/blockprotocol-poc/package.json
 # -----------------------------
@@ -227,7 +458,7 @@ install-all:
 	@echo "Installing dependencies in indexing-service package..."
 	cd packages/indexing-service && npm install && npm run build
 	@echo "Installing dependencies in mock language extension..."
-	cd mock-language-extension && npm install
+	cd mocklang-extension && npm install
 	@echo "All dependencies installed and packages built successfully"
 
 # -----------------------------

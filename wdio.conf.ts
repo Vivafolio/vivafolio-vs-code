@@ -158,8 +158,8 @@ export const config: Options.Testrunner = {
     try {
       // Pre-install the mock language extension by symlinking it into the extensions dir
       const extensionsDir = path.join(uniqueStorageRoot, 'extensions')
-      const mockExtSrc = path.resolve(__dirname, 'mock-language-extension')
-      const mockExtDest = path.join(extensionsDir, 'local.vivafolio-mock-language-0.0.1')
+      const mockExtSrc = path.resolve(__dirname, 'mocklang-extension')
+      const mockExtDest = path.join(extensionsDir, 'local.mocklang-extension-0.0.1')
       if (!fs.existsSync(extensionsDir)) fs.mkdirSync(extensionsDir, { recursive: true })
       if (!fs.existsSync(mockExtDest)) {
         try { fs.symlinkSync(mockExtSrc, mockExtDest, 'dir') }

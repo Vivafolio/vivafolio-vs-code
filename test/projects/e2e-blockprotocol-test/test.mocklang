@@ -1,0 +1,12 @@
+# Test file for complete Block Protocol integration
+# This file demonstrates the realistic gui_state() API pattern
+
+import { gui_state, color_picker, show_square } from './vivafolio_helpers.js';
+
+# Create color picker and square blocks
+let selectedColor = color_picker(gui_state("#ff0000"));
+show_square(selectedColor);
+
+# Regular code continues...
+print("Block Protocol integration test - color workflow");
+print(f"Selected color: {selectedColor}");

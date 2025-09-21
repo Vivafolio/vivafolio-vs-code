@@ -74,7 +74,7 @@ async function testBasicLSPProtocol(repoRoot) {
     log('Received initialize response')
 
     assert(initResult, 'Initialize should return a result')
-    assert.equal(initResult.serverInfo.name, 'vivafolio-mock-language', 'Server name should match')
+    assert.equal(initResult.serverInfo.name, 'mocklang-lsp-server', 'Server name should match')
     assert.equal(initResult.serverInfo.version, '0.1', 'Server version should match')
     assert.equal(initResult.capabilities.textDocumentSync, 1, 'Should support full text document sync')
 
@@ -115,7 +115,7 @@ vivafolio_block!("test-entity-456")`
     await conn.sendNotification('textDocument/didOpen', {
       textDocument: {
         uri: testFileUri,
-        languageId: 'vivafolio-mock',
+        languageId: 'mocklang',
         version: 1,
         text: testContent
       }
@@ -151,14 +151,14 @@ vivafolio_block!("test-entity-456")`
     // Check first diagnostic
     const diag1 = diagnostics.diagnostics[0]
     assert.equal(diag1.severity, 4, 'Should be Hint severity')
-    assert.equal(diag1.source, 'vivafolio-mock-language', 'Source should match')
+    assert.equal(diag1.source, 'mocklang-lsp-server', 'Source should match')
     assert(diag1.message.startsWith('vivafolio: '), 'Message should start with vivafolio prefix')
 
     // Parse the payload
     const payload1 = JSON.parse(diag1.message.substring('vivafolio: '.length))
     assert(payload1.blockId, 'Should have blockId')
     assert(payload1.entityId, 'Should have entityId')
-    assert(payload1.initialGraph, 'Should have initialGraph')
+    assert(payload1.entityGraph, 'Should have entityGraph')
     assert(payload1.resources, 'Should have resources')
     assert.equal(payload1.displayMode, 'multi-line', 'Should have correct display mode')
 
@@ -195,7 +195,7 @@ vivafolio_square!()`
     await conn.sendNotification('textDocument/didOpen', {
       textDocument: {
         uri: testFileUri,
-        languageId: 'vivafolio-mock',
+        languageId: 'mocklang',
         version: 1,
         text: testContent
       }
@@ -222,11 +222,11 @@ vivafolio_square!()`
     // Find picker and square diagnostics
     const pickerDiag = diagnostics.diagnostics.find(d => {
       const payload = JSON.parse(d.message.substring('vivafolio: '.length))
-      return payload.initialGraph.entities[0].properties.color === '#ff0000'
+      return payload.entityGraph.entities[0].properties.color === '#ff0000'
     })
     const squareDiag = diagnostics.diagnostics.find(d => {
       const payload = JSON.parse(d.message.substring('vivafolio: '.length))
-      return payload.initialGraph.entities[0].properties.color === '#ff0000'
+      return payload.entityGraph.entities[0].properties.color === '#ff0000'
     })
 
     assert(pickerDiag, 'Should have picker diagnostic')
@@ -258,7 +258,7 @@ vivafolio_picker!() gui_state! r#"{ "properties": { "color": "#0000ff" } }"#`
     await conn.sendNotification('textDocument/didOpen', {
       textDocument: {
         uri: testFileUri,
-        languageId: 'vivafolio-mock',
+        languageId: 'mocklang',
         version: 1,
         text: initialContent
       }
@@ -299,7 +299,7 @@ vivafolio_picker!() gui_state! r#"{ "properties": { "color": "#0000ff" } }"#`
     assert.equal(updatedDiagnostics.diagnostics.length, 1, 'Should have only 1 diagnostic after update (complete state, not incremental)')
 
     const payload = JSON.parse(updatedDiagnostics.diagnostics[0].message.substring('vivafolio: '.length))
-    assert.equal(payload.initialGraph.entities[0].properties.color, '#00ff00', 'Color should be updated')
+    assert.equal(payload.entityGraph.entities[0].properties.color, '#00ff00', 'Color should be updated')
 
     log('Diagnostic updates test passed')
     return { ok: true, logPath }
@@ -326,7 +326,7 @@ async function testDiagnosticClearing(repoRoot) {
     await conn.sendNotification('textDocument/didOpen', {
       textDocument: {
         uri: testFileUri,
-        languageId: 'vivafolio-mock',
+        languageId: 'mocklang',
         version: 1,
         text: contentWithBlocks
       }

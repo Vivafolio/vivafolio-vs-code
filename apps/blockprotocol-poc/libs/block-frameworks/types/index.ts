@@ -93,7 +93,7 @@ export interface VivafolioBlockNotification {
     blockType: string
     entityId: string
     displayMode: 'multi-line' | 'inline'
-    initialGraph: EntityGraph
+    entityGraph: EntityGraph
     supportsHotReload?: boolean
     initialHeight?: number
     resources?: Array<{

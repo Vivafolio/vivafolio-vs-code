@@ -13,7 +13,7 @@ const testContent = `// Vivafolio test file
 vivafolio_picker!() gui_state! r#"{"properties":{"color":"#ff0000"}}"#
 vivafolio_square!()`
 
-const testFile = path.join(__dirname, 'projects', 'vivafolioblock-test', 'lsp-test.viv')
+const testFile = path.join(__dirname, 'projects', 'vivafolioblock-test', 'lsp-test.mocklang')
 const mockLspServer = path.join(__dirname, 'mock-lsp-server.js')
 
 console.log('🧪 Testing LSP Server didOpen Diagnostics')
@@ -87,7 +87,7 @@ const testLspClient = () => {
             params: {
               textDocument: {
                 uri: `file://${testFile}`,
-                languageId: 'vivafolio-mock',
+                languageId: 'mocklang',
                 version: 1,
                 text: testContent
               }

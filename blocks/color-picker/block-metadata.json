@@ -1,0 +1,50 @@
+{
+  "blockprotocol": {
+    "displayName": "Color Picker",
+    "blockType": {
+      "entryPoint": "1.0",
+      "tag": "color-picker"
+    },
+    "examples": [
+      {
+        "name": "Basic Color Picker",
+        "description": "A simple color picker widget for selecting colors",
+        "entity": {
+          "entityId": "color-picker-entity",
+          "properties": {
+            "color": "#ff0000"
+          }
+        }
+      }
+    ],
+    "icon": "🎨",
+    "image": "preview.png",
+    "name": "@vivafolio/color-picker",
+    "protocol": "0.3",
+    "schema": "block-schema.json",
+    "source": "https://github.com/vivafolio/color-picker",
+    "variants": [
+      {
+        "description": "Default color picker implementation",
+        "displayName": "Color Picker",
+        "icon": "🎨",
+        "name": "default"
+      }
+    ],
+    "version": "1.0.0"
+  },
+  "vivafolio": {
+    "build": {
+      "entry": "src/index.html",
+      "output": "dist/index.html"
+    },
+    "development": {
+      "port": 3001,
+      "hotReload": true
+    },
+    "resources": {
+      "caching": "aggressive",
+      "integrity": true
+    }
+  }
+}

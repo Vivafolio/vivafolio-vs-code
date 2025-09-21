@@ -15,6 +15,179 @@ This document tracks the proof-of-concept effort to validate the Block Protocol 
 - ✅ Comprehensive testing with 68 automated tests covering all functionality
 - ✅ Production infrastructure with performance monitoring, security headers, and CI/CD validation
 
+## 🚀 VS Code Extension Integration (Phase G5) - In Progress
+
+**Phase G5 focuses on integrating the Block Protocol infrastructure into the main Vivafolio VS Code extension.** This milestone bridges the POC environment with the actual VS Code extension, enabling real-time Block Protocol execution within the IDE.
+
+### ✅ Completed Integration Components:
+
+1. **Block Protocol Infrastructure Setup**
+   - ✅ Integrated `@vivafolio/indexing-service` for entity graph management and file watching
+   - ✅ Integrated `@vivafolio/block-resources-cache` for secure block resource caching with integrity verification
+   - ✅ Integrated `@vivafolio/block-loader` for secure Block Protocol execution with dependency sandboxing
+   - ✅ Removed WebSocket server in favor of VS Code's native webview messaging system
+   - ✅ Added Block Protocol message handling for `graph:update`, `graph:create`, `graph:delete`, and `graph:query` operations
+
+2. **VS Code Extension Architecture Updates**
+   - ✅ Updated extension dependencies and TypeScript path mappings
+   - ✅ Enhanced diagnostic processing to convert LSP diagnostics to VivafolioBlock notifications
+   - ✅ Implemented secure block rendering using the block loader with integrity checking
+   - ✅ Added real-time entity synchronization between webviews and the indexing service
+   - ✅ Integrated hook mechanism for nested block composition
+
+3. **Mock Language Ecosystem Renaming**
+   - ✅ Renamed `vivafolio-mock-language` to `mocklang` for clarity and consistency
+   - ✅ Updated all package names, file extensions (`.viv` → `.mocklang`), and references
+   - ✅ Updated test files, WDIO configuration, and build scripts
+
+4. **LSP Emitter Updates**
+   - ✅ Updated `mocklang-lsp-server.js` to emit complete VivafolioBlock notifications with required metadata
+   - ✅ Added `sourceUri` and `range` fields to VivafolioBlock payload structure
+   - ✅ Updated all emitter call sites to include proper metadata
+   - ✅ Verified LSP emitter test compatibility
+
+5. **Realistic External Script Examples**
+   - ✅ Implemented new realistic API pattern: `let color = color_picker(gui_state("#ffffff"))` and `show_square(color)`
+   - ✅ Created `gui_state()`, `color_picker()`, and `show_square()` functions that emit VivafolioBlock notifications as side effects
+   - ✅ Updated JavaScript and Python helpers with realistic API implementations
+   - ✅ Created example scripts demonstrating the realistic usage pattern
+
+### 🔄 In Progress: Phase G5.1 - Unified Block Development Architecture
+
+**Phase G5.1 creates a unified, clear architecture where block development flows seamlessly across all environments. After completion, developers will have a single, consistent experience for building blocks whether they're working in the POC demo, VS Code extension, or production deployments.**
+
+#### **G5.1.1 - Architecture Foundation (Week 1) ✅**
+**Story**: The development team establishes clear architectural boundaries. When a developer wants to create a new block, they know exactly where to go: the Block Builder & Server handles compilation and serving, the Demo Application Server provides testing environments, the IndexingService manages data, and the VS Code extension handles production integration. No more confusion about which server does what - each component has a single, well-defined responsibility.
+
+- ✅ **Component Analysis Complete**: Documented current responsibilities and identified overlaps
+- ✅ **Clear Separation Defined**: Block building, entity management, demo serving, and production runtime are distinct
+- ✅ **Component Renaming**: `blocks/dev-server.js` becomes "Block Builder & Server", POC server becomes "Demo Application Server"
+- ✅ **Documentation Updated**: BlockProtocol-DevServer.md now shows the unified architecture
+
+#### **G5.1.2 - Block Builder & Server as Reusable Library (Week 2)**
+
+**Story**: A developer working on a new Kanban block opens their favorite framework (SolidJS) and starts coding. They run `just build-blocks` and their block automatically compiles with hot-reload enabled. The Block Builder & Server detects their framework, applies the right compilation pipeline, and serves the block with proper caching headers. When they save their SolidJS component, the block instantly rebuilds and any connected demo applications or VS Code instances automatically reload the updated block without restart.
+
+**Technical Flow**:
+1. Developer creates `blocks/kanban-board/src/index.tsx` with SolidJS components
+2. Block Builder analyzes the framework and applies SolidJS compilation pipeline
+3. Compiled block gets bundled with proper manifest and served via HTTP
+4. Demo Application Server loads Block Builder modules and serves hot-reloaded blocks
+5. VS Code extension can optionally load Block Builder for local development mode
+6. Cache invalidation hooks notify all connected clients when blocks rebuild
+
+**Implementation**:
+- Extract framework compilation logic from POC server into `blocks/src/builder.ts`
+- Create `blocks/src/server.ts` as the HTTP serving component
+- Implement TypeScript interfaces for framework detection and compilation
+- Add cache invalidation WebSocket/events for real-time updates
+- Support loading as ESM modules by Demo Application Server and VS Code extension
+
+#### **G5.1.3 - Demo Application Server Refactor (Week 3)**
+
+**Story**: A developer testing Block Protocol scenarios opens the POC demo app. They can now test both block interactions AND source code editing scenarios in the same environment. When they edit `gui_state("#ff0000")` in their source files, the LSP sends VivafolioBlock notifications that update the demo blocks in real-time. Behind the scenes, the Demo Application Server has been completely refactored - it loads the Block Builder & Server modules for continuous reloading and delegates all entity operations to the IndexingService. Block interactions and source edits both work seamlessly in the demo environment before moving to production.
+
+**Technical Flow**:
+1. Demo Application Server starts and loads Block Builder & Server as library
+2. Block Builder provides hot-reloaded blocks via HTTP endpoints for testing
+3. Server optionally enables WebSocket transport for Block Protocol message testing
+4. All entity operations (create, update, delete) go through IndexingService
+5. Source code edits via LSP create VivafolioBlock notifications that update demo blocks
+6. Scenario definitions become simple configuration - no embedded business logic
+7. Demo app provides complete testing environment for both block and source interactions
+8. Same blocks and entity flows work in demo as in production VS Code
+
+**Implementation**:
+- Remove all `applyUpdate` functions from POC server scenarios
+- Replace embedded entity graphs with IndexingService queries
+- Add Block Builder module loading with proper TypeScript imports
+- Make Block Protocol WebSocket features optional/configurable
+- Verify all existing demo scenarios work with IndexingService backend
+
+#### **G5.1.4 - Production Local Development Mode (Week 4)**
+
+**Story**: A VS Code extension developer wants to iterate quickly on block designs. They enable "Local Block Development" in VS Code settings and can configure multiple local directories containing block source code. When blocks are loaded from these local directories, they completely override the usual downloading process from the internet, even when the block metadata indicates remote sources. This allows overriding third-party block definitions that you cannot control. As they edit block source files in any of these directories, the VS Code extension automatically detects changes, rebuilds blocks using the Block Builder & Server, invalidates the block cache, and updates all open block webviews in real-time. No extension restart required - just edit, save, and see changes instantly in the running IDE.
+
+**Technical Flow**:
+1. Developer enables "Local Block Development" in VS Code extension settings
+2. Developer configures multiple local directories: `["/path/to/my-blocks", "/path/to/third-party-overrides"]`
+3. Extension loads Block Builder & Server modules for all configured directories
+4. When blocks are requested, local versions take precedence over remote downloads
+5. Block Builder watches all source directories and rebuilds on changes
+6. Cache invalidation events trigger BlockResourcesCache updates for affected blocks
+7. Open block webviews receive cache invalidation notifications and reload
+8. Developer sees instant visual feedback without restarting VS Code
+
+**Implementation**:
+- Add VS Code extension setting: `"vivafolio.localBlockDirs": ["/path/to/blocks1", "/path/to/blocks2"]`
+- Extension conditionally loads Block Builder modules when setting enabled
+- Implement priority-based block resolution: local directories override remote sources
+- Support multiple local block directories with configurable priority ordering
+- Add preference UI in VS Code extension settings for directory management
+- Implement file watching across all configured directories
+- Cache invalidation sends specific block IDs to minimize unnecessary reloads
+
+#### **G5.1.5 - Unified Development Experience (Week 5)**
+
+**Story**: A complete block development workflow is now possible. A developer creates a new block type, tests it in the POC demo with real entity data, iterates on the design using local development mode in VS Code, and deploys it to production - all using the same underlying Block Builder & Server. The experience is seamless: blocks built for testing automatically work in production, local development provides instant feedback, and the entire workflow uses consistent tooling and APIs.
+
+**Block Definition Edit Flow**:
+1. Developer edits `blocks/color-picker/src/index.html`
+2. Block Builder detects change and recompiles the block
+3. Cache invalidation notifies all connected clients (demo app, VS Code)
+4. Demo application reloads the updated block instantly
+5. VS Code extension updates block webviews without restart
+6. Developer sees visual changes immediately across all environments
+
+**Source Code Edit Flow**:
+1. Developer edits `gui_state("#ff0000")` in source file
+2. LSP server detects change and sends VivafolioBlock notification
+3. IndexingService receives notification and updates entity graph
+4. Entity change events propagate to connected block webviews
+5. Color picker block updates its displayed color
+6. Bidirectional sync: block changes can update source code via LSP
+
+**Implementation**:
+- Comprehensive E2E tests covering all interaction patterns
+- Updated development guides with unified workflow
+- Troubleshooting documentation for common issues
+- Migration guide from current architecture to unified system
+- Performance benchmarks and optimization guidelines
+
+### 🎯 Next Steps:
+
+1. **Create Shared Blocks Directory Structure**
+   - Define component metadata format and build system
+   - Migrate existing HTML blocks to new structure
+   - Establish development workflow patterns
+
+2. **Implement Dev Server Integration**
+   - Wire block resource cache to dev server
+   - Enable hot reloading and cache invalidation
+   - Support development iteration cycles
+
+3. **Build End-to-End Test Suite**
+   - Create test harness for complete workflow verification
+   - Implement block definition edit simulation
+   - Implement source code edit simulation
+   - Verify bidirectional entity synchronization
+
+4. **Validate Production Readiness**
+   - Test complete workflow in VS Code environment
+   - Ensure performance and reliability requirements met
+   - Document development and testing procedures
+
+### 🎯 Phase G5.1 Completion Goals:
+
+Once Phase G5.1 is complete, the Vivafolio VS Code extension will have **production-ready Block Protocol integration** with:
+- Secure block execution with integrity checking
+- Real-time entity synchronization
+- File system indexing with LSP coordination
+- Nested block composition support
+- Comprehensive test coverage
+
+**Ready for: Phase G6 (Framework Ecosystem Expansion) and production deployment**
+
 ## 🎯 Initiative Overview
 
 Goal: **validate the design choices in `docs/spec/BlockProtocol-in-Vivafolio.md` against real Block Protocol behaviour** by building a minimal, self-contained environment that exercises the entire stack end-to-end without relying on the VS Code extension. The POC models the host/editor in a browser app, drives hard-coded VivafolioBlock notifications from a Node.js backend, and verifies block rendering plus graph synchronization with Playwright while harvesting insights and potential spec improvements. Reference Block Protocol documentation lives under `third_party/blockprotocol/apps/site/src/_pages/` and informs each milestone matchup with the upstream contract.

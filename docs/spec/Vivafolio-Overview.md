@@ -96,7 +96,7 @@ This is the primary payload sent from language tooling to the editor extension. 
     "end": { "line": 18, "character": 7 }
   },  
   "entityId": "optional-entity-id-from-source",
-  "initialGraph": {  
+  "entityGraph": {  
     "entities": [
       { "entityId": "entity-uuid-123", "properties": { "value": 42 } }
     ],  

@@ -67,7 +67,7 @@ interface VivafolioBlockNotificationPayload {
   blockType: string
   entityId: string
   displayMode: 'multi-line' | 'inline'
-  initialGraph: EntityGraph
+  entityGraph: EntityGraph
   supportsHotReload?: boolean
   initialHeight?: number
   resources?: Array<{
@@ -751,7 +751,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
         blockType: 'https://blockprotocol.org/@local/blocks/hello-world/v1',
         entityId: state.graph.entities[0]?.entityId ?? 'entity-hello-world',
         displayMode: 'multi-line',
-        initialGraph: state.graph,
+        entityGraph: state.graph,
         supportsHotReload: false,
         initialHeight: 240
       }
@@ -769,7 +769,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
         blockType: 'https://vivafolio.dev/blocks/kanban-board/v1',
         entityId: state.graph.entities[0]?.entityId ?? 'kanban-board-1',
         displayMode: 'multi-line',
-        initialGraph: state.graph,
+        entityGraph: state.graph,
         supportsHotReload: false,
         initialHeight: 420
       }
@@ -807,7 +807,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
         blockType: 'https://vivafolio.dev/blocks/kanban-board/v1',
         entityId: state.graph.entities[0]?.entityId ?? 'kanban-board-1',
         displayMode: 'multi-line',
-        initialGraph: state.graph,
+        entityGraph: state.graph,
         supportsHotReload: true,
         initialHeight: 420
       },
@@ -816,7 +816,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
         blockType: 'https://vivafolio.dev/blocks/task-list/v1',
         entityId: 'kanban-board-1',
         displayMode: 'multi-line',
-        initialGraph: state.graph,
+        entityGraph: state.graph,
         supportsHotReload: true,
         initialHeight: 320,
         resources: [
@@ -863,7 +863,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
         blockType: 'https://vivafolio.dev/blocks/iframe-kanban/v1',
         entityId: state.graph.entities[0]?.entityId ?? 'kanban-board-1',
         displayMode: 'multi-line',
-        initialGraph: state.graph,
+        entityGraph: state.graph,
         supportsHotReload: true,
         initialHeight: 360,
         resources: [
@@ -879,7 +879,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
         blockType: 'https://vivafolio.dev/blocks/iframe-task-list/v1',
         entityId: 'kanban-board-1',
         displayMode: 'multi-line',
-        initialGraph: state.graph,
+        entityGraph: state.graph,
         supportsHotReload: true,
         initialHeight: 280,
         resources: [
@@ -922,7 +922,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
         blockType: 'https://blockprotocol.org/@blockprotocol/blocks/feature-showcase/v1',
         entityId: state.graph.entities[0]?.entityId ?? 'feature-showcase-block',
         displayMode: 'multi-line',
-        initialGraph: state.graph,
+        entityGraph: state.graph,
         supportsHotReload: false,
         initialHeight: 280,
         resources: [
@@ -962,7 +962,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
         blockType: 'https://blockprotocol.org/@blockprotocol/blocks/html-template/v0',
         entityId: state.graph.entities[0]?.entityId ?? 'html-template-block-entity',
         displayMode: 'multi-line',
-        initialGraph: state.graph,
+        entityGraph: state.graph,
         supportsHotReload: false,
         initialHeight: 320,
         resources: [
@@ -1008,7 +1008,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
         entityId:
           state.graph.entities[0]?.entityId ?? 'resource-loader-entity',
         displayMode: 'multi-line',
-        initialGraph: state.graph,
+        entityGraph: state.graph,
         supportsHotReload: false,
         initialHeight: 260,
         resources: [
@@ -1047,7 +1047,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
         blockType: 'https://vivafolio.dev/blocks/custom-element/v1',
         entityId: state.graph.entities[0]?.entityId ?? 'custom-element-entity',
         displayMode: 'multi-line',
-        initialGraph: state.graph,
+        entityGraph: state.graph,
         supportsHotReload: true,
         initialHeight: 300,
         resources: [
@@ -1083,7 +1083,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
         blockType: 'https://vivafolio.dev/blocks/solidjs-task/v1',
         entityId: state.graph.entities[0]?.entityId ?? 'solidjs-task-entity',
         displayMode: 'multi-line',
-        initialGraph: state.graph,
+        entityGraph: state.graph,
         supportsHotReload: true,
         initialHeight: 300,
         resources: [
@@ -1127,7 +1127,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
         blockType: 'https://vivafolio.dev/blocks/status-pill/v1',
         entityId: state.graph.entities[0]?.entityId ?? 'status-pill-entity',
         displayMode: 'inline',
-        initialGraph: state.graph,
+        entityGraph: state.graph,
         supportsHotReload: true,
         initialHeight: 40,
         resources: [
@@ -1169,7 +1169,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
         blockType: 'https://vivafolio.dev/blocks/person-chip/v1',
         entityId: state.graph.entities[0]?.entityId ?? 'person-chip-entity',
         displayMode: 'inline',
-        initialGraph: state.graph,
+        entityGraph: state.graph,
         supportsHotReload: true,
         initialHeight: 40,
         resources: [
@@ -1206,6 +1206,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
           // Mock table row entities (simulating what indexing service would provide)
           {
             entityId: 'project_tasks-row-0',
+            entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
             properties: {
               'Task Name': 'Design new API',
               'Assignee': 'Alice',
@@ -1216,6 +1217,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
           },
           {
             entityId: 'project_tasks-row-1',
+            entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
             properties: {
               'Task Name': 'Update documentation',
               'Assignee': 'Bob',
@@ -1226,6 +1228,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
           },
           {
             entityId: 'project_tasks-row-2',
+            entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
             properties: {
               'Task Name': 'Fix login bug',
               'Assignee': 'Charlie',
@@ -1244,7 +1247,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
         blockType: 'https://vivafolio.dev/blocks/table-view/v1',
         entityId: state.graph.entities[0]?.entityId ?? 'table-view-entity',
         displayMode: 'multi-line',
-        initialGraph: state.graph,
+        entityGraph: state.graph,
         supportsHotReload: true,
         initialHeight: 400,
         resources: [
@@ -1285,7 +1288,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
         blockType: 'https://vivafolio.dev/blocks/board-view/v1',
         entityId: state.graph.entities[0]?.entityId ?? 'board-view-entity',
         displayMode: 'multi-line',
-        initialGraph: state.graph,
+        entityGraph: state.graph,
         supportsHotReload: true,
         initialHeight: 600,
         resources: [
@@ -1330,7 +1333,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
         blockType: 'https://vivafolio.dev/blocks/status-pill/v1',
         entityId: state.graph.entities[0]?.entityId ?? 'framework-demo-entity',
         displayMode: 'inline',
-        initialGraph: state.graph,
+        entityGraph: state.graph,
         supportsHotReload: false,
         initialHeight: 40,
         resources: [
@@ -1351,7 +1354,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
             blockType: `https://vivafolio.dev/blocks/status-pill-${watcher.framework}/v1`,
             entityId: state.graph.entities[0]?.entityId ?? 'framework-demo-entity',
             displayMode: 'inline',
-            initialGraph: state.graph,
+            entityGraph: state.graph,
             supportsHotReload: true,
             initialHeight: 40,
             resources: [
@@ -1419,7 +1422,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
         blockType: 'https://vivafolio.dev/blocks/parent/v1',
         entityId: 'parent-entity',
         displayMode: 'multi-line',
-        initialGraph: state.graph,
+        entityGraph: state.graph,
         supportsHotReload: true,
         initialHeight: 200,
         resources: [
@@ -1441,7 +1444,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
             blockType: 'https://vivafolio.dev/blocks/child-solidjs/v1',
             entityId: 'child-entity-1',
             displayMode: 'inline',
-            initialGraph: state.graph,
+            entityGraph: state.graph,
             supportsHotReload: true,
             initialHeight: 60,
             resources: [
@@ -1464,7 +1467,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
             blockType: 'https://vivafolio.dev/blocks/child-vue/v1',
             entityId: 'child-entity-2',
             displayMode: 'inline',
-            initialGraph: state.graph,
+            entityGraph: state.graph,
             supportsHotReload: true,
             initialHeight: 60,
             resources: [
@@ -1679,9 +1682,28 @@ export async function startServer(options: StartServerOptions = {}) {
   // Initialize transport layer
   const transportLayer = new IndexingServiceTransportLayer(indexingService)
 
+  // Broadcast function for LSP-driven block notifications
+  const broadcastLspNotification = (notification: VivafolioBlockNotificationPayload) => {
+    // Only broadcast to LSP-driven sockets (not in socketStates = not scenario-driven)
+    for (const socket of liveSockets) {
+      if (!socketStates.has(socket)) {
+        try {
+          socket.send(
+            JSON.stringify({
+              type: 'vivafolioblock-notification',
+              payload: notification
+            })
+          )
+        } catch (error) {
+          console.error('[broadcast] Error sending LSP notification to socket:', error)
+        }
+      }
+    }
+  }
+
   // Initialize mock LSP server and sidecar client
   const lspServer = new MockLspServerImpl()
-  const sidecarLspClient = new SidecarLspClient(indexingService, lspServer)
+  const sidecarLspClient = new SidecarLspClient(indexingService, lspServer, broadcastLspNotification)
 
   // Initialize block resources cache
   const blockResourcesCache = new BlockResourcesCache({
@@ -1726,7 +1748,7 @@ export async function startServer(options: StartServerOptions = {}) {
   app.use('/cache/:package/:version/*', async (req, res, next) => {
     try {
       const { package: packageName, version } = req.params
-      const resourcePath = req.params[0] // Everything after package/version/
+      const resourcePath = (req.params as any)[0] // Everything after package/version/
 
       const cacheResult = await blockResourcesCache.fetchBlock({
         name: packageName,
@@ -1947,7 +1969,7 @@ export async function startServer(options: StartServerOptions = {}) {
             blockType: 'https://vivafolio.dev/blocks/table-view/v1',
             entityId: 'table-view-entity',
             displayMode: 'multi-line',
-            initialGraph: { entities, links: [] },
+            entityGraph: { entities, links: [] },
             resources: [
               {
                 logicalName: 'block-metadata.json',

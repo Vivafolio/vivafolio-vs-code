@@ -1,0 +1,28 @@
+{
+  "name": "@vivafolio/blocks",
+  "version": "1.0.0",
+  "description": "Vivafolio Block Protocol Blocks Collection",
+  "scripts": {
+    "build": "npm run build:all",
+    "build:all": "for dir in */; do if [ -d \"$dir\" ] && [ -f \"$dir/package.json\" ]; then echo \"Building $dir\" && (cd \"$dir\" && npm run build); fi; done",
+    "dev": "npm run dev:all",
+    "dev:all": "for dir in */; do if [ -d \"$dir\" ] && [ -f \"$dir/package.json\" ]; then echo \"Dev build $dir\" && (cd \"$dir\" && npm run dev); fi; done",
+    "dev-server": "node dev-server.js",
+    "clean": "for dir in */; do if [ -d \"$dir\" ] && [ -f \"$dir/package.json\" ]; then echo \"Cleaning $dir\" && (cd \"$dir\" && npm run clean); fi; done",
+    "install:all": "for dir in */; do if [ -d \"$dir\" ] && [ -f \"$dir/package.json\" ]; then echo \"Installing $dir\" && (cd \"$dir\" && npm install); fi; done"
+  },
+  "workspaces": [
+    "color-picker",
+    "color-square"
+  ],
+  "keywords": [
+    "blockprotocol",
+    "vivafolio",
+    "blocks"
+  ],
+  "author": "Vivafolio Team",
+  "license": "MIT",
+  "dependencies": {
+    "chokidar": "^4.0.3"
+  }
+}

@@ -8,6 +8,28 @@ import { DSLModuleExecutor } from './DSLModuleExecutor';
 import { CSVEditingModule, MarkdownEditingModule } from './FileEditingModule';
 import { EventEmitter } from './EventEmitter';
 
+// Simple editing module for LSP-sourced entities
+class LSPEditingModule implements EditingModule {
+  canHandle(sourceType: string, metadata: any): boolean {
+    return sourceType === 'lsp';
+  }
+
+  async createEntity(entityId: string, properties: Record<string, any>, metadata: any): Promise<boolean> {
+    // LSP entities are read-only - just return success
+    return true;
+  }
+
+  async updateEntity(entityId: string, properties: Record<string, any>, metadata: any): Promise<boolean> {
+    // LSP entities are read-only - just return success
+    return true;
+  }
+
+  async deleteEntity(entityId: string, metadata: any): Promise<boolean> {
+    // LSP entities are read-only - just return success
+    return true;
+  }
+}
+
 // Entity metadata stored by the indexing service
 export interface EntityMetadata {
   entityId: string;
@@ -102,6 +124,7 @@ export class IndexingService {
     this.editingModules.push(new DSLModuleExecutor());
     this.editingModules.push(new CSVEditingModule());
     this.editingModules.push(new MarkdownEditingModule());
+    this.editingModules.push(new LSPEditingModule());
   }
 
   // Get source type from file extension

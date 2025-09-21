@@ -2,34 +2,154 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "type": "npm",
-      "script": "compile",
+      "label": "build-blocks-watch",
+      "type": "shell",
+      "command": "just",
+      "args": ["watch-blocks"],
       "group": "build",
       "presentation": {
+        "echo": true,
+        "reveal": "silent",
+        "focus": false,
         "panel": "shared",
-        "showReuseMessage": false,
-        "clear": true
+        "showReuseMessage": false
       },
-      "problemMatcher": [
-        "$tsc"
-      ]
+      "isBackground": true,
+      "problemMatcher": [],
+      "runOptions": {
+        "runOn": "folderOpen"
+      }
     },
     {
+      "label": "npm: watch",
       "type": "npm",
       "script": "watch",
-      "isBackground": true,
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      },
+      "group": "build",
       "presentation": {
+        "echo": true,
+        "reveal": "silent",
+        "focus": false,
         "panel": "shared",
-        "showReuseMessage": false,
-        "clear": true
+        "showReuseMessage": false
       },
-      "problemMatcher": [
-        "$tsc-watch"
-      ]
+      "isBackground": true,
+      "problemMatcher": "$tsc-watch",
+      "runOptions": {
+        "runOn": "folderOpen"
+      }
+    },
+    {
+      "label": "build-blocks",
+      "type": "shell",
+      "command": "just",
+      "args": ["build-blocks"],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "clean-blocks",
+      "type": "shell",
+      "command": "just",
+      "args": ["clean-blocks"],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "vscode-dev",
+      "type": "shell",
+      "command": "just",
+      "args": ["vscode-dev"],
+      "group": "test",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "vscode-dev-full",
+      "type": "shell",
+      "command": "just",
+      "args": ["vscode-dev-full"],
+      "group": "test",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "isBackground": false,
+      "problemMatcher": []
+    },
+    {
+      "label": "test-blocks",
+      "type": "shell",
+      "command": "just",
+      "args": ["test-blocks"],
+      "group": "test",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "validate-blocks",
+      "type": "shell",
+      "command": "just",
+      "args": ["validate-blocks"],
+      "group": "test",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "dev-status",
+      "type": "shell",
+      "command": "just",
+      "args": ["dev-status"],
+      "group": "test",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "kill-dev",
+      "type": "shell",
+      "command": "just",
+      "args": ["kill-dev"],
+      "group": "test",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": []
     }
   ]
 }

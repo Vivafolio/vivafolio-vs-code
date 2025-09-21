@@ -55,6 +55,7 @@
     "test:scenario:callsite-diagnostics": "node test/scenarios/callsite-diagnostics.js",
     "test:e2e:vivafolioblock": "npx playwright test test/e2e-vivafolioblock.js",
     "test:e2e:vivafolioblock:headed": "npx playwright test test/e2e-vivafolioblock.js --headed",
+    "test:e2e:blockprotocol-integration": "node test/e2e-blockprotocol-integration.js",
     "test:runtime:vivafolioblock": "node test/validate-runtime-vivafolioblock.js",
     "test:e2e:mock-lsp-client": "node test/e2e-mock-lsp-client.js",
     "test:e2e:lsp-syntax-error": "node test/e2e-lsp-syntax-error.test.js",
@@ -68,6 +69,7 @@
     "@playwright/test": "^1.40.0",
     "@types/node": "^24.3.1",
     "@types/vscode": "^1.85.0",
+    "@types/ws": "^8.5.8",
     "@vscode/test-electron": "^2.3.9",
     "@vscode/vsce": "^3.0.0",
     "@wdio/cli": "^9.19.2",
@@ -82,6 +84,11 @@
     "wdio-vscode-service": "^6.1.3"
   },
   "dependencies": {
-    "vscode-languageclient": "^9.0.1"
+    "@vivafolio/block-loader": "file:./packages/block-loader",
+    "@vivafolio/block-resources-cache": "file:./packages/block-resources-cache",
+    "@vivafolio/indexing-service": "file:./packages/indexing-service",
+    "@blockprotocol/graph": "^0.3.4",
+    "vscode-languageclient": "^9.0.1",
+    "ws": "^8.14.2"
   }
 }

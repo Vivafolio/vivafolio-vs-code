@@ -7,13 +7,12 @@ const fs = require('fs')
 
 // Test file paths
 const testProjectDir = path.join(__dirname, 'projects', 'vivafolioblock-test')
-const mainFile = path.join(testProjectDir, 'main.viv')
-const twoBlocksFile = path.join(testProjectDir, 'two_blocks.viv')
+const mainFile = path.join(testProjectDir, 'main.mocklang')
+const twoBlocksFile = path.join(testProjectDir, 'two_blocks.mocklang')
 
 // Test content templates
 const singleBlockContent = `// Single block test
-vivafolio_block!("test-entity-123")
-
+vivafolio_picker!() gui_state! r#"{ "color": "#ff0000" }"#
 // Some other code
 fn main() {
     println!("Hello from mock language!");
@@ -21,19 +20,19 @@ fn main() {
 `
 
 const twoBlocksContent = `// Two blocks interaction test
-vivafolio_picker!() gui_state! r#"{ "properties": { "color": "#ff0000" } }"#
+vivafolio_picker!() gui_state! r#"{ "color": "#ff0000" }"#
 // Color square
 vivafolio_square!()
 `
 
 const updatedTwoBlocksContent = `// Updated: picker with different color
-vivafolio_picker!() gui_state! r#"{ "properties": { "color": "#00ff00" } }"#
+vivafolio_picker!() gui_state! r#"{ "color": "#00ff00" }"#
 // Same square
 vivafolio_square!()
 `
 
 const singleBlockOnlyContent = `// Only picker remains
-vivafolio_picker!() gui_state! r#"{ "properties": { "color": "#0000ff" } }"#
+vivafolio_picker!() gui_state! r#"{ "color": "#0000ff" }"#
 // Square removed
 `
 

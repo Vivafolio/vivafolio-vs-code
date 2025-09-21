@@ -99,10 +99,10 @@
         let entityId = null;
 
         // Initialize block
-        function init({ blockId: id, entityId: eid, initialGraph }) {
+        function init({ blockId: id, entityId: eid, entityGraph }) {
             blockId = id;
             entityId = eid;
-            currentEntities = initialGraph?.entities || [];
+            currentEntities = entityGraph?.entities || [];
 
             console.log('Table View Block initialized:', { blockId, entityId, entities: currentEntities });
             renderTable();

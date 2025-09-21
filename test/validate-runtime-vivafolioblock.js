@@ -12,60 +12,45 @@ const path = require('path');
 
 const testPrograms = [
   {
-    name: 'Python',
-    file: path.join(__dirname, 'runtime-path/python/two_blocks.py'),
+    name: 'Python (Realistic API)',
+    file: path.join(__dirname, 'runtime-path/python/two_blocks_realistic.py'),
     command: 'python3',
-    args: [path.join(__dirname, 'runtime-path/python/two_blocks.py')]
+    args: [path.join(__dirname, 'runtime-path/python/two_blocks_realistic.py')]
   },
   {
-    name: 'Ruby',
-    file: path.join(__dirname, 'runtime-path/ruby/two_blocks.rb'),
-    command: 'ruby',
-    args: [path.join(__dirname, 'runtime-path/ruby/two_blocks.rb')]
-  },
-  {
-    name: 'Julia',
-    file: path.join(__dirname, 'runtime-path/julia/two_blocks.jl'),
-    command: 'julia',
-    args: [path.join(__dirname, 'runtime-path/julia/two_blocks.jl')]
-  },
-  {
-    name: 'R',
-    file: path.join(__dirname, 'runtime-path/r/two_blocks.R'),
-    command: 'Rscript',
-    args: [path.join(__dirname, 'runtime-path/r/two_blocks.R')]
-  },
-  {
-    name: 'JavaScript',
-    file: path.join(__dirname, 'runtime-path/javascript/two_blocks.js'),
+    name: 'JavaScript (Realistic API)',
+    file: path.join(__dirname, 'runtime-path/javascript/two_blocks_realistic.js'),
     command: 'node',
-    args: [path.join(__dirname, 'runtime-path/javascript/two_blocks.js')]
+    args: [path.join(__dirname, 'runtime-path/javascript/two_blocks_realistic.js')]
   }
+  // Note: Other languages (Ruby, Julia, R) would need realistic API implementations
+  // For now, we test the two that have been implemented
 ];
 
 /**
- * Expected VivafolioBlock notifications for two_blocks programs
+ * Expected VivafolioBlock notification patterns for two_blocks programs
+ * Note: The new realistic API generates dynamic IDs, so we check patterns instead of exact values
  */
-const expectedNotifications = [
+const expectedNotificationPatterns = [
   {
-    blockId: 'picker-123',
     blockType: 'https://blockprotocol.org/@blockprotocol/types/block-type/color-picker/',
     displayMode: 'multi-line',
-    entityId: 'entity-picker-123',
     supportsHotReload: false,
     initialHeight: 200,
-    hasInitialGraph: true,
-    hasResources: true
+    hasEntityGraph: true,
+    hasResources: true,
+    blockIdPattern: /^color-picker-/, // Dynamic ID starting with color-picker-
+    entityIdPattern: /^color-entity-/ // Dynamic ID starting with color-entity-
   },
   {
-    blockId: 'square-456',
     blockType: 'https://blockprotocol.org/@blockprotocol/types/block-type/color-square/',
     displayMode: 'multi-line',
-    entityId: 'entity-square-456',
     supportsHotReload: false,
     initialHeight: 200,
-    hasInitialGraph: true,
-    hasResources: true
+    hasEntityGraph: true,
+    hasResources: true,
+    blockIdPattern: /^color-square-/, // Dynamic ID starting with color-square-
+    entityIdPattern: /^square-entity-/ // Dynamic ID starting with square-entity-
   }
 ];
 
@@ -137,7 +122,7 @@ function isValidVivafolioBlockNotification(obj) {
          typeof obj === 'object' &&
          obj.blockId &&
          obj.blockType &&
-         obj.initialGraph &&
+         obj.entityGraph &&
          obj.entityId &&
          obj.displayMode &&
          typeof obj.supportsHotReload === 'boolean' &&
@@ -145,7 +130,7 @@ function isValidVivafolioBlockNotification(obj) {
 }
 
 /**
- * Validate that notifications match expected structure
+ * Validate that notifications match expected patterns
  */
 function validateNotifications(notifications, languageName) {
   const results = {
@@ -156,57 +141,62 @@ function validateNotifications(notifications, languageName) {
   };
 
   // Check if we have the expected number of notifications
-  if (notifications.length !== expectedNotifications.length) {
-    results.errors.push(`Expected ${expectedNotifications.length} notifications, got ${notifications.length}`);
+  if (notifications.length !== expectedNotificationPatterns.length) {
+    results.errors.push(`Expected ${expectedNotificationPatterns.length} notifications, got ${notifications.length}`);
     return results;
   }
 
   // Validate each notification
   for (let i = 0; i < notifications.length; i++) {
     const notification = notifications[i];
-    const expected = expectedNotifications[i];
+    const expected = expectedNotificationPatterns[i];
 
     let isValid = true;
     const errors = [];
 
-    // Check required fields
-    if (notification.blockId !== expected.blockId) {
+    // Check blockId pattern
+    if (!expected.blockIdPattern.test(notification.blockId)) {
       isValid = false;
-      errors.push(`blockId: expected "${expected.blockId}", got "${notification.blockId}"`);
+      errors.push(`blockId: expected pattern ${expected.blockIdPattern}, got "${notification.blockId}"`);
     }
 
+    // Check blockType
     if (notification.blockType !== expected.blockType) {
       isValid = false;
       errors.push(`blockType: expected "${expected.blockType}", got "${notification.blockType}"`);
     }
 
+    // Check displayMode
     if (notification.displayMode !== expected.displayMode) {
       isValid = false;
       errors.push(`displayMode: expected "${expected.displayMode}", got "${notification.displayMode}"`);
     }
 
-    if (notification.entityId !== expected.entityId) {
+    // Check entityId pattern
+    if (!expected.entityIdPattern.test(notification.entityId)) {
       isValid = false;
-      errors.push(`entityId: expected "${expected.entityId}", got "${notification.entityId}"`);
+      errors.push(`entityId: expected pattern ${expected.entityIdPattern}, got "${notification.entityId}"`);
     }
 
+    // Check supportsHotReload
     if (notification.supportsHotReload !== expected.supportsHotReload) {
       isValid = false;
       errors.push(`supportsHotReload: expected ${expected.supportsHotReload}, got ${notification.supportsHotReload}`);
     }
 
+    // Check initialHeight
     if (notification.initialHeight !== expected.initialHeight) {
       isValid = false;
       errors.push(`initialHeight: expected ${expected.initialHeight}, got ${notification.initialHeight}`);
     }
 
-    // Check for initialGraph structure
-    if (!notification.initialGraph || !Array.isArray(notification.initialGraph.entities)) {
+    // Check for entityGraph structure
+    if (!notification.entityGraph || !Array.isArray(notification.entityGraph.entities)) {
       isValid = false;
-      errors.push('initialGraph missing or invalid entities array');
-    } else if (notification.initialGraph.entities.length === 0) {
+      errors.push('entityGraph missing or invalid entities array');
+    } else if (notification.entityGraph.entities.length === 0) {
       isValid = false;
-      errors.push('initialGraph.entities is empty');
+      errors.push('entityGraph.entities is empty');
     }
 
     // Check for resources (optional but expected for these tests)

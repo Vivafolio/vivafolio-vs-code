@@ -1,0 +1,24 @@
+# Test file for Block Protocol integration
+
+vivafolio_block!({
+  "blockId": "test-table-block",
+  "blockType": "table-view-block",
+  "entityGraph": {
+    "entities": [
+      {
+        "entityId": "test-entity-1",
+        "properties": {
+          "name": "Test Item 1",
+          "value": 42
+        }
+      }
+    ],
+    "links": []
+  },
+  "resources": [
+    {
+      "logicalName": "main.js",
+      "physicalPath": "http://localhost:3000/blocks/table-view-block/main.js"
+    }
+  ]
+})

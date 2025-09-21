@@ -9,7 +9,11 @@ export default defineConfig({
     outDir: 'dist/client',
     emptyOutDir: true,
     rollupOptions: {
-      external: ['solid-js', 'vue', 'svelte', 'svelte/internal', 'lit', '@angular/core']
+      external: ['solid-js', 'vue', 'svelte', 'svelte/internal', 'lit', '@angular/core'],
+      output: {
+        // Handle CommonJS imports
+        interop: 'auto'
+      }
     }
   },
   plugins: [
@@ -21,6 +25,6 @@ export default defineConfig({
     strictPort: false
   },
   optimizeDeps: {
-    include: ['solid-js', 'vue', 'svelte', 'lit', '@angular/core']
+    include: ['solid-js', 'vue', 'svelte', 'lit', '@angular/core', '@vivafolio/block-loader']
   }
 })

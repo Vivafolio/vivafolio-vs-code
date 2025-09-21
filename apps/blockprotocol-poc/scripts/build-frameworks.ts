@@ -177,12 +177,15 @@ async function buildFrameworkBundle(framework: string, sourcePath: string, outpu
     throw new Error(`No output files generated for ${framework}`)
   }
 
-  const entryPoint = assets.find(file => file.includes('.es.')) || assets[0]
+  // For assets in subdirectories, include the subdirectory path
+  const assetPrefix = framework === 'solidjs' && blockName ? `${blockName}/` : ''
+  const prefixedAssets = assets.map(asset => `${assetPrefix}${asset}`)
+  const entryPoint = prefixedAssets.find(file => file.includes('.es.')) || prefixedAssets[0]
 
   return {
     id: `${framework}-${path.basename(sourcePath, path.extname(sourcePath))}`,
     hash,
-    assets,
+    assets: prefixedAssets,
     entryPoint,
     metadata: {
       framework,
