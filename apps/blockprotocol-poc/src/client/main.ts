@@ -953,6 +953,19 @@ function bootstrap() {
   if (useIndexingService) {
     params.set('useIndexingService', 'true')
   }
+
+  // For custom scenario, include block parameter from URL
+  if (scenarioId === 'custom') {
+    const urlParams = new URLSearchParams(location.search)
+    const blockParam = urlParams.get('block')
+    if (blockParam) {
+      params.set('block', blockParam)
+    }
+    const entityIdParam = urlParams.get('entityId')
+    if (entityIdParam) {
+      params.set('entityId', entityIdParam)
+    }
+  }
   const wsUrl = `${protocol}//${location.host}/ws?${params.toString()}`
   console.log('[Client] Connecting to WebSocket:', wsUrl)
   const socket = new WebSocket(wsUrl)

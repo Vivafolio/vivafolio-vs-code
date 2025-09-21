@@ -78,6 +78,12 @@ test-blockprotocol-poc:
 	  PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH:-$(command -v chromium)}" \
 	  npm test | cat
 
+test-blockprotocol-local:
+	cd apps/blockprotocol-poc && \
+	  rm -rf test-blocks && \
+	  PORT=4174 PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH:-$(command -v chromium)}" \
+	  TEST_LOCAL_BLOCKS=1 npm test -- --grep="local block development workflow" | cat
+
 # Run core Block Protocol integration tests (hello-block scenarios)
 test-blockprotocol-core:
 	cd apps/blockprotocol-poc && \

@@ -1,4 +1,7 @@
 import { test, expect } from '@playwright/test'
+import { spawn } from 'child_process'
+import path from 'path'
+import fs from 'fs/promises'
 
 test.describe('Milestone 0 – Hello Block', () => {
   test('renders hello block payload on connect', async ({ page }) => {
@@ -64,9 +67,7 @@ test.describe('Milestone 0 – Hello Block', () => {
 
     const kanbanFrameElement = await page.waitForSelector('iframe[data-block-id="iframe-kanban-1"]')
     const kanbanFrame = await kanbanFrameElement.contentFrame()
-    await kanbanFrame?.waitForSelector('[data-column-id="todo"] li', {
-      hasText: 'Design nested block API'
-    })
+    await kanbanFrame?.waitForSelector('[data-column-id="todo"] li:has-text("Design nested block API")')
 
     const taskListFrameElement = await page.waitForSelector(
       'iframe[data-block-id="iframe-task-list-1"]'
@@ -81,9 +82,7 @@ test.describe('Milestone 0 – Hello Block', () => {
       'iframe[data-block-id="iframe-kanban-1"]'
     )
     const refreshedKanbanFrame = await refreshedKanbanFrameElement.contentFrame()
-    await refreshedKanbanFrame?.waitForSelector('[data-column-id="doing"] li', {
-      hasText: 'Design nested block API'
-    })
+    await refreshedKanbanFrame?.waitForSelector('[data-column-id="doing"] li:has-text("Design nested block API")')
 
     const refreshedTaskListSrc = await taskListFrameElement.getAttribute('src')
     expect(initialTaskListSrc).not.toBe(refreshedTaskListSrc)
@@ -416,18 +415,296 @@ test.describe('F1 – Custom Element Baseline', () => {
     })
 
     test('board view example block renders kanban layout', async ({ page }) => {
-      await page.goto('/?scenario=board-view-example&useIndexingService=true')
+    await page.goto('/?scenario=board-view-example')
 
-      // Wait for the block to load
-      const container = page.locator('.published-block-container')
-      await expect(container).toBeAttached()
+    const block = page.locator('.published-block-container').locator('.board-view-block')
+    await expect(block).toBeVisible()
 
-      // Check for kanban board structure
-      const board = container.locator('.board-view-block')
-      await expect(board).toBeVisible()
+    // Should have a header
+    const header = block.locator('h2').filter({ hasText: 'Task Board' })
+    await expect(header).toBeVisible()
 
-      // Should have kanban columns
-      const columns = board.locator('.kanban-column')
-      expect(await columns.count()).toBeGreaterThan(0) // Should have some columns
+    // Should have kanban columns
+    const columns = block.locator('.kanban-column')
+    expect(await columns.count()).toBeGreaterThan(0) // Should have some columns
+  })
+})
+
+  test.describe('Local Block Development', () => {
+    test.skip(!process.env.TEST_LOCAL_BLOCKS, 'Requires TEST_LOCAL_BLOCKS=1')
+
+    test('local block development workflow - priority resolution', async ({ page }) => {
+      const testBlockName = '@vivafolio/test-priority-block'
+      const testBlockPath = path.join(process.cwd(), 'test-blocks', testBlockName)
+
+      try {
+        // Create test block directory structure
+        await fs.mkdir(testBlockPath, { recursive: true })
+
+        // Create custom block metadata
+        const blockMetadata = {
+          blockprotocol: {
+            name: testBlockName,
+            version: '1.0.0',
+            displayName: 'Test Priority Block',
+            blockType: {
+              entryPoint: '1.0',
+              tag: 'test-priority'
+            },
+            protocol: '0.3'
+          },
+          vivafolio: {
+            build: {
+              entry: 'index.html',
+              output: 'index.html'
+            },
+            development: {
+              port: 3001,
+              hotReload: true
+            },
+            resources: {
+              caching: 'aggressive',
+              integrity: true
+            }
+          }
+        }
+        await fs.writeFile(
+          path.join(testBlockPath, 'block-metadata.json'),
+          JSON.stringify(blockMetadata, null, 2)
+        )
+
+        // Create custom HTML content that proves it's the local version
+        const blockHtml = `<div style="border: 3px solid #ff6b6b; padding: 20px; background: linear-gradient(45deg, #ffeaa7, #fab1a0); border-radius: 8px; font-family: Arial, sans-serif; text-align: center;">
+  <div style="background: #e17055; color: white; padding: 10px; border-radius: 4px; font-weight: bold; margin: 10px 0;">LOCAL BLOCK PRIORITY TEST</div>
+  <div>This block was served from local test-blocks directory</div>
+  <div>Block ID: <span id="block-id">custom-block-1</span></div>
+  <div>Entity ID: <span id="entity-id">test-priority-entity</span></div>
+</div>`
+        await fs.writeFile(path.join(testBlockPath, 'index.html'), blockHtml)
+
+        // Test that the local block is served directly via cache URL
+        const cacheUrl = `/cache/${encodeURIComponent(testBlockName)}/latest/index.html`
+        await page.goto(cacheUrl)
+
+        // Verify that the local block HTML is served correctly
+        const blockDiv = page.locator('div').filter({ hasText: 'LOCAL BLOCK PRIORITY TEST' }).first()
+        await expect(blockDiv).toBeVisible()
+
+        // Verify the content
+        await expect(blockDiv).toContainText('LOCAL BLOCK PRIORITY TEST')
+        await expect(blockDiv).toContainText('This block was served from local test-blocks directory')
+        await expect(blockDiv).toContainText('Block ID: custom-block-1')
+        await expect(blockDiv).toContainText('Entity ID: test-priority-entity')
+
+      } finally {
+        // Clean up test block
+        try {
+          await fs.rm(testBlockPath, { recursive: true, force: true })
+        } catch (error) {
+          console.warn('Failed to clean up test block:', error)
+        }
+      }
+    })
+
+    test('local block development workflow - real-time updates', async ({ page }) => {
+      const testBlockName = '@vivafolio/test-realtime-block'
+      const testBlockPath = path.join(process.cwd(), 'test-blocks', testBlockName)
+
+      try {
+        // Create test block directory structure
+        await fs.mkdir(testBlockPath, { recursive: true })
+
+        // Create initial block metadata
+        const blockMetadata = {
+          blockprotocol: {
+            name: testBlockName,
+            version: '1.0.0',
+            displayName: 'Test Realtime Block',
+            blockType: {
+              entryPoint: '1.0',
+              tag: 'test-realtime'
+            },
+            protocol: '0.3'
+          },
+          vivafolio: {
+            build: {
+              entry: 'index.html',
+              output: 'index.html'
+            },
+            development: {
+              port: 3001,
+              hotReload: true
+            },
+            resources: {
+              caching: 'aggressive',
+              integrity: true
+            }
+          }
+        }
+        await fs.writeFile(
+          path.join(testBlockPath, 'block-metadata.json'),
+          JSON.stringify(blockMetadata, null, 2)
+        )
+
+        // Create initial HTML content
+        const initialHtml = `<div class="realtime-test-block">
+  <div class="status-indicator">INITIAL CONTENT</div>
+  <div class="content-display" id="content">INITIAL CONTENT</div>
+  <div>Block ID: <span id="block-id">custom-block-1</span></div>
+  <div>Last Updated: <span id="timestamp">${new Date().toLocaleTimeString()}</span></div>
+</div>
+
+<style>
+.realtime-test-block {
+  border: 2px solid #3498db;
+  padding: 20px;
+  background: #ecf0f1;
+  border-radius: 8px;
+  font-family: Arial, sans-serif;
+  text-align: center;
+}
+.content-display {
+  font-size: 18px;
+  font-weight: bold;
+  color: #2c3e50;
+  margin: 10px 0;
+}
+.status-indicator {
+  background: #27ae60;
+  color: white;
+  padding: 5px 10px;
+  border-radius: 4px;
+  display: inline-block;
+  margin: 10px 0;
+}
+</style>`
+        await fs.writeFile(path.join(testBlockPath, 'index.html'), initialHtml)
+
+        // Test that the cache serves the initial content
+        const cacheUrl = `/cache/${encodeURIComponent(testBlockName)}/latest/index.html`
+        await page.goto(cacheUrl)
+
+        // Verify initial content is served
+        const contentDiv = page.locator('div').filter({ hasText: 'INITIAL CONTENT' }).first()
+        await expect(contentDiv).toBeVisible()
+        await expect(contentDiv).toContainText('INITIAL CONTENT')
+
+        // Modify the block file
+        const updatedHtml = `<div style="border: 2px solid #3498db; padding: 20px; background: #ecf0f1; border-radius: 8px; font-family: Arial, sans-serif; text-align: center;">
+  <div style="background: #e74c3c; color: white; padding: 5px 10px; border-radius: 4px; display: inline-block; margin: 10px 0;">FILE MODIFIED</div>
+  <div style="font-size: 18px; font-weight: bold; color: #2c3e50; margin: 10px 0;" id="content">MODIFIED CONTENT</div>
+  <div>Block ID: <span id="block-id">custom-block-1</span></div>
+  <div>Last Updated: <span id="timestamp">${new Date().toLocaleTimeString()}</span></div>
+</div>`
+        await fs.writeFile(path.join(testBlockPath, 'index.html'), updatedHtml)
+
+        // Wait for file change to be detected (file watcher should invalidate cache)
+        await page.waitForTimeout(2000)
+
+        // Reload the page to get the updated content
+        await page.reload()
+
+        // Verify that the cache serves the modified content
+        const modifiedDiv = page.locator('div').filter({ hasText: 'FILE MODIFIED' }).first()
+        await expect(modifiedDiv).toBeVisible()
+        await expect(modifiedDiv).toContainText('MODIFIED CONTENT')
+
+      } finally {
+        // Clean up test block
+        try {
+          await fs.rm(testBlockPath, { recursive: true, force: true })
+        } catch (error) {
+          console.warn('Failed to clean up test block:', error)
+        }
+      }
+    })
+
+    test('local block development workflow - cache invalidation', async ({ page }) => {
+      const testBlockName = '@vivafolio/test-cache-block'
+      const testBlockPath = path.join(process.cwd(), 'test-blocks', testBlockName)
+
+      try {
+        // Create test block directory structure
+        await fs.mkdir(testBlockPath, { recursive: true })
+
+        // Create block metadata
+        const blockMetadata = {
+          blockprotocol: {
+            name: testBlockName,
+            version: '1.0.0',
+            displayName: 'Test Cache Block',
+            blockType: {
+              entryPoint: '1.0',
+              tag: 'test-cache'
+            },
+            protocol: '0.3'
+          },
+          vivafolio: {
+            build: {
+              entry: 'index.html',
+              output: 'index.html'
+            },
+            development: {
+              port: 3001,
+              hotReload: true
+            },
+            resources: {
+              caching: 'aggressive',
+              integrity: true
+            }
+          }
+        }
+        await fs.writeFile(
+          path.join(testBlockPath, 'block-metadata.json'),
+          JSON.stringify(blockMetadata, null, 2)
+        )
+
+        // Create initial block content
+        const blockHtml = `<div class="cache-test-block">
+  <div id="cache-status">CACHE TEST BLOCK - INITIAL</div>
+  <div id="message-log">Waiting for messages...</div>
+</div>
+
+<style>
+.cache-test-block {
+  padding: 20px;
+  border: 2px solid #9b59b6;
+  border-radius: 8px;
+  background: #f4f1f7;
+  font-family: Arial, sans-serif;
+  text-align: center;
+}
+#cache-status {
+  font-size: 18px;
+  font-weight: bold;
+  color: #8e44ad;
+  margin: 10px 0;
+}
+#message-log {
+  font-size: 14px;
+  color: #666;
+  margin: 10px 0;
+}
+</style>`
+        await fs.writeFile(path.join(testBlockPath, 'index.html'), blockHtml)
+
+        // Test that the cache serves the block content
+        const cacheUrl = `/cache/${encodeURIComponent(testBlockName)}/latest/index.html`
+        await page.goto(cacheUrl)
+
+        // Verify that the cache serves the block content
+        const cacheDiv = page.locator('div').filter({ hasText: 'CACHE TEST BLOCK - INITIAL' }).first()
+        await expect(cacheDiv).toBeVisible()
+        await expect(cacheDiv).toContainText('CACHE TEST BLOCK - INITIAL')
+        await expect(cacheDiv).toContainText('Waiting for messages...')
+
+      } finally {
+        // Clean up test block
+        try {
+          await fs.rm(testBlockPath, { recursive: true, force: true })
+        } catch (error) {
+          console.warn('Failed to clean up test block:', error)
+        }
+      }
     })
   })

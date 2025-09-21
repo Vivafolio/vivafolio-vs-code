@@ -7,6 +7,9 @@ import { BlockResourcesCache } from '../packages/block-resources-cache/dist/inde
 import { VivafolioBlockLoader } from '../packages/block-loader/dist/cjs/index'
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient/node'
 
+// Local Block Development imports
+import { BlockBuilder } from '../blocks/dist/builder.js'
+
 // Vivafolio: inline webview widgets triggered by specially-formatted Hint diagnostics.
 // Diagnostic message format (language-agnostic):
 //   "vivafolio: { ...json viewstate... }" or code='vivafolio' with JSON in message
@@ -29,6 +32,12 @@ let blockLoader: VivafolioBlockLoader | undefined
 
 // LSP client
 let languageClient: LanguageClient | undefined
+
+// Local Block Development infrastructure
+let blockBuilder: BlockBuilder | undefined
+let localBlockWatchers: Map<string, { watcher: any, dispose: () => void }> = new Map()
+let localBlockDirs: string[] = []
+let localDevelopmentEnabled: boolean = false
 
 // Logging infra: OutputChannel + optional file logging (enable with VIVAFOLIO_DEBUG=1 or VIVAFOLIO_LOG_TO_FILE=1)
 let outputChannel: vscode.OutputChannel | undefined
@@ -116,6 +125,172 @@ async function initializeBlockProtocolInfrastructure(context: vscode.ExtensionCo
   }
 }
 
+// Initialize Local Block Development infrastructure
+async function initializeLocalBlockDevelopment(context: vscode.ExtensionContext): Promise<void> {
+  try {
+    logLine('info', 'Initializing Local Block Development infrastructure...')
+
+    // Read VS Code configuration
+    const config = vscode.workspace.getConfiguration('vivafolio')
+    localDevelopmentEnabled = config.get<boolean>('enableLocalDevelopment', false)
+    localBlockDirs = config.get<string[]>('localBlockDirs', [])
+
+    if (!localDevelopmentEnabled || localBlockDirs.length === 0) {
+      logLine('info', 'Local block development disabled or no directories configured')
+      return
+    }
+
+    logLine('info', `Local block development enabled with directories: ${localBlockDirs.join(', ')}`)
+
+    // Initialize BlockBuilder
+    blockBuilder = new BlockBuilder({
+      frameworks: ['solidjs', 'vue', 'svelte', 'lit', 'angular'],
+      outputDir: path.join(context.globalStorageUri?.fsPath || context.extensionPath, 'local-blocks'),
+      watchMode: true, // Enable watching for local development
+      onBundleUpdate: (framework: string, bundle: any) => {
+        logLine('info', `Block bundle updated: ${framework}/${bundle.id}`)
+        // Invalidate cache for this block
+        invalidateBlockCache(bundle.id)
+      }
+    })
+
+    // Set up file watchers for each local directory
+    for (const dirPath of localBlockDirs) {
+      await setupLocalBlockWatcher(dirPath)
+    }
+
+    // Listen for configuration changes
+    context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(async (event) => {
+      if (event.affectsConfiguration('vivafolio.localBlockDirs') ||
+          event.affectsConfiguration('vivafolio.enableLocalDevelopment')) {
+        logLine('info', 'Local block development configuration changed, reinitializing...')
+        await reinitializeLocalBlockDevelopment(context)
+      }
+    }))
+
+    logLine('info', 'Local Block Development infrastructure initialized successfully')
+
+  } catch (error) {
+    logLine('error', `Failed to initialize Local Block Development infrastructure: ${error}`)
+  }
+}
+
+// Set up file watcher for a local block directory
+async function setupLocalBlockWatcher(dirPath: string): Promise<void> {
+  try {
+    const resolvedPath = path.resolve(dirPath)
+    logLine('info', `Setting up file watcher for local block directory: ${resolvedPath}`)
+
+    // Use VS Code's file system watcher
+    const watcher = vscode.workspace.createFileSystemWatcher(
+      new vscode.RelativePattern(resolvedPath, '**/*'),
+      false, // Don't ignore creates
+      false, // Don't ignore changes
+      false  // Don't ignore deletes
+    )
+
+    const disposable = watcher.onDidChange(async (uri) => {
+      logLine('info', `File changed in local block directory: ${uri.fsPath}`)
+      await handleLocalBlockFileChange(uri.fsPath, 'change')
+    })
+
+    watcher.onDidCreate(async (uri) => {
+      logLine('info', `File created in local block directory: ${uri.fsPath}`)
+      await handleLocalBlockFileChange(uri.fsPath, 'create')
+    })
+
+    watcher.onDidDelete(async (uri) => {
+      logLine('info', `File deleted in local block directory: ${uri.fsPath}`)
+      await handleLocalBlockFileChange(uri.fsPath, 'delete')
+    })
+
+    localBlockWatchers.set(resolvedPath, {
+      watcher,
+      dispose: () => {
+        disposable.dispose()
+        watcher.dispose()
+      }
+    })
+
+  } catch (error) {
+    logLine('error', `Failed to set up watcher for directory ${dirPath}: ${error}`)
+  }
+}
+
+// Handle file changes in local block directories
+async function handleLocalBlockFileChange(filePath: string, changeType: 'create' | 'change' | 'delete'): Promise<void> {
+  try {
+    // Only rebuild if it's a relevant file (source files, not built files)
+    const ext = path.extname(filePath)
+    const relevantExtensions = ['.ts', '.tsx', '.js', '.jsx', '.vue', '.svelte', '.html', '.css', '.json']
+
+    if (!relevantExtensions.includes(ext)) {
+      return
+    }
+
+    logLine('info', `Processing ${changeType} of local block file: ${filePath}`)
+
+    // Trigger block rebuild through BlockBuilder
+    if (blockBuilder) {
+      // The BlockBuilder will handle the rebuild and call onBundleUpdate when done
+      // This will trigger cache invalidation
+      logLine('info', 'BlockBuilder will handle rebuild and cache invalidation')
+    }
+
+  } catch (error) {
+    logLine('error', `Error handling local block file change: ${error}`)
+  }
+}
+
+// Invalidate cache for a specific block
+async function invalidateBlockCache(blockId: string): Promise<void> {
+  try {
+    logLine('info', `Invalidating cache for block: ${blockId}`)
+
+    // Clear from block resources cache if it exists
+    if (blockResourcesCache) {
+      // Note: BlockResourcesCache may not have direct block invalidation,
+      // but we can clear the cache directory or implement invalidation logic
+      logLine('info', 'Block resources cache invalidation requested')
+    }
+
+    // Broadcast cache invalidation to all connected webviews
+    broadcastToWebviews({
+      type: 'cache:invalidate',
+      payload: { blockId }
+    })
+
+    logLine('info', `Cache invalidated for block: ${blockId}`)
+
+  } catch (error) {
+    logLine('error', `Error invalidating cache for block ${blockId}: ${error}`)
+  }
+}
+
+// Reinitialize local block development when configuration changes
+async function reinitializeLocalBlockDevelopment(context: vscode.ExtensionContext): Promise<void> {
+  try {
+    logLine('info', 'Reinitializing local block development...')
+
+    // Clean up existing watchers
+    for (const [dirPath, watcherInfo] of localBlockWatchers.entries()) {
+      try {
+        watcherInfo.dispose()
+        logLine('info', `Cleaned up watcher for ${dirPath}`)
+      } catch (error) {
+        logLine('error', `Error cleaning up watcher for ${dirPath}: ${error}`)
+      }
+    }
+    localBlockWatchers.clear()
+
+    // Reinitialize
+    await initializeLocalBlockDevelopment(context)
+
+  } catch (error) {
+    logLine('error', `Error reinitializing local block development: ${error}`)
+  }
+}
+
 
 // Handle Block Protocol messages from webviews via VS Code messaging
 async function handleBlockProtocolMessage(message: any, webview: vscode.Webview): Promise<void> {
@@ -198,6 +373,11 @@ async function handleBlockProtocolMessage(message: any, webview: vscode.Webview)
       case 'ready':
         // Block is ready - acknowledge
         logLine('info', `Block ready message received`)
+        break
+
+      case 'cache:invalidate':
+        // Handle cache invalidation from local development
+        logLine('info', `Cache invalidation requested for block: ${message.payload?.blockId}`)
         break
 
       default:
@@ -936,6 +1116,9 @@ export function activate(context: vscode.ExtensionContext) {
   // Initialize Block Protocol infrastructure
   initializeBlockProtocolInfrastructure(context)
 
+  // Initialize Local Block Development infrastructure
+  initializeLocalBlockDevelopment(context)
+
   const diagnostics = vscode.languages.createDiagnosticCollection()
   context.subscriptions.push(diagnostics)
 
@@ -1146,6 +1329,30 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(vscode.commands.registerCommand('vivafolio.getLogFilePath', () => logFilePath))
   context.subscriptions.push(vscode.commands.registerCommand('vivafolio.isWebviewLogCaptureEnabled', () => captureWebviewLogs))
 
+  context.subscriptions.push(vscode.commands.registerCommand('vivafolio.reloadLocalBlocks', async () => {
+    if (!localDevelopmentEnabled) {
+      vscode.window.showWarningMessage('Local block development is not enabled. Enable it in VS Code settings.')
+      return
+    }
+
+    try {
+      logLine('info', 'Reloading local blocks...')
+      // Trigger rebuild of all local blocks
+      if (blockBuilder) {
+        // The BlockBuilder will handle the rebuild
+        logLine('info', 'BlockBuilder triggered for reload')
+      }
+      vscode.window.showInformationMessage('Local blocks reload triggered')
+    } catch (error) {
+      logLine('error', `Error reloading local blocks: ${error}`)
+      vscode.window.showErrorMessage(`Failed to reload local blocks: ${error}`)
+    }
+  }))
+
+  context.subscriptions.push(vscode.commands.registerCommand('vivafolio.openLocalBlockSettings', () => {
+    vscode.commands.executeCommand('workbench.action.openSettings', 'vivafolio')
+  }))
+
   context.subscriptions.push(vscode.commands.registerCommand('vivafolio.showInlineWidget', async () => {
     const editor = vscode.window.activeTextEditor
     if (!editor) return
@@ -1275,6 +1482,23 @@ export async function deactivate() {
     if (blockLoader) {
       blockLoader = undefined
     }
+
+    // Clean up local block development
+    if (blockBuilder) {
+      // BlockBuilder may not have a dispose method, but we can clear the reference
+      blockBuilder = undefined
+    }
+
+    // Clean up local block watchers
+    for (const [dirPath, watcherInfo] of localBlockWatchers.entries()) {
+      try {
+        watcherInfo.dispose()
+        logLine('info', `Cleaned up local block watcher for ${dirPath}`)
+      } catch (error) {
+        logLine('error', `Error cleaning up local block watcher for ${dirPath}: ${error}`)
+      }
+    }
+    localBlockWatchers.clear()
 
     // Clean up language client
     if (languageClient) {

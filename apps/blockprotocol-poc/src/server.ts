@@ -25,12 +25,13 @@ import { createServer as createHttpServer } from 'http'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { IndexingService } from '../../../packages/indexing-service/dist/IndexingService.js'
 import { IndexingServiceTransportLayer, WebSocketTransport } from './TransportLayer.js'
+import { BlockBuilder } from '../../../blocks/dist/builder.js'
 import { SidecarLspClient, MockLspServerImpl } from './SidecarLspClient.js'
 import { BlockResourcesCache } from '../../../packages/block-resources-cache/dist/index.js'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs/promises'
-import { readFileSync, existsSync, watch, statSync } from 'fs'
+import { readFileSync, existsSync, watch, statSync, mkdirSync } from 'fs'
 import crypto from 'crypto'
 
 import type { ViteDevServer } from 'vite'
@@ -89,7 +90,7 @@ interface ScenarioDefinition {
   title: string
   description: string
   createState(): ScenarioState
-  buildNotifications(state: ScenarioState): VivafolioBlockNotificationPayload[]
+  buildNotifications(state: ScenarioState, request?: any): VivafolioBlockNotificationPayload[]
   applyUpdate?(context: UpdateContext): void
 }
 
@@ -745,7 +746,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
     title: 'Milestone 0 – Hello World',
     description: 'Single hello-world block verifying baseline Block Protocol wiring.',
     createState: () => ({ graph: createHelloWorldGraph() }),
-    buildNotifications: (state) => [
+    buildNotifications: (state, request) => [
       {
         blockId: 'hello-block-1',
         blockType: 'https://blockprotocol.org/@local/blocks/hello-world/v1',
@@ -757,13 +758,83 @@ const scenarios: Record<string, ScenarioDefinition> = {
       }
     ]
   },
+  'indexing-service': {
+    id: 'indexing-service',
+    title: 'Indexing Service Demo',
+    description: 'Real-time file indexing with Block Protocol - shows entities from IndexingService.',
+    createState: () => ({
+      graph: {
+        entities: [], // Will be populated from IndexingService in connection handler
+        links: []
+      }
+    }),
+    buildNotifications: (state) => {
+      // This will be handled specially in the WebSocket connection handler
+      return []
+    }
+  },
+  'custom': {
+    id: 'custom',
+    title: 'Custom Block Test',
+    description: 'Dynamic block loading for testing local development.',
+    createState: () => ({
+      graph: {
+        entities: [{
+          entityId: 'custom-entity',
+          entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
+          properties: { name: 'Custom Test Entity' }
+        }],
+        links: []
+      }
+    }),
+    buildNotifications: (state, request) => {
+      // Extract block parameter from custom params (passed from WebSocket)
+      const blockParam = (request as any)?.block || 'test-hello-block'
+      const entityIdParam = (request as any)?.entityId
+      console.log('[custom-scenario] blockParam:', blockParam, 'entityIdParam:', entityIdParam)
+
+      // Check if this is a local block (starts with @)
+      const isLocalBlock = blockParam.startsWith('@')
+      const blockType = isLocalBlock
+        ? `https://blockprotocol.org/@local/blocks/${blockParam.replace('@', '')}/v1`
+        : `https://vivafolio.dev/blocks/${blockParam}/v1`
+      console.log('[custom-scenario] isLocalBlock:', isLocalBlock, 'blockType:', blockType)
+
+      // For local blocks, provide resources that point to cache URLs
+      const resources = isLocalBlock ? [
+        {
+          logicalName: 'block-metadata.json',
+          physicalPath: `/cache/${blockParam}/latest/block-metadata.json`,
+          cachingTag: 'v1'
+        },
+        {
+          logicalName: 'app.html',
+          physicalPath: `/cache/${blockParam}/latest/index.html`,
+          cachingTag: 'v1'
+        }
+      ] : undefined
+
+      return [
+        {
+          blockId: `custom-block-1`,
+          blockType,
+          entityId: entityIdParam || state.graph.entities[0]?.entityId || 'custom-entity',
+          displayMode: 'multi-line',
+          entityGraph: state.graph,
+          supportsHotReload: true,
+          initialHeight: 400,
+          resources
+        }
+      ]
+    }
+  },
   'nested-kanban': {
     id: 'nested-kanban',
     title: 'Milestone 1 – Nested Kanban',
     description:
       'Nested Kanban board rendering task and user profile blocks to exercise composition.',
     createState: () => ({ graph: createKanbanGraph() }),
-    buildNotifications: (state) => [
+    buildNotifications: (state, request) => [
       {
         blockId: 'kanban-board-1',
         blockType: 'https://vivafolio.dev/blocks/kanban-board/v1',
@@ -801,7 +872,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
     description:
       'Kanban and task list views editing the same tasks; updates propagate via graph/update.',
     createState: () => ({ graph: createKanbanGraph() }),
-    buildNotifications: (state) => [
+    buildNotifications: (state, request) => [
       {
         blockId: 'kanban-board-1',
         blockType: 'https://vivafolio.dev/blocks/kanban-board/v1',
@@ -857,7 +928,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
     description:
       'Blocks served via resources loaded in sandboxed iframes to mirror VS Code webviews.',
     createState: () => ({ graph: createKanbanGraph() }),
-    buildNotifications: (state) => [
+    buildNotifications: (state, request) => [
       {
         blockId: 'iframe-kanban-1',
         blockType: 'https://vivafolio.dev/blocks/iframe-kanban/v1',
@@ -916,7 +987,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
     description:
       'Demonstrates the Block Protocol graph module with @blockprotocol/graph@0.3.4 and stdlib integration.',
     createState: () => ({ graph: createFeatureShowcaseGraph() }),
-    buildNotifications: (state) => [
+    buildNotifications: (state, request) => [
       {
         blockId: 'feature-showcase-block',
         blockType: 'https://blockprotocol.org/@blockprotocol/blocks/feature-showcase/v1',
@@ -956,7 +1027,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
     description:
       'Executes the HTML-based block template to validate iframe-style loading and CommonJS diagnostics.',
     createState: () => ({ graph: createHtmlTemplateGraph() }),
-    buildNotifications: (state) => [
+    buildNotifications: (state, request) => [
       {
         blockId: 'html-template-block-1',
         blockType: 'https://blockprotocol.org/@blockprotocol/blocks/html-template/v0',
@@ -1001,7 +1072,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
     description:
       'Exercises CommonJS require support for local chunks and styles served through the host dev server.',
     createState: () => ({ graph: createResourceLoaderGraph() }),
-    buildNotifications: (state) => [
+    buildNotifications: (state, request) => [
       {
         blockId: 'resource-loader-block-1',
         blockType: 'https://vivafolio.dev/blocks/resource-loader/v1',
@@ -1041,7 +1112,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
     title: 'F1 – Custom Element Baseline',
     description: 'Minimal WebComponent block demonstrating Graph service integration and entity updates.',
     createState: () => ({ graph: createCustomElementGraph() }),
-    buildNotifications: (state) => [
+    buildNotifications: (state, request) => [
       {
         blockId: 'custom-element-block-1',
         blockType: 'https://vivafolio.dev/blocks/custom-element/v1',
@@ -1077,7 +1148,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
     title: 'F2 – SolidJS Task Baseline',
     description: 'Task management block demonstrating SolidJS helper library integration with Block Protocol.',
     createState: () => ({ graph: createCustomElementGraph() }),
-    buildNotifications: (state) => [
+    buildNotifications: (state, request) => [
       {
         blockId: 'solidjs-task-block-1',
         blockType: 'https://vivafolio.dev/blocks/solidjs-task/v1',
@@ -1121,7 +1192,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
         links: []
       }
     }),
-    buildNotifications: (state) => [
+    buildNotifications: (state, request) => [
       {
         blockId: 'status-pill-example-1',
         blockType: 'https://vivafolio.dev/blocks/status-pill/v1',
@@ -1163,7 +1234,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
         links: []
       }
     }),
-    buildNotifications: (state) => [
+    buildNotifications: (state, request) => [
       {
         blockId: 'person-chip-example-1',
         blockType: 'https://vivafolio.dev/blocks/person-chip/v1',
@@ -1241,7 +1312,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
         links: []
       }
     }),
-    buildNotifications: (state) => [
+    buildNotifications: (state, request) => [
       {
         blockId: 'table-view-example-1',
         blockType: 'https://vivafolio.dev/blocks/table-view/v1',
@@ -1282,7 +1353,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
         links: []
       }
     }),
-    buildNotifications: (state) => [
+    buildNotifications: (state, request) => [
       {
         blockId: 'board-view-example-1',
         blockType: 'https://vivafolio.dev/blocks/board-view/v1',
@@ -1586,13 +1657,14 @@ function createCustomElementGraph(): EntityGraph {
 function dispatchScenarioNotifications(
   socket: WebSocket,
   scenario: ScenarioDefinition,
-  state: ScenarioState
+  state: ScenarioState,
+  request?: any
 ) {
   // Sends VivafolioBlock notifications for a scenario to a connected WebSocket client
   // Converts scenario definition into Block Protocol notification payloads
   // Each notification tells the client to render a specific block with entity data
   console.log('[Server] dispatchScenarioNotifications called for scenario:', scenario.id)
-  const notifications = scenario.buildNotifications(state)
+  const notifications = scenario.buildNotifications(state, request)
   console.log('[Server] Built', notifications.length, 'notifications')
   for (const payload of notifications) {
     console.log('[Server] Sending notification:', JSON.stringify({
@@ -1665,8 +1737,13 @@ export async function startServer(options: StartServerOptions = {}) {
     }))
   }
 
-  // Framework watchers and bundles
-  let frameworkWatchers: FrameworkWatcher[] = []
+// Framework watchers and bundles
+let frameworkWatchers: FrameworkWatcher[] = []
+
+// Local Block Development
+let localBlockDirs: string[] = []
+let localBlockWatchers: Map<string, { watcher: any, dispose: () => void }> = new Map()
+let localBlockBuilder: BlockBuilder | undefined
 
   // Initialize indexing service
   const indexingService = new IndexingService({
@@ -1713,9 +1790,148 @@ export async function startServer(options: StartServerOptions = {}) {
     cacheDir: path.join(process.cwd(), '.block-cache'),
   })
 
+  // Initialize block builder for framework compilation
+  const blockBuilder = new BlockBuilder({
+    frameworks: ['solidjs', 'vue', 'svelte', 'lit', 'angular'],
+    outputDir: path.join(process.cwd(), 'dist', 'blocks'),
+    watchMode: false, // We'll handle hot reload through the existing framework watchers
+    onBundleUpdate: (framework, bundle) => {
+      console.log(`[block-builder] Bundle updated: ${framework}/${bundle.id}`)
+    }
+  })
+
+  // Initialize local block development if directories are specified
+  const localDirsParam = process.env.LOCAL_BLOCK_DIRS || process.argv.find(arg => arg.startsWith('--local-block-dirs='))?.split('=')[1]
+  if (localDirsParam) {
+    localBlockDirs = localDirsParam.split(',').map(dir => dir.trim())
+    console.log('[blockprotocol-poc] Local block directories:', localBlockDirs)
+
+    // Initialize local block builder
+    localBlockBuilder = new BlockBuilder({
+      frameworks: ['solidjs', 'vue', 'svelte', 'lit', 'angular'],
+      outputDir: path.join(process.cwd(), 'dist', 'local-blocks'),
+      watchMode: true,
+      onBundleUpdate: (framework, bundle) => {
+        console.log(`[local-block-builder] Bundle updated: ${framework}/${bundle.id}`)
+        // Broadcast cache invalidation to connected clients
+        broadcastLocalBlockUpdate(bundle.id)
+      }
+    })
+
+    // Set up watchers for local directories
+    for (const dir of localBlockDirs) {
+      setupLocalBlockWatcher(dir)
+    }
+  }
+
   console.log('[blockprotocol-poc] html template dir', HTML_TEMPLATE_BLOCK_DIR)
 
   await ensureHtmlTemplateAssets()
+
+// Set up file watcher for a local block directory
+function setupLocalBlockWatcher(dirPath: string): void {
+  try {
+    const resolvedPath = path.resolve(dirPath)
+    console.log(`[local-block-watcher] Setting up watcher for: ${resolvedPath}`)
+
+    // Ensure the directory exists
+    if (!existsSync(resolvedPath)) {
+      mkdirSync(resolvedPath, { recursive: true })
+      console.log(`[local-block-watcher] Created directory: ${resolvedPath}`)
+    }
+
+    // Use Node.js fs.watch for file monitoring
+    const watcher = watch(resolvedPath, { recursive: true }, (eventType, filename) => {
+      if (filename) {
+        const filePath = path.join(resolvedPath, filename)
+        console.log(`[local-block-watcher] ${eventType} detected: ${filePath}`)
+
+        // Only process relevant source files
+        const ext = path.extname(filePath)
+        const relevantExtensions = ['.ts', '.tsx', '.js', '.jsx', '.vue', '.svelte', '.html', '.css', '.json']
+
+        if (relevantExtensions.includes(ext)) {
+          handleLocalBlockFileChange(filePath, eventType as 'change' | 'rename')
+        }
+      }
+    })
+
+    localBlockWatchers.set(resolvedPath, {
+      watcher,
+      dispose: () => {
+        watcher.close()
+        console.log(`[local-block-watcher] Cleaned up watcher for ${resolvedPath}`)
+      }
+    })
+
+  } catch (error) {
+    console.error(`[local-block-watcher] Failed to set up watcher for ${dirPath}:`, error)
+  }
+}
+
+// Handle file changes in local block directories
+function handleLocalBlockFileChange(filePath: string, changeType: 'change' | 'rename'): void {
+  console.log(`[local-block-watcher] Processing ${changeType} for: ${filePath}`)
+
+  // The localBlockBuilder will handle the rebuild automatically due to watchMode: true
+  // The onBundleUpdate callback will broadcast the update
+}
+
+// Broadcast local block updates to connected clients
+function broadcastLocalBlockUpdate(blockId: string): void {
+  console.log(`[local-block-broadcast] Broadcasting update for block: ${blockId}`)
+
+  // Send cache invalidation to all connected WebSocket clients
+  for (const socket of liveSockets) {
+    try {
+      socket.send(JSON.stringify({
+        type: 'cache:invalidate',
+        payload: { blockId }
+      }))
+    } catch (error) {
+      console.error('[local-block-broadcast] Error broadcasting to socket:', error)
+    }
+  }
+}
+
+// Helper function to check if a file exists
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await fs.access(filePath)
+    return true
+  } catch {
+    return false
+  }
+}
+
+// Helper function to get content type from file extension
+function getContentType(filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase()
+  switch (ext) {
+    case '.js':
+    case '.mjs':
+      return 'application/javascript'
+    case '.css':
+      return 'text/css'
+    case '.html':
+      return 'text/html'
+    case '.json':
+      return 'application/json'
+    case '.png':
+      return 'image/png'
+    case '.jpg':
+    case '.jpeg':
+      return 'image/jpeg'
+    case '.svg':
+      return 'image/svg+xml'
+    case '.woff':
+      return 'font/woff'
+    case '.woff2':
+      return 'font/woff2'
+    default:
+      return 'text/plain'
+  }
+}
 
   // Setup framework watchers if enabled
   if (enableFrameworkWatch) {
@@ -1744,12 +1960,41 @@ export async function startServer(options: StartServerOptions = {}) {
     console.error('[sidecar-lsp] Failed to start sidecar LSP client:', error)
   }
 
-  // Block resources cache middleware
+  // Block resources cache middleware with local block priority
   app.use('/cache/:package/:version/*', async (req, res, next) => {
     try {
       const { package: packageName, version } = req.params
       const resourcePath = (req.params as any)[0] // Everything after package/version/
 
+      // First, check if this block exists in local directories
+      if (localBlockDirs.length > 0) {
+        for (const localDir of localBlockDirs) {
+          try {
+            // Try to find the block in local directory
+            const localBlockPath = path.join(localDir, packageName)
+            const localResourcePath = path.join(localBlockPath, resourcePath)
+
+            if (await fileExists(localResourcePath)) {
+              console.log(`[cache-middleware] Serving local block resource: ${localResourcePath}`)
+              const content = await fs.readFile(localResourcePath, 'utf8')
+              const contentType = getContentType(resourcePath)
+
+              res.set({
+                'Content-Type': contentType,
+                'Cache-Control': 'no-cache', // Local files should not be cached
+                'X-Cache-Status': 'LOCAL',
+                'X-Local-Block': 'true'
+              })
+              res.send(content)
+              return
+            }
+          } catch (error) {
+            // Continue to next local directory or remote source
+          }
+        }
+      }
+
+      // Fall back to remote cache
       const cacheResult = await blockResourcesCache.fetchBlock({
         name: packageName,
         version: version === 'latest' ? undefined : version
@@ -1926,41 +2171,56 @@ export async function startServer(options: StartServerOptions = {}) {
   const httpServer = createHttpServer(app)
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' })
 
-  wss.on('connection', (socket, request) => {
+  wss.on('connection', async (socket, request) => {
     liveSockets.add(socket)
 
     const requestUrl = new URL(request.url ?? '/ws', 'http://localhost')
-    const useIndexingService = requestUrl.searchParams.get('useIndexingService') === 'true'
-    const scenarioId = requestUrl.searchParams.get('scenario') ?? (useIndexingService ? 'indexing-service' : 'hello-world')
+    const scenarioId = requestUrl.searchParams.get('scenario') ?? 'hello-world'
 
+    // Extract additional parameters for custom scenario
+    const customParams = scenarioId === 'custom' ? {
+      block: requestUrl.searchParams.get('block'),
+      entityId: requestUrl.searchParams.get('entityId')
+    } : {}
 
-    if (useIndexingService && scenarioId === 'indexing-service') {
-      // Use indexing service with hardcoded notifications
-      const transport = new WebSocketTransport(socket)
-      const transportId = transportLayer.registerTransport(transport)
-      console.log(`[transport] Registered transport ${transportId} for indexing service`)
+    // Always use IndexingService for all scenarios
+    const scenario = scenarios[scenarioId] ?? scenarios['hello-world']
+    const state = scenario.createState()
 
-      // Send initial entity data from indexing service
+    // Special handling for indexing-service scenario
+    let entityGraph = state.graph
+    if (scenarioId === 'indexing-service') {
+      // Get entities from IndexingService for the indexing-service scenario
       const allEntities = indexingService.getAllEntities()
       const entities = allEntities.map((metadata: any) => ({
         entityId: metadata.entityId,
+        entityTypeId: metadata.entityTypeId || 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
         properties: metadata.properties,
         sourceType: metadata.sourceType,
-        sourcePath: metadata.sourcePath,
-        lastModified: metadata.lastModified
+        sourcePath: metadata.sourcePath
       }))
+      entityGraph = { entities, links: [] }
+    }
 
-      socket.send(
-        JSON.stringify({
-          type: 'connection_ack',
-          timestamp: new Date().toISOString(),
-          entityGraph: { entities, links: [] },
-          scenario: { id: 'indexing-service', title: 'Indexing Service Demo', description: 'Real-time file indexing with Block Protocol' },
-          transportId
-        })
-      )
+    // Register transport for Block Protocol operations (for LSP-driven updates)
+    const transport = new WebSocketTransport(socket)
+    const transportId = transportLayer.registerTransport(transport)
+    console.log(`[transport] Registered transport ${transportId} for scenario ${scenario.id}`)
 
-      // Send block notification for table view
+    // Send connection acknowledgment
+    socket.send(
+      JSON.stringify({
+        type: 'connection_ack',
+        timestamp: new Date().toISOString(),
+        entityGraph,
+        scenario: { id: scenario.id, title: scenario.title, description: scenario.description },
+        transportId
+      })
+    )
+
+    // Send block notifications for this scenario
+    if (scenarioId === 'indexing-service') {
+      // Special handling for indexing-service scenario
       socket.send(
         JSON.stringify({
           type: 'vivafolioblock-notification',
@@ -1969,15 +2229,17 @@ export async function startServer(options: StartServerOptions = {}) {
             blockType: 'https://vivafolio.dev/blocks/table-view/v1',
             entityId: 'table-view-entity',
             displayMode: 'multi-line',
-            entityGraph: { entities, links: [] },
+            entityGraph,
             resources: [
               {
                 logicalName: 'block-metadata.json',
-                physicalPath: '/examples/blocks/table-view/block-metadata.json'
+                physicalPath: '/examples/blocks/table-view/block-metadata.json',
+                cachingTag: nextCachingTag()
               },
               {
                 logicalName: 'main.js',
-                physicalPath: '/examples/blocks/table-view/general-block.es.js'
+                physicalPath: '/examples/blocks/table-view/general-block.umd.js',
+                cachingTag: nextCachingTag()
               }
             ],
             supportsHotReload: false,
@@ -1985,58 +2247,36 @@ export async function startServer(options: StartServerOptions = {}) {
           }
         })
       )
-
-      socket.on('close', () => {
-        transportLayer.unregisterTransport(transportId)
-        console.log(`[transport] Unregistered transport ${transportId}`)
-      })
-
     } else {
-      // Original scenario-based behavior
-      const scenario = scenarios[scenarioId] ?? scenarios['hello-world']
-      const state = scenario.createState()
-      socketStates.set(socket, { scenario, state })
-
-      entityGraph.entities = state.graph.entities
-      entityGraph.links = state.graph.links
-
-      socket.send(
-        JSON.stringify({
-          type: 'connection_ack',
-          timestamp: new Date().toISOString(),
-          entityGraph: state.graph,
-          scenario: { id: scenario.id, title: scenario.title, description: scenario.description }
-        })
-      )
-
-      dispatchScenarioNotifications(socket, scenario, state)
+      dispatchScenarioNotifications(socket, scenario, state, customParams)
     }
 
     socket.on('close', () => {
       liveSockets.delete(socket)
       socketStates.delete(socket)
-      // Transport cleanup is handled above in the useIndexingService branch
+      transportLayer.unregisterTransport(transportId)
+      console.log(`[transport] Unregistered transport ${transportId}`)
     })
 
+    // All messages go through the IndexingService transport layer
+    // For scenarios with applyUpdate (for testing), also handle scenario updates
     socket.on('message', (raw) => {
       try {
         const payload = JSON.parse(String(raw))
+        console.log(`[transport] Message received: ${payload.type}`)
 
-        // Check if this connection is using the indexing service
-        const requestUrl = new URL(request.url ?? '/ws', 'http://localhost')
-        const useIndexingService = requestUrl.searchParams.get('useIndexingService') === 'true'
+        // Handle cache invalidation from local block development
+        if (payload?.type === 'cache:invalidate') {
+          console.log(`[cache-invalidate] Received invalidation for block: ${payload.payload?.blockId}`)
+          // The client should handle this by reloading the block
+          return
+        }
 
-        if (useIndexingService) {
-          // Messages handled by transport layer
-          console.log(`[transport] Message received: ${payload.type}`)
-        } else {
-          // Original scenario-based message handling
-          if (payload?.type !== 'graph/update') return
-
-          const connection = socketStates.get(socket)
-          if (!connection || !connection.scenario.applyUpdate) return
-
-          connection.scenario.applyUpdate({
+        // Transport layer handles all Block Protocol operations
+        // For scenarios with applyUpdate, also apply updates for testing
+        if (payload?.type === 'graph/update' && scenario.applyUpdate) {
+          const connection = { scenario, state }
+          scenario.applyUpdate({
             state: connection.state,
             update: payload.payload as GraphUpdate,
             socket,
@@ -2049,11 +2289,9 @@ export async function startServer(options: StartServerOptions = {}) {
               )
             }
           })
-          entityGraph.entities = connection.state.graph.entities
-          entityGraph.links = connection.state.graph.links
-
-          socket.send(JSON.stringify({ type: 'graph/ack', receivedAt: new Date().toISOString() }))
-          dispatchScenarioNotifications(socket, connection.scenario, connection.state)
+          // Update the entityGraph for consistency
+          // Note: In production, all updates would go through IndexingService only
+          dispatchScenarioNotifications(socket, scenario, connection.state, request)
         }
       } catch (error) {
         console.error('[blockprotocol-poc] failed to process message', error)

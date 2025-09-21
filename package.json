@@ -18,6 +18,24 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "configuration": {
+      "title": "Vivafolio",
+      "properties": {
+        "vivafolio.localBlockDirs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Array of local directories containing block source code. When blocks are loaded from these directories, they completely override remote sources. Supports multiple directories with configurable priority ordering."
+        },
+        "vivafolio.enableLocalDevelopment": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable local block development mode. When enabled, the extension will watch local block directories and provide real-time updates."
+        }
+      }
+    },
     "keybindings": [
       {
         "command": "vivafolio.executeRuntimeFile",
@@ -38,6 +56,16 @@
       {
         "command": "vivafolio.executeRuntimeFile",
         "title": "Vivafolio: Execute Runtime File"
+      },
+      {
+        "command": "vivafolio.reloadLocalBlocks",
+        "title": "Vivafolio: Reload Local Blocks",
+        "description": "Reload all blocks from local development directories"
+      },
+      {
+        "command": "vivafolio.openLocalBlockSettings",
+        "title": "Vivafolio: Open Local Block Settings",
+        "description": "Open VS Code settings for local block development"
       }
     ]
   },
