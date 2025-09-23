@@ -195,8 +195,18 @@ test-vscode:
 test-scenario-basic-comms:
 	node test/scenarios/basic-comms.js | cat
 
+test-scenario-basic-comms-scenario SCENARIO:
+	node test/scenarios/basic-comms.js {{SCENARIO}} | cat
+
 test-scenario-callsite-diagnostics:
 	node test/scenarios/callsite-diagnostics.js | cat
+
+test-scenario-callsite-diagnostics-scenario SCENARIO:
+	node test/scenarios/callsite-diagnostics.js {{SCENARIO}} | cat
+
+# Stand-alone test runner (CommunicationLayer architecture)
+test-stand-alone *SCENARIOS:
+	node test/stand-alone-runner.js {{SCENARIOS}} | cat
 
 test-e2e-blockprotocol-integration:
 	node test/e2e-blockprotocol-integration.js | cat
