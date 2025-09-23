@@ -521,6 +521,8 @@ package:
 
 # Build extension and all framework packages
 build-all:
+	@echo "Building blocks package..."
+	just build-blocks
 	@echo "Building main Vivafolio extension..."
 	npm run -s compile | cat
 	@echo "Building indexing service package..."
