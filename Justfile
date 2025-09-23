@@ -75,11 +75,13 @@ test-runtime-vivafolioblock:
 # Run all Block Protocol POC tests (via npm test)
 test-blockprotocol-poc:
 	cd apps/blockprotocol-poc && \
+	  npm run build:frameworks && \
 	  PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH:-$(command -v chromium)}" \
 	  npm test | cat
 
 test-blockprotocol-local:
 	cd apps/blockprotocol-poc && \
+	  npm run build:frameworks && \
 	  rm -rf test-blocks && \
 	  PORT=4174 PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH:-$(command -v chromium)}" \
 	  TEST_LOCAL_BLOCKS=1 npm test -- --grep="local block development workflow" | cat
