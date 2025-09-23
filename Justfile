@@ -465,6 +465,42 @@ install-all:
 	cd packages/indexing-service && npm install && npm run build
 	@echo "Installing dependencies in mock language extension..."
 	cd mocklang-extension && npm install
+	@echo "Checking framework packages..."
+	@echo "Checking Angular framework..."
+	@if [ ! -d "apps/blockprotocol-poc/libs/block-frameworks/angular/node_modules" ]; then \
+		echo "Installing Angular framework dependencies..."; \
+		cd apps/blockprotocol-poc/libs/block-frameworks/angular && npm install; \
+	else \
+		echo "Angular framework dependencies already installed"; \
+	fi
+	@echo "Checking Lit framework..."
+	@if [ ! -d "apps/blockprotocol-poc/libs/block-frameworks/lit/node_modules" ]; then \
+		echo "Installing Lit framework dependencies..."; \
+		cd apps/blockprotocol-poc/libs/block-frameworks/lit && npm install; \
+	else \
+		echo "Lit framework dependencies already installed"; \
+	fi
+	@echo "Checking SolidJS framework..."
+	@if [ ! -d "apps/blockprotocol-poc/libs/block-frameworks/solidjs/node_modules" ]; then \
+		echo "Installing SolidJS framework dependencies..."; \
+		cd apps/blockprotocol-poc/libs/block-frameworks/solidjs && npm install; \
+	else \
+		echo "SolidJS framework dependencies already installed"; \
+	fi
+	@echo "Checking Svelte framework..."
+	@if [ ! -d "apps/blockprotocol-poc/libs/block-frameworks/svelte/node_modules" ]; then \
+		echo "Installing Svelte framework dependencies..."; \
+		cd apps/blockprotocol-poc/libs/block-frameworks/svelte && npm install; \
+	else \
+		echo "Svelte framework dependencies already installed"; \
+	fi
+	@echo "Checking Vue framework..."
+	@if [ ! -d "apps/blockprotocol-poc/libs/block-frameworks/vue/node_modules" ]; then \
+		echo "Installing Vue framework dependencies..."; \
+		cd apps/blockprotocol-poc/libs/block-frameworks/vue && npm install; \
+	else \
+		echo "Vue framework dependencies already installed"; \
+	fi
 	@echo "All dependencies installed and packages built successfully"
 
 # -----------------------------
