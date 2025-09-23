@@ -52,10 +52,40 @@ module VivafolioHelpers
         initial_graph: Initial graph data with entities and links
         resources: Optional array of resources (HTML files, etc.)
     """
+    # Get the current file path for sourceUri
+    caller_info = caller(1, 1).first
+    if caller_info
+      # Parse caller info: "file:line:in `method'"
+      match = caller_info.match(/^(.+?):(\d+)/)
+      if match
+        source_file = match[1]
+        line_number = match[2].to_i
+        source_uri = "file://#{File.absolute_path(source_file)}"
+        range_info = {
+          "start" => {"line" => line_number - 1, "character" => 0},
+          "end" => {"line" => line_number - 1, "character" => 50}
+        }
+      else
+        source_uri = "file://unknown"
+        range_info = {
+          "start" => {"line" => 0, "character" => 0},
+          "end" => {"line" => 0, "character" => 50}
+        }
+      end
+    else
+      source_uri = "file://unknown"
+      range_info = {
+        "start" => {"line" => 0, "character" => 0},
+        "end" => {"line" => 0, "character" => 50}
+      }
+    end
+
     notification = {
       "blockId" => block_id,
       "blockType" => "https://blockprotocol.org/@blockprotocol/types/block-type/#{block_type}/",
       "displayMode" => "multi-line",
+      "sourceUri" => source_uri,
+      "range" => range_info,
       "entityId" => entity_id,
       "entityGraph" => initial_graph,
       "supportsHotReload" => false,

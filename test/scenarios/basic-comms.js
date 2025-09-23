@@ -9,6 +9,17 @@ const path = require('path')
 const { pathToFileURL } = require('url')
 const fs = require('fs')
 
+// Import communication layer abstractions
+let CommunicationLayer, LangExecutorFactory, LspConnectionFactory;
+try {
+  CommunicationLayer = require('../../packages/communication-layer/dist/index.js');
+  LangExecutorFactory = require('../../packages/lang-executor/dist/index.js').LangExecutorFactory;
+  LspConnectionFactory = require('../../packages/lsp-connection/dist/index.js').LspConnectionFactory;
+} catch (e) {
+  // Fallback if packages aren't built yet
+  console.warn('Communication layer packages not available, using legacy implementation');
+}
+
 // Synchronously checks if an executable with the given name exists in any directory on the user's PATH.
 function commandExists(cmd) {
   try {
@@ -364,6 +375,75 @@ async function testZig(repoRoot) {
   }
 }
 
+// ---------- Nim Two Blocks Test (using nimsuggest) ----------
+async function testNimTwoBlocks(repoRoot, serverCmd) {
+  const fixtureDir = path.resolve(repoRoot, 'packages', 'vivafolio-nim-testing', 'examples')
+  const filePath = path.join(fixtureDir, 'two_blocks.nim')
+
+  // Check if the file exists
+  if (!fs.existsSync(filePath)) {
+    console.log(`Skipping nim-two-blocks test: ${filePath} not found`)
+    return { ok: true, logPath: null, skipped: true }
+  }
+
+  // LangExecutor is for runtime scripts, not LSP tools like nimsuggest
+  // nimsuggest produces LSP diagnostics, not JSON blocks, so we use legacy implementation
+
+  // Legacy implementation as fallback
+  // Only nimsuggest is supported for this test as it has the right stdin/stdout protocol
+  if (serverCmd !== 'nimsuggest') {
+    console.log(`Skipping ${serverCmd} - only nimsuggest supported for two-blocks test`)
+    return { ok: true, logPath: null, skipped: true }
+  }
+
+  return new Promise((resolve) => {
+    const { spawn } = require('child_process')
+    const proc = spawn('nimsuggest', ['--stdin', '--path:' + path.resolve(repoRoot, 'packages/vivafolio-nim-testing/src'), filePath], {
+      cwd: fixtureDir,
+      stdio: ['pipe', 'pipe', 'pipe']
+    })
+
+    let output = ''
+    let errorOutput = ''
+
+    proc.stdout.on('data', (data) => {
+      output += data.toString()
+    })
+
+    proc.stderr.on('data', (data) => {
+      errorOutput += data.toString()
+    })
+
+    // Send chk command after a brief delay to let nimsuggest start
+    setTimeout(() => {
+      proc.stdin.write('chk ' + path.basename(filePath) + ':1:1\n')
+      proc.stdin.write('quit\n')
+    }, 500)
+
+    // Wait for process to finish
+    proc.on('close', (code) => {
+      const lines = output.split('\n')
+      const vivafolioLines = lines.filter(line => line.includes('vivafolio:'))
+
+      if (vivafolioLines.length >= 2) { // Should have both color-picker and color-square
+        console.log(`Found ${vivafolioLines.length} vivafolio warnings via nimsuggest`)
+        resolve({ ok: true, logPath: null })
+      } else {
+        console.log(`Expected vivafolio warnings not found. Total lines: ${lines.length}`)
+        console.log('Sample output lines:')
+        lines.slice(0, 10).forEach((line, i) => console.log(`  ${i}: ${line.substring(0, 100)}...`))
+        resolve({ ok: false, logPath: null, error: 'No vivafolio warnings found' })
+      }
+    })
+
+    // Timeout after 10 seconds
+    setTimeout(() => {
+      try { proc.kill() } catch {}
+      resolve({ ok: false, logPath: null, error: 'Timeout waiting for nimsuggest' })
+    }, 10000)
+  })
+}
+
 // ---------- Crystal ----------
 // Starts the Crystal language server (crystalline) in the given directory, asserts presence, and returns connection and log info.
 function startCrystalline(cwd, repoRoot) {
@@ -412,27 +492,79 @@ async function testCrystal(repoRoot) {
   }
 }
 
+// Parse command line arguments for scenario selection
+function parseScenarioArgs() {
+  const args = process.argv.slice(2)
+  if (args.length === 0) return null // Run all scenarios
+
+  const scenarios = args.map(arg => arg.toLowerCase())
+  return scenarios
+}
+
+// Filter scenarios based on command line arguments
+function shouldRunScenario(scenarioName, selectedScenarios) {
+  if (!selectedScenarios) return true // Run all if no filter
+
+  const name = scenarioName.toLowerCase()
+  return selectedScenarios.some(selected => {
+    if (selected === 'nim') return name.includes('nim') && !name.includes('two-blocks')
+    if (selected === 'nimlsp') return name.includes('nimlsp')
+    if (selected === 'nimlangserver') return name.includes('nimlangserver')
+    if (selected === 'nimsuggest') return name.includes('nimsuggest')
+    if (selected === 'two-blocks') return name.includes('two-blocks')
+    return name.includes(selected)
+  })
+}
+
 // Orchestrates all per-language tests, collects results, prints summary, and sets exit code.
 async function run() {
   const repoRoot = path.resolve(__dirname, '..', '..')
+  const selectedScenarios = parseScenarioArgs()
+
+  if (selectedScenarios) {
+    console.log(`Running basic-comms scenarios: ${selectedScenarios.join(', ')}`)
+  } else {
+    console.log('Running all basic-comms scenarios')
+  }
+
   const results = []
-  results.push({ name: 'Lean (basic-comms)', ...(await testLean(repoRoot)) })
-  results.push({ name: 'Nim (basic-comms, nimlsp)', ...(await testNim(repoRoot, 'nimlsp')) })
-  results.push({ name: 'Nim (basic-comms, nimlangserver)', ...(await testNim(repoRoot, 'nimlangserver')) })
-  results.push({ name: 'D (basic-comms)', ...(await testD(repoRoot)) })
-  results.push({ name: 'Rust (basic-comms)', ...(await testRust(repoRoot)) })
-  results.push({ name: 'Zig (basic-comms)', ...(await testZig(repoRoot)) })
-  results.push({ name: 'Crystal (basic-comms)', ...(await testCrystal(repoRoot)) })
+  const allTests = [
+    { name: 'Lean (basic-comms)', test: () => testLean(repoRoot) },
+    { name: 'Nim (basic-comms, nimlsp)', test: () => testNim(repoRoot, 'nimlsp') },
+    { name: 'Nim (basic-comms, nimlangserver)', test: () => testNim(repoRoot, 'nimlangserver') },
+    { name: 'Nim (two-blocks, nimlsp)', test: () => testNimTwoBlocks(repoRoot, 'nimlsp') },
+    { name: 'Nim (two-blocks, nimlangserver)', test: () => testNimTwoBlocks(repoRoot, 'nimlangserver') },
+    { name: 'Nim (two-blocks, nimsuggest)', test: () => testNimTwoBlocks(repoRoot, 'nimsuggest') },
+    { name: 'D (basic-comms)', test: () => testD(repoRoot) },
+    { name: 'Rust (basic-comms)', test: () => testRust(repoRoot) },
+    { name: 'Zig (basic-comms)', test: () => testZig(repoRoot) },
+    { name: 'Crystal (basic-comms)', test: () => testCrystal(repoRoot) }
+  ]
+
+  for (const { name, test } of allTests) {
+    if (shouldRunScenario(name, selectedScenarios)) {
+      console.log(`Running: ${name}`)
+      results.push({ name, ...(await test()) })
+    } else {
+      console.log(`Skipping: ${name}`)
+    }
+  }
 
   const failures = results.filter(r => !r.ok)
   if (failures.length === 0) {
-    console.log('basic-comms OK for Lean, Nim (nimlsp), Nim (nimlangserver), D, Rust, Zig, Crystal')
+    const runCount = results.length
+    const totalCount = allTests.length
+    if (runCount === totalCount) {
+      console.log('basic-comms OK for Lean, Nim (nimlsp), Nim (nimlangserver), D, Rust, Zig, Crystal')
+    } else {
+      console.log(`basic-comms OK for ${runCount} selected scenario(s)`)
+    }
     process.exit(0)
   } else {
     for (const f of failures) {
       let size = 0
       try { size = fs.statSync(f.logPath).size } catch {}
-      console.error(`${f.name} failed. See log: ${f.logPath} (${size} bytes)`) 
+      console.error(`${f.name} failed. See log: ${f.logPath} (${size} bytes)`)
     }
     process.exit(1)
   }

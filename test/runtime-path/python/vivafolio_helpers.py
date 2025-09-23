@@ -50,12 +50,34 @@ def emit_vivafolioblock_notification(block_id, block_type, entity_id, entity_gra
         entity_graph: Initial graph data with entities and links
         resources: Optional list of resources (HTML files, etc.)
     """
+    # Get the current file path for sourceUri
+    import os
+    frame = inspect.currentframe()
+    if frame and frame.f_back:
+        caller_frame = frame.f_back
+        source_file = caller_frame.f_code.co_filename
+        source_uri = f"file://{os.path.abspath(source_file)}"
+        # Use line number for range
+        line_number = caller_frame.f_lineno
+        range_info = {
+            "start": {"line": line_number - 1, "character": 0},
+            "end": {"line": line_number - 1, "character": 50}
+        }
+    else:
+        source_uri = "file://unknown"
+        range_info = {
+            "start": {"line": 0, "character": 0},
+            "end": {"line": 0, "character": 50}
+        }
+
     notification = {
         "blockId": block_id,
         "blockType": f"https://blockprotocol.org/@blockprotocol/types/block-type/{block_type}/",
         "displayMode": "multi-line",
+        "sourceUri": source_uri,
+        "range": range_info,
         "entityId": entity_id,
-        "entityGraph": initial_graph,
+        "entityGraph": entity_graph,
         "supportsHotReload": False,
         "initialHeight": 200
     }
@@ -83,7 +105,7 @@ def vivafolio_picker(block_id="picker-123"):
 
     entity_id = f"entity-{block_id}"
 
-    initial_graph = {
+    entity_graph = {
         "entities": [{
             "entityId": entity_id,
             "properties": {
@@ -101,9 +123,9 @@ def vivafolio_picker(block_id="picker-123"):
             "physicalPath": f"file://{os.path.abspath(html_path)}",
             "cachingTag": "picker-v2"
         }]
-        emit_vivafolioblock_notification(block_id, "color-picker", entity_id, initial_graph, resources)
+        emit_vivafolioblock_notification(block_id, "color-picker", entity_id, entity_graph, resources)
     else:
-        emit_vivafolioblock_notification(block_id, "color-picker", entity_id, initial_graph)
+        emit_vivafolioblock_notification(block_id, "color-picker", entity_id, entity_graph)
 
 def vivafolio_square(block_id="square-456"):
     """
@@ -122,7 +144,7 @@ def vivafolio_square(block_id="square-456"):
 
     entity_id = f"entity-{block_id}"
 
-    initial_graph = {
+    entity_graph = {
         "entities": [{
             "entityId": entity_id,
             "properties": {
@@ -140,9 +162,9 @@ def vivafolio_square(block_id="square-456"):
             "physicalPath": f"file://{os.path.abspath(html_path)}",
             "cachingTag": "square-v2"
         }]
-        emit_vivafolioblock_notification(block_id, "color-square", entity_id, initial_graph, resources)
+        emit_vivafolioblock_notification(block_id, "color-square", entity_id, entity_graph, resources)
     else:
-        emit_vivafolioblock_notification(block_id, "color-square", entity_id, initial_graph)
+        emit_vivafolioblock_notification(block_id, "color-square", entity_id, entity_graph)
 
 def format_gui_state(state_dict):
     """

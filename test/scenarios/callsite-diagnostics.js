@@ -344,27 +344,75 @@ async function testCrystal(repoRoot) {
   }
 }
 
+// Parse command line arguments for scenario selection
+function parseScenarioArgs() {
+  const args = process.argv.slice(2)
+  if (args.length === 0) return null // Run all scenarios
+
+  const scenarios = args.map(arg => arg.toLowerCase())
+  return scenarios
+}
+
+// Filter scenarios based on command line arguments
+function shouldRunScenario(scenarioName, selectedScenarios) {
+  if (!selectedScenarios) return true // Run all if no filter
+
+  const name = scenarioName.toLowerCase()
+  return selectedScenarios.some(selected => {
+    if (selected === 'nim') return name.includes('nim')
+    if (selected === 'nimlsp') return name.includes('nimlsp')
+    if (selected === 'nimlangserver') return name.includes('nimlangserver')
+    if (selected === 'two-blocks') return name.includes('two-blocks')
+    return name.includes(selected)
+  })
+}
+
 async function run() {
   // repoRoot previously pointed one directory too high relative to scenario location; adjust to project root.
   const repoRoot = path.resolve(__dirname, '..', '..')
+  const selectedScenarios = parseScenarioArgs()
+
+  if (selectedScenarios) {
+    console.log(`Running callsite-diagnostics scenarios: ${selectedScenarios.join(', ')}`)
+  } else {
+    console.log('Running all callsite-diagnostics scenarios')
+  }
+
   const results = []
-  results.push({ name: 'Lean (callsite)', ...(await testLean(repoRoot)) })
-  results.push({ name: 'Nim (callsite, nimlsp)', ...(await testNim(repoRoot, 'nimlsp')) })
-  results.push({ name: 'Nim (callsite, nimlangserver)', ...(await testNim(repoRoot, 'nimlangserver')) })
-  results.push({ name: 'D (callsite)', ...(await testD(repoRoot)) })
-  results.push({ name: 'Rust (callsite)', ...(await testRust(repoRoot)) })
-  results.push({ name: 'Zig (callsite)', ...(await testZig(repoRoot)) })
-  results.push({ name: 'Crystal (callsite)', ...(await testCrystal(repoRoot)) })
+  const allTests = [
+    { name: 'Lean (callsite)', test: () => testLean(repoRoot) },
+    { name: 'Nim (callsite, nimlsp)', test: () => testNim(repoRoot, 'nimlsp') },
+    { name: 'Nim (callsite, nimlangserver)', test: () => testNim(repoRoot, 'nimlangserver') },
+    { name: 'D (callsite)', test: () => testD(repoRoot) },
+    { name: 'Rust (callsite)', test: () => testRust(repoRoot) },
+    { name: 'Zig (callsite)', test: () => testZig(repoRoot) },
+    { name: 'Crystal (callsite)', test: () => testCrystal(repoRoot) }
+  ]
+
+  for (const { name, test } of allTests) {
+    if (shouldRunScenario(name, selectedScenarios)) {
+      console.log(`Running: ${name}`)
+      results.push({ name, ...(await test()) })
+    } else {
+      console.log(`Skipping: ${name}`)
+    }
+  }
 
   const failures = results.filter(r => !r.ok)
   if (failures.length === 0) {
-    console.log('callsite-diagnostics OK for all languages tested')
+    const runCount = results.length
+    const totalCount = allTests.length
+    if (runCount === totalCount) {
+      console.log('callsite-diagnostics OK for all languages tested')
+    } else {
+      console.log(`callsite-diagnostics OK for ${runCount} selected scenario(s)`)
+    }
     process.exit(0)
   } else {
     for (const f of failures) {
       let size = 0
       try { size = fs.statSync(f.logPath).size } catch {}
-      console.error(`${f.name} failed. See log: ${f.logPath} (${size} bytes)`) 
+      console.error(`${f.name} failed. See log: ${f.logPath} (${size} bytes)`)
     }
     process.exit(1)
   }

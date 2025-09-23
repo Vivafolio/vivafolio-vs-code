@@ -1,0 +1,24 @@
+[package]
+name = "Vivafolio"
+version = "0.1.0"
+authors = ["Vivafolio Team <team@vivafolio.dev>"]
+description = "Runtime library for creating interactive Vivafolio blocks in Julia"
+license = "MIT"
+repository = "https://github.com/blockprotocol/vivafolio"
+
+[deps]
+JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+
+[compat]
+julia = "1.6"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
+
+
+
+
+

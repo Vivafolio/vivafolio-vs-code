@@ -42,10 +42,71 @@ See `docs/Vivafolio-E2E-Runtime-Path-Tests.md` for detailed documentation.
 - `just watch` - Watch-build the extension
 
 **Testing:**
+- `just test-stand-alone` - Run all stand-alone tests (LSP + runtime, CommunicationLayer architecture)
+- `just test-stand-alone SCENARIO...` - Run specific test scenarios (supports multiple arguments)
 - `just test-all` - Run complete test suite
 - `just test-blockprotocol-poc` - Run Block Protocol POC tests
 - `just test-runtime-all` - Run all runtime path tests
 - `just test-vscode` - Run VS Code extension tests
+- `just test-scenario-basic-comms` - Run legacy LSP basic communications tests
+- `just test-scenario-callsite-diagnostics` - Run legacy LSP call-site diagnostics tests
+
+## Stand-Alone Test Runner
+
+The stand-alone test runner (`test/stand-alone-runner.ts`) is written in TypeScript and consolidates LSP-based tests and runtime tests into a single testing framework using the CommunicationLayer architecture.
+
+### Test Types
+
+**LSP Tests (Compile-time):**
+- Use `LspConnection` + `DiagnosticAdapter` for language server integration
+- Test compile-time block discovery in languages like Nim, D, Lean, Zig, Crystal
+- Examples: basic diagnostics, two-blocks discovery, call-site error detection
+
+**Runtime Tests (Execution-time):**
+- Use `LangExecutor` to run scripts and capture stdout JSON blocks
+- Test runtime block emission in languages like Python, Ruby, Julia, JavaScript
+- Examples: two-blocks runtime execution and block emission
+
+### Command-Line Usage
+
+```bash
+# Run all tests (no arguments)
+just test-stand-alone
+
+# Run specific scenarios (supports multiple arguments)
+just test-stand-alone nim          # All Nim tests
+just test-stand-alone two-blocks   # All two-blocks tests
+just test-stand-alone lsp          # All LSP-based tests
+just test-stand-alone runtime      # All runtime tests
+just test-stand-alone python       # Python runtime tests
+just test-stand-alone nimlsp       # Nim LSP tests with nimlsp
+
+# Multiple scenarios (space-separated arguments)
+just test-stand-alone nim two-blocks
+just test-stand-alone python julia runtime
+just test-stand-alone lsp nimsuggest
+```
+
+### Test Selection Keywords
+
+The stand-alone runner supports filtering by three categories:
+
+- **Languages:** `nim`, `python`, `ruby`, `julia`, `javascript`, `d`, `lean`, `zig`, `crystal`, `rust`
+- **Scenarios:** `two-blocks`, `basic-comms`, `callsite`
+- **Communication Layers:** `lsp`, `runtime`, `nimsuggest`, `nimlsp`, `nimlangserver`
+
+You can combine multiple filters from any category. For example:
+- `just test-stand-alone nim two-blocks` - All Nim two-blocks tests
+- `just test-stand-alone python julia runtime` - Python and Julia runtime tests
+- `just test-stand-alone lsp nimsuggest` - LSP tests using nimsuggest
+
+### Architecture Benefits
+
+- **Unified Interface:** Single command interface for all test types
+- **CommunicationLayer Abstraction:** Consistent block discovery across different mechanisms
+- **Extensible:** Easy to add new languages and test types
+- **Backward Compatible:** Legacy test runners still available
+- **Cross-Language:** Shared logic for scenarios like two-blocks across different languages
 
 **Language Servers:**
 - `just build-nimlangserver` - Build vendored Nim language server
@@ -115,3 +176,98 @@ This repository contains several interconnected components that work together to
   - **Build**: `just build` (compile extension) or `just watch` (watch mode)
   - **Package**: `just package` (create .vsix file)
   - **Language Servers**: `just build-nimlangserver`, `just build-zls`, `just build-crystalline` (build vendored servers)
+
+## Architecture
+
+Vivafolio uses a layered communication architecture to support different language toolchains and execution modes:
+
+### Communication Layer Packages
+
+The core architecture is built around abstract communication layers that can discover Vivafolio blocks through different mechanisms:
+
+#### [`packages/communication-layer`](packages/communication-layer/)
+**Purpose:** Abstract interfaces and utilities for block discovery
+- `CommunicationLayer` interface - Abstract base for all communication mechanisms
+- `CommunicationLayerType` enum - LSP, LangExecutor, HCR
+- `BlockParser` - Utilities for parsing VivafolioBlock notifications
+- `validateVivafolioBlock()` - JSON schema validation
+
+#### [`packages/lsp-connection`](packages/lsp-connection/)
+**Purpose:** LSP client simulation for testing infrastructure
+- `LspConnection` - LSP client implementation for stand-alone tests
+- `LspConnectionFactory` - Factory for creating language-specific LSP connections
+- Integrates with diagnostics adapters for language-specific message cleaning
+- **Used by:** Testing infrastructure only (VS Code extension uses built-in LSP client)
+
+#### [`packages/lang-executor`](packages/lang-executor/)
+**Purpose:** Runtime script execution for block discovery
+- `LangExecutor` - Executes programs and captures VivafolioBlocks from stdout
+- `LangExecutorFactory` - Pre-configured executors for different languages
+- Used by VS Code extension for runtime block detection
+
+#### [`packages/hcr-lang-executor`](packages/hcr-lang-executor/)
+**Purpose:** Hot Code Reload system (future implementation)
+- `HcrLangExecutor` - Placeholder for interactive HCR connections
+- Supports persistent two-way communication channels
+- Enables real-time updates without manual restarts
+
+#### [`packages/diagnostics-adapter`](packages/diagnostics-adapter/)
+**Purpose:** Language-specific LSP diagnostics processing
+- `DiagnosticAdapter` - Interface for cleaning LSP diagnostic messages
+- Language-specific implementations (Nim, D, Lean, Zig, Crystal, Rust)
+- Removes artifacts and decorations that languages add to messages
+- **Used by:** VS Code extension (processes diagnostics from built-in LSP client) and testing infrastructure
+
+### Language Support Libraries
+
+Vivafolio provides runtime libraries for different programming languages:
+
+#### [`language-support/nim/`](language-support/nim/)
+**Purpose:** Compile-time macros for Nim
+- Uses LSP diagnostics for block discovery
+- Compile-time macro expansion
+- Integrated with nimsuggest for testing
+
+#### [`language-support/python/`](language-support/python/)
+**Purpose:** Runtime functions for Python
+- `gui_state()` and block functions emit JSON to stdout
+- Compatible with existing runtime-path infrastructure
+- Supports both legacy and modern APIs
+
+#### [`language-support/ruby/`](language-support/ruby/)
+**Purpose:** Runtime gem for Ruby
+- Ruby gem with module-based API
+- Global state registry for GUI persistence
+- Convenience functions for direct access
+
+#### [`language-support/julia/`](language-support/julia/)
+**Purpose:** Runtime package for Julia
+- Julia package with stacktrace-based state tracking
+- Full documentation strings
+- Project.toml for package management
+
+#### [`language-support/javascript/`](language-support/javascript/)
+**Purpose:** Runtime Node.js package
+- TypeScript with full type definitions
+- ES6 modules and CommonJS support
+- Comprehensive interfaces for all data structures
+
+### Integration with VS Code Extension
+
+The VS Code extension uses these packages as follows:
+
+1. **LSP Mode:** Uses VS Code's built-in LSP client for compile-time detection, processes diagnostics through `DiagnosticAdapter`
+2. **Runtime Mode:** Uses `LangExecutor` for script execution and stdout capture
+3. **HCR Mode:** Will use `HcrLangExecutor` for interactive development (future)
+
+**VS Code Extension Architecture:**
+- VS Code provides LSP client infrastructure - the extension receives diagnostic notifications
+- `DiagnosticAdapter` processes raw LSP diagnostics to extract clean VivafolioBlock notifications
+- Language-specific adapters handle different LSP message formats and artifacts
+
+**Testing Infrastructure:**
+- `LspConnection` simulates LSP connections for stand-alone testing
+- `DiagnosticAdapter` is used in both VS Code extension and testing
+- Tests verify that block discovery works correctly across different LSP servers
+
+All communication layers produce compatible `VivafolioBlock` notifications, ensuring consistent behavior across languages and execution modes.
