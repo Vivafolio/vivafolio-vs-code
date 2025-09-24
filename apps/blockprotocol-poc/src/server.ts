@@ -1377,6 +1377,45 @@ const scenarios: Record<string, ScenarioDefinition> = {
       entity.properties = { ...entity.properties, ...update.properties }
     }
   },
+  'd3-line-graph-example': {
+    id: 'd3-line-graph-example',
+    title: 'D3 Line Graph Example',
+    description: 'GDP per capita line chart with selectable countries (Eurostat CSV).',
+    createState: () => ({
+      graph: {
+        entities: [{
+          entityId: 'd3-line-graph-entity',
+          entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
+          properties: {
+            'https://blockprotocol.org/@blockprotocol/types/property-type/name/': 'D3 Line Graph – GDP per capita',
+            'https://blockprotocol.org/@blockprotocol/types/property-type/name/v/1': 'D3 Line Graph – GDP per capita'
+          }
+        }],
+        links: []
+      }
+    }),
+    buildNotifications: (state) => [
+      {
+        blockId: 'd3-line-graph-1',
+        blockType: 'https://vivafolio.dev/blocks/d3-line-graph/v1',
+        entityId: state.graph.entities[0]?.entityId ?? 'd3-line-graph-entity',
+        displayMode: 'multi-line',
+        entityGraph: state.graph,
+        supportsHotReload: true,
+        initialHeight: 480,
+        resources: [
+          { logicalName: 'block-metadata.json', physicalPath: '/external/d3-line-graph/block-metadata.json', cachingTag: nextCachingTag() },
+          { logicalName: 'main.js', physicalPath: '/external/d3-line-graph/main.js', cachingTag: nextCachingTag() },
+          { logicalName: 'icon.svg', physicalPath: '/external/d3-line-graph/icon.svg', cachingTag: nextCachingTag() }
+        ]
+      }
+    ],
+    applyUpdate: ({ state, update }) => {
+      const entity = state.graph.entities.find((item) => item.entityId === update.entityId)
+      if (!entity) return
+      entity.properties = { ...entity.properties, ...update.properties }
+    }
+  },
   'framework-compilation-demo': {
     id: 'framework-compilation-demo',
     title: 'Framework Compilation Demo',
@@ -2031,6 +2070,8 @@ function getContentType(filePath: string): string {
   app.use('/external/feature-showcase-block', express.static(path.resolve(ROOT_DIR, 'external/feature-showcase-block'), createOptimizedStaticOptions()))
   app.use('/external/custom-element-block', express.static(path.resolve(ROOT_DIR, 'external/custom-element-block'), createOptimizedStaticOptions()))
   app.use('/external/solidjs-task-block', express.static(path.resolve(ROOT_DIR, 'external/solidjs-task-block'), createOptimizedStaticOptions()))
+  // Serve d3-line-graph block from workspace (blocks/d3-graph)
+  app.use('/external/d3-line-graph', express.static(path.resolve(REPO_ROOT, 'blocks', 'd3-graph'), createOptimizedStaticOptions()))
   app.use('/examples/blocks/status-pill', express.static(path.resolve(ROOT_DIR, 'dist/frameworks/status-pill'), createOptimizedStaticOptions()))
   app.use('/examples/blocks/person-chip', express.static(path.resolve(ROOT_DIR, 'dist/frameworks/person-chip'), createOptimizedStaticOptions()))
   app.use('/examples/blocks/table-view', express.static(path.resolve(ROOT_DIR, 'dist/frameworks/table-view'), createOptimizedStaticOptions()))

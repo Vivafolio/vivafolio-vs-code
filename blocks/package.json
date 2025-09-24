@@ -36,7 +36,8 @@
   },
   "workspaces": [
     "color-picker",
-    "color-square"
+    "color-square",
+    "libs/d3"
   ],
   "keywords": [
     "blockprotocol",

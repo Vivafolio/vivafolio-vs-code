@@ -1,0 +1,38 @@
+{
+  "name": "@vivafolio/blocks-d3",
+  "version": "1.0.0",
+  "description": "D3.js integration library for Vivafolio Block Protocol blocks",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "d3",
+    "blockprotocol",
+    "vivafolio",
+    "data-visualization",
+    "charts"
+  ],
+  "author": "Vivafolio Team",
+  "license": "MIT",
+  "dependencies": {
+    "d3": "^7.9.0"
+  },
+  "devDependencies": {
+    "@types/d3": "^7.4.3",
+    "typescript": "^5.4.0"
+  },
+  "peerDependencies": {
+    "@blockprotocol/graph": "^0.3.4"
+  }
+}

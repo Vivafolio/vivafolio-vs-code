@@ -457,7 +457,8 @@ const renderers: Record<string, BlockRenderer> = {
   'https://vivafolio.dev/blocks/status-pill/v1': renderPublishedBlock,
   'https://vivafolio.dev/blocks/person-chip/v1': renderPublishedBlock,
   'https://vivafolio.dev/blocks/table-view/v1': renderPublishedBlock,
-  'https://vivafolio.dev/blocks/board-view/v1': renderPublishedBlock
+  'https://vivafolio.dev/blocks/board-view/v1': renderPublishedBlock,
+  'https://vivafolio.dev/blocks/d3-line-graph/v1': renderPublishedBlock
 }
 
 function renderHelloBlock(notification: VivafolioBlockNotification): HTMLElement {
