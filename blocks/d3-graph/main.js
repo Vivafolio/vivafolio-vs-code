@@ -3,6 +3,7 @@
 // Function signature aligns with existing examples: either ({ graph }) or ({ entity, readonly, updateEntity })
 
 module.exports = function D3LineGraphBlock({ graph }) {
+  console.log('[d3-block] D3LineGraphBlock called with graph:', graph)
   const container = document.createElement('div')
   container.className = 'd3-line-graph-block'
   container.style.cssText = `
@@ -48,9 +49,6 @@ module.exports = function D3LineGraphBlock({ graph }) {
     })
   }
 
-  // Fetch CSV from the POC server static route for this block
-  const CSV_PATH = '/external/d3-line-graph/sdg_08_10_page_linear_2_0.csv'
-
   function normalizeRows(rawRows) {
     return rawRows
       .map(r => {
@@ -62,6 +60,39 @@ module.exports = function D3LineGraphBlock({ graph }) {
         return { geo, country: country || geo, year, value: Number.isFinite(value) ? value : null, unit: r.unit, indicator: r.na_item }
       })
       .filter(r => r.geo && r.year)
+  }
+
+  // Extract rows from the Block Protocol graph (IndexingService-provided entities)
+  function extractRowsFromGraph() {
+    try {
+      console.log('[d3-block] extractRowsFromGraph called with graph:', graph)
+      // Support multiple shapes and global context
+      const globalGraph = (window && window.__vivafolioGraphContext && window.__vivafolioGraphContext.graph) || null
+      console.log('[d3-block] globalGraph:', globalGraph)
+      const entities = (
+        (globalGraph && globalGraph.entities) ||
+        (graph && graph.blockGraph && graph.blockGraph.linkedEntities) ||
+        (graph && graph.entities) ||
+        []
+      )
+      console.log('[d3-block] found entities:', entities.length)
+      // Heuristic: data rows have CSV-like fields such as geo, TIME_PERIOD, OBS_VALUE
+      const rawRows = entities
+        .map(e => (e && (e.properties || e)) || {})
+        .filter(p => 'geo' in p && ('TIME_PERIOD' in p || 'Time' in p))
+        .map(p => ({
+          geo: String(p.geo || ''),
+          'Geopolitical entity (reporting)': String(p['Geopolitical entity (reporting)'] || p.STRUCTURE_NAME || ''),
+          TIME_PERIOD: String(p.TIME_PERIOD || p.Time || ''),
+          OBS_VALUE: String(p.OBS_VALUE || p['Observation value'] || ''),
+          unit: p.unit,
+          na_item: p.na_item,
+        }))
+      const rows = normalizeRows(rawRows)
+      return rows
+    } catch (e) {
+      return []
+    }
   }
 
   function buildUI(d3, allRows) {
@@ -183,12 +214,69 @@ module.exports = function D3LineGraphBlock({ graph }) {
     })
   }
 
+  // Simple CSV parser (supports quoted fields) for fallback fetch
+  function parseCsvLine(line) {
+    const out = []
+    let cur = ''
+    let inQuotes = false
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i]
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') { cur += '"'; i++ } else { inQuotes = !inQuotes }
+      } else if (ch === ',' && !inQuotes) {
+        out.push(cur); cur = ''
+      } else {
+        cur += ch
+      }
+    }
+    out.push(cur)
+    return out.map((s) => s.trim())
+  }
+
+  async function fetchCsvRows() {
+    try {
+      const resp = await fetch('/external/d3-line-graph/sdg_08_10_page_linear_2_0.csv', { cache: 'no-cache' })
+      if (!resp.ok) return []
+      const text = await resp.text()
+      const lines = text.split(/\r?\n/).filter(Boolean)
+      if (lines.length < 2) return []
+      const headers = parseCsvLine(lines[0]).map(h => h.replace(/^\"|\"$/g, ''))
+      const raw = []
+      for (let i = 1; i < lines.length; i++) {
+        const cells = parseCsvLine(lines[i])
+        const row = {}
+        headers.forEach((h, idx) => { row[h] = cells[idx] ?? '' })
+        // Map to the field names our normalizeRows understands
+        raw.push({
+          geo: String(row.geo || ''),
+          'Geopolitical entity (reporting)': String(row['Geopolitical entity (reporting)'] || row.STRUCTURE_NAME || ''),
+          TIME_PERIOD: String(row.TIME_PERIOD || row.Time || ''),
+          OBS_VALUE: String(row.OBS_VALUE || row['Observation value'] || ''),
+          unit: row.unit,
+          na_item: row.na_item,
+        })
+      }
+      return normalizeRows(raw)
+    } catch (_) {
+      return []
+    }
+  }
+
   ;(async () => {
     try {
-  const d3 = await ensureD3()
-  const raw = await d3.csv(CSV_PATH)
-  const rows = normalizeRows(raw)
-  buildUI(d3, rows)
+      const d3 = await ensureD3()
+      let rows = extractRowsFromGraph()
+      if (!rows.length) {
+        console.log('[d3-block] No rows from graph, attempting CSV fetch fallback...')
+        rows = await fetchCsvRows()
+      }
+      if (!rows.length) {
+        const note = document.createElement('div')
+        note.style.cssText = 'color:#b45309; background:#fffbeb; border:1px solid #f59e0b; padding:8px; border-radius:6px; font-size:12px; margin-bottom:8px;'
+        note.textContent = 'No data found in entity graph. Ensure the IndexingService is watching the CSV and this scenario populates the graph.'
+        container.appendChild(note)
+      }
+      buildUI(d3, rows)
     } catch (err) {
       const pre = document.createElement('pre')
       pre.style.color = 'crimson'

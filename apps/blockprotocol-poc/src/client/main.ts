@@ -889,6 +889,15 @@ function handleEnvelope(data: ServerEnvelope) {
       const scenarioTitle = data.scenario?.title ?? 'Unknown Scenario'
       scenarioLabel.textContent = scenarioTitle
       scenarioDescription.textContent = data.scenario?.description ?? ''
+      
+      // Set up global graph context for blocks that need direct access to entity data
+      if (data.entityGraph) {
+        ;(window as any).__vivafolioGraphContext = { graph: data.entityGraph }
+        console.log('[Client] Set up global graph context with', data.entityGraph.entities?.length || 0, 'entities')
+      } else {
+        console.log('[Client] No entityGraph in connection_ack')
+      }
+      
       ensurePlaceholder(`Awaiting VivafolioBlock notifications for ${scenarioTitle}…`)
       break
     }
@@ -898,6 +907,11 @@ function handleEnvelope(data: ServerEnvelope) {
       blockType: data.payload.blockType,
       entityId: data.payload.entityId
     })
+    // Ensure global graph context is available for blocks that read directly from window
+    if (data.payload.entityGraph) {
+      ;(window as any).__vivafolioGraphContext = { graph: data.payload.entityGraph }
+      console.log('[Client] Updated global graph context from notification with', data.payload.entityGraph.entities?.length || 0, 'entities')
+    }
     clearPlaceholder()
     latestPayloads.set(data.payload.blockId, data.payload)
     const renderer = renderers[data.payload.blockType] ?? renderFallback
