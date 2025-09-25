@@ -1,0 +1,9 @@
+{
+  "name": "status-pill",
+  "version": "0.1.0",
+  "title": "Status Pill Block",
+  "description": "A status indicator pill that cycles through predefined statuses.",
+  "entry": "src/index.js",
+  "icon": "icon.svg",
+  "author": "Vivafolio"
+}

@@ -1203,8 +1203,18 @@ const scenarios: Record<string, ScenarioDefinition> = {
         initialHeight: 40,
         resources: [
           {
+            logicalName: 'block-metadata.json',
+            physicalPath: '/blocks/status-pill/block-metadata.json',
+            cachingTag: nextCachingTag()
+          },
+          {
             logicalName: 'main.js',
-            physicalPath: '/examples/blocks/status-pill/general-block.umd.js',
+            physicalPath: '/blocks/status-pill/src/index.js',
+            cachingTag: nextCachingTag()
+          },
+          {
+            logicalName: 'icon.svg',
+            physicalPath: '/blocks/status-pill/icon.svg',
             cachingTag: nextCachingTag()
           }
         ]
@@ -1448,8 +1458,18 @@ const scenarios: Record<string, ScenarioDefinition> = {
         initialHeight: 40,
         resources: [
           {
+            logicalName: 'block-metadata.json',
+            physicalPath: '/blocks/status-pill/block-metadata.json',
+            cachingTag: nextCachingTag()
+          },
+          {
             logicalName: 'main.js',
-            physicalPath: '/examples/blocks/status-pill/main.js',
+            physicalPath: '/blocks/status-pill/src/index.js',
+            cachingTag: nextCachingTag()
+          },
+          {
+            logicalName: 'icon.svg',
+            physicalPath: '/blocks/status-pill/icon.svg',
             cachingTag: nextCachingTag()
           }
         ]
@@ -2072,7 +2092,7 @@ function getContentType(filePath: string): string {
   app.use('/external/solidjs-task-block', express.static(path.resolve(ROOT_DIR, 'external/solidjs-task-block'), createOptimizedStaticOptions()))
   // Serve d3-line-graph block from workspace (blocks/d3-graph)
   app.use('/external/d3-line-graph', express.static(path.resolve(REPO_ROOT, 'blocks', 'd3-graph'), createOptimizedStaticOptions()))
-  app.use('/examples/blocks/status-pill', express.static(path.resolve(ROOT_DIR, 'dist/frameworks/status-pill'), createOptimizedStaticOptions()))
+  app.use('/blocks/status-pill', express.static(path.resolve(REPO_ROOT, 'blocks', 'status-pill'), createOptimizedStaticOptions()))
   app.use('/examples/blocks/person-chip', express.static(path.resolve(ROOT_DIR, 'dist/frameworks/person-chip'), createOptimizedStaticOptions()))
   app.use('/examples/blocks/table-view', express.static(path.resolve(ROOT_DIR, 'dist/frameworks/table-view'), createOptimizedStaticOptions()))
   app.use('/examples/blocks/board-view', express.static(path.resolve(ROOT_DIR, 'dist/frameworks/board-view'), createOptimizedStaticOptions()))

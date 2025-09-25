@@ -162,8 +162,8 @@ A Node smoke test must launch the Block Builder & Server programmatically, asser
 - `apps/blockprotocol-poc/tests/hello-block.spec.ts` - Comprehensive E2E test suite for local block development
 - `apps/blockprotocol-poc/src/server.ts` - POC server with local block development and priority resolution
 - `src/extension.ts` - VS Code extension with local block development settings
-- `packages/blocks/src/builder.ts` - BlockBuilder library for framework compilation
-- `packages/blocks/src/server.ts` - HTTP server component for block serving
+- `blocks/src/builder.ts` - BlockBuilder library for framework compilation
+- `blocks/src/server.ts` - HTTP server component for block serving
 
 ### Completed Integration Points (Phase G5.1.3 - Demo Application Server Refactor)
 **Location**: `apps/blockprotocol-poc/src/server.ts` (refactored)
