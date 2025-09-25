@@ -139,6 +139,12 @@ test-blockprotocol-grep PATTERN:
 	  PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH:-$(command -v chromium)}" \
 	  npx playwright test --grep "{{PATTERN}}" | cat
 
+# Run specific Block Protocol test pattern with browser console captured
+test-blockprotocol-grep-console PATTERN:
+	cd apps/blockprotocol-poc && \
+	  PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH:-$(command -v chromium)}" \
+	  DEBUG=pw:browser npx playwright test --grep "{{PATTERN}}" 2>&1 | cat
+
 # Run Block Protocol tests with debug output
 test-blockprotocol-debug:
 	cd apps/blockprotocol-poc && \

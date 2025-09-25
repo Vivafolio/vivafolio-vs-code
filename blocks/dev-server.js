@@ -7,13 +7,36 @@
  * Serves block resources with proper caching headers and automatic rebuilds.
  */
 
-const express = require('express');
-const path = require('path');
-const fs = require('fs');
-const chokidar = require('chokidar');
-const { exec } = require('child_process');
+import express from 'express'
+import path from 'node:path'
+import * as fs from 'node:fs'
+import chokidar from 'chokidar'
+import { exec } from 'node:child_process'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
-const PORT = process.env.BLOCK_DEV_SERVER_PORT || 3001;
+// __dirname shim for ESM
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
+// --- CLI args parsing (minimal) -------------------------------------------------
+function getArgValue(name) {
+  // returns value for flags like --port=3001 or --port 3001
+  const idx = process.argv.indexOf(`--${name}`)
+  if (idx !== -1 && process.argv[idx + 1] && !process.argv[idx + 1].startsWith('--')) {
+    return process.argv[idx + 1]
+  }
+  const withEq = process.argv.find((a) => a.startsWith(`--${name}=`))
+  if (withEq) return withEq.split('=')[1]
+  return undefined
+}
+
+const argPort = getArgValue('port')
+const argHost = getArgValue('host')
+
+// Precedence: CLI > BLOCK_* env > generic env > default
+const PORT = Number(argPort ?? process.env.BLOCK_DEV_SERVER_PORT ?? process.env.PORT ?? 3001)
+const HOST = String(argHost ?? process.env.BLOCK_DEV_SERVER_HOST ?? process.env.HOST ?? '0.0.0.0')
+
 const app = express();
 
 // Block registry
@@ -57,7 +80,7 @@ function setupBlockWatching() {
   });
 
   watcher.on('change', (filePath) => {
-    const blockName = filePath.split('/')[0];
+  const blockName = filePath.split(path.sep)[0];
     console.log(`Block ${blockName} source changed: ${filePath}`);
 
     // Rebuild the block
@@ -130,7 +153,7 @@ app.get('/healthz', (req, res) => {
 app.use(express.static(path.join(__dirname)));
 
 // Start server
-async function startServer() {
+export async function startServer() {
   try {
     // Initialize blocks
     initializeBlocks();
@@ -139,12 +162,13 @@ async function startServer() {
     setupBlockWatching();
 
     // Start HTTP server
-    app.listen(PORT, () => {
-      console.log(`🚀 Block Development Server running on port ${PORT}`);
+  app.listen(PORT, HOST, () => {
+      const hostForBanner = (HOST === '0.0.0.0' || HOST === '::') ? 'localhost' : HOST
+      console.log(`🚀 Block Development Server running at http://${hostForBanner}:${PORT}`);
       console.log(`📦 Serving ${blocks.size} blocks`);
       console.log(`🔍 Block watching enabled`);
-      console.log(`📊 Health check: http://localhost:${PORT}/healthz`);
-      console.log(`📋 Block list: http://localhost:${PORT}/api/blocks`);
+      console.log(`📊 Health check: http://${hostForBanner}:${PORT}/healthz`);
+      console.log(`📋 Block list: http://${hostForBanner}:${PORT}/api/blocks`);
     });
 
   } catch (error) {
@@ -164,9 +188,8 @@ process.on('SIGTERM', () => {
   process.exit(0);
 });
 
-// Start the server
-if (require.main === module) {
-  startServer();
+// Start the server when executed directly
+const isMain = import.meta.url === pathToFileURL(process.argv[1]).href
+if (isMain) {
+  startServer()
 }
-
-module.exports = { startServer };

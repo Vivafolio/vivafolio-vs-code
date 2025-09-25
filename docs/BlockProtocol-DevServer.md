@@ -26,12 +26,16 @@ A clean separation of concerns where each component has a single, well-defined r
 ### 1. Block Builder & Server (Block Development Only)
 **Location**: `blocks/dev-server.ts` (new)  
 **Purpose**: **Build, bundle, and serve block definitions during development**
-**Responsibilities** (Target State):
-- Framework compilation (SolidJS, Vue, Svelte, Lit, Angular)
+**Responsibilities** :
+- Supports block building in different frameworks (SolidJS, Vue, Svelte, Lit, Angular)
 - Block packaging and bundling
 - Hot-reload development serving
 - Cache invalidation hooks for VS Code integration
 - REST API for block metadata and health checks
+
+**Current limitations vs. target:**
+- No framework auto-detection/compilation pipeline; relies on each block’s `npm run build`.
+- No cross-process cache invalidation broadcast to VS Code; consumers refresh or watch on their own.
 
 ### 2. Demo Application Server (POC Testing Only)
 **Location**: `apps/blockprotocol-poc/src/server.ts` (refactored)
@@ -42,6 +46,13 @@ A clean separation of concerns where each component has a single, well-defined r
 - **Delegate entity graph management to IndexingService**
 - Provide configurable test scenarios
 - Optional WebSocket support for Block Protocol message testing
+
+**Current implementation notes (server.ts):**
+- Can enable framework watch/compile pipelines (SolidJS/Vue/Svelte/Lit/Angular) via `ENABLE_FRAMEWORK_WATCH=true` and uses Vite middleware when `NODE_ENV !== 'production'`.
+- Starts a WebSocket server and dispatches scenario-driven VivafolioBlock notifications; `connection_ack` and notifications include the current `entityGraph`.
+- Uses `IndexingService` for entity discovery/updates; some scenarios (e.g., D3 line graph) include CSV fallback parsing when the index is empty.
+- Serves external/demo blocks and example bundles via Express static routes; in production adds compression and stricter cache headers.
+- Exposes health (`/healthz`) and performance endpoints used by the POC UI.
 
 ### 3. IndexingService (Entity Management)
 **Location**: `packages/indexing-service/`
@@ -64,11 +75,18 @@ A clean separation of concerns where each component has a single, well-defined r
 
 ## 1. Block Builder & Server Capabilities
 
-### Core Duties (Block Building & Serving)
+### Core Duties (Target Implementation)
 * **Framework compilation** – Hot-reload compilation for SolidJS, Vue, Svelte, Lit, Angular with proper bundling and optimization
 * **Block packaging** – Build blocks for both development (hot-reload) and production (optimized bundles)
 * **Resource serving** – Host `block-metadata.json`, bundle chunks, stylesheets, HTML entry points under predictable paths
 * **Cache invalidation hooks** – Notify BlockResourcesCache when blocks are rebuilt for automatic webview updates
+
+### Core Duties (Current Implementation)
+* **Block loading** – Scan directories for blocks with `block-metadata.json` and load metadata
+* **File watching** – Monitor `*/src/**/*` for changes and trigger rebuilds via `npm run build`
+* **Resource serving** – Host built block files from `dist/` directories via HTTP
+* **API endpoints** – Provide REST APIs for block metadata and health checks
+* **Static serving** – Serve static assets for development
 
 ### Integration Duties (VS Code Extension)
 * **Development API** – REST endpoints for block metadata, health checks, and development tools
@@ -81,21 +99,37 @@ A clean separation of concerns where each component has a single, well-defined r
 
 **Important**: The Block Builder & Server focuses **only** on building and serving blocks. Entity graph management and Block Protocol message handling are **delegated to the IndexingService**.
 
-## 2. Block Builder & Server CLI Contract
+## 2. Block Builder & Server CLI Usage
 
-The Block Builder & Server executable accepts the following options (with environment variable fallbacks):
+The Block Builder & Server is a Node.js script that can be run directly:
+
+```bash
+node blocks/dev-server.js
+```
+
+It starts on port 3001 by default (configurable via flags/env).
+
+Supported flags and env vars (current implementation):
 
 | Flag | Env | Default | Description |
 | --- | --- | --- | --- |
-| `--port <number>` | `PORT` | `4173` | TCP port for HTTP endpoints. Use `0` for an ephemeral port when embedding in tests. |
-| `--host <string>` | `HOST` | `0.0.0.0` | Bind address; the console banner should print the resolved host (`localhost` when unspecified). |
-| `--no-vite` | `DEVSERVER_NO_VITE=1` | Enabled when `NODE_ENV !== production` | Disables Vite middleware and serves prebuilt assets. Useful for unit tests or when another bundler handles compilation. |
-| `--log-routes` | `DEVSERVER_LOG_ROUTES=1` | Off | Emits `dumpExpressStack(app)` output after middleware registration. |
+| `--port <number>` | `BLOCK_DEV_SERVER_PORT` or `PORT` | `3001` | TCP port for HTTP endpoints. |
+| `--host <string>` | `BLOCK_DEV_SERVER_HOST` or `HOST` | `0.0.0.0` | Bind address; banner prints `localhost` when binding to all interfaces. |
 
 ## 3. Block Builder & Server Programmatic API
+# Current implementation:  
+```javascript
+const { startServer } = require('./blocks/dev-server.js');
+
+startServer().catch(console.error);
+```
+
+The `startServer` function initializes blocks, sets up file watching, and starts the HTTP server.
+
+# Target implementation:  
 
 ```ts
-import { startBlockBuilderServer } from './src/dev-server.ts'
+import { startBlockBuilderServer } from './blocks/dev-server.js'
 
 const { httpServer, close } = await startBlockBuilderServer({
   port: 0,
@@ -110,13 +144,12 @@ await close()
 * `startBlockBuilderServer()` returns `{ app, httpServer, close }`. Call `close()` to tear down sockets and any Vite middleware.
 * Flag `attachSignalHandlers=false` keeps the helper from registering process-wide SIGINT/SIGTERM handlers (essential for smoke tests).
 
-## 4. Block Builder & Server Test Hooks
+## 4. Block Builder & Server API Endpoints
 
-* `/healthz` – returns `{ ok: true, timestamp }` when the process is healthy.
-* `/api/blocks` – lists available blocks and their metadata.
-* `/api/blocks/{blockId}` – serves block metadata and resources.
-
-A Node smoke test must launch the Block Builder & Server programmatically, assert the health endpoint, and shut it down cleanly.
+* `/healthz` – Returns `{ ok: true, timestamp, blocks: <count> }` when the server is healthy.
+* `/api/blocks` – Lists all available blocks with basic metadata (name, displayName, version).
+* `/api/blocks/:blockName` – Returns detailed metadata for a specific block.
+* `/blocks/:blockName/:fileName` – Serves built block resources from the `dist/` directory.
 
 ## 5. Implementation Roadmap
 

@@ -319,7 +319,8 @@ console.log('Custom scenario test passed')
     await fs.writeFile(testFile, testScript, 'utf8')
 
     try {
-      const testProcess = spawn('npx', ['tsx', testFile], {
+      // Invoke Node with tsx via --import (modern Node supports package import hooks)
+      const testProcess = spawn(process.execPath, ['--import', 'tsx', testFile], {
         cwd: testDir,
         stdio: ['pipe', 'pipe', 'pipe']
       })
@@ -336,18 +337,23 @@ console.log('Custom scenario test passed')
       })
 
       await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Test timeout'))
+        }, 10000)
+
+        testProcess.on('error', (err) => {
+          clearTimeout(timeout)
+          reject(new Error(`Spawn error: ${String(err)}`))
+        })
+
         testProcess.on('close', (code) => {
+          clearTimeout(timeout)
           if (code === 0) {
             resolve()
           } else {
-            reject(new Error(`Test failed: ${testError}`))
+            reject(new Error(`Test failed: ${testError || testOutput}`))
           }
         })
-
-        // Timeout after 10 seconds
-        setTimeout(() => {
-          reject(new Error('Test timeout'))
-        }, 10000)
       })
 
       expect(testOutput).toContain('Custom scenario test passed')

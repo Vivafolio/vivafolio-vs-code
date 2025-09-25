@@ -1,0 +1,46 @@
+{
+  "id": "https://vivafolio.org/blocks/d3-line-chart",
+  "name": "D3 Line Chart",
+  "version": "0.2.0",
+  "blockType": "custom-element",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "rows": { "type": "array", "items": { "type": "object" } },
+      "xField": { "type": "string" },
+      "yField": { "type": "string" },
+      "xType": { "enum": ["number", "date"], "default": "number" },
+      "dateFormat": { "type": "string", "default": "%Y-%m-%d" },
+      "title": { "type": "string" },
+      "color": { "type": "string" },
+      "seriesField": { "type": "string" },
+      "width": { "type": "number", "default": 640 },
+      "height": { "type": "number", "default": 320 },
+      "showLegend": { "type": "boolean", "default": true },
+      "legendPosition": { "enum": ["top-right", "top-left", "bottom-right", "bottom-left", "bottom"], "default": "top-right" },
+      "showFilterPanel": { "type": "boolean", "default": true },
+      "facets": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "field": { "type": "string" },
+            "label": { "type": "string" },
+            "control": { "enum": ["select", "checkboxes"] },
+            "valueType": { "enum": ["string", "number", "date"] },
+            "values": { "type": "array", "items": { "type": ["string", "number"] } }
+          },
+          "required": ["field", "label", "control", "valueType"]
+        }
+      },
+      "filterDefaults": { "type": "object" },
+      "persistFilterSelection": { "type": "boolean", "default": false }
+    },
+    "required": ["rows"],
+    "additionalProperties": false
+  },
+  "resources": {
+    "js": ["dist/app.js"],
+    "css": ["dist/styles.css"]
+  }
+}

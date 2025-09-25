@@ -765,12 +765,22 @@ function renderPublishedBlock(notification: VivafolioBlockNotification): HTMLEle
   console.log('[POC] About to call loader.loadBlock...')
   loader.loadBlock(adaptedNotification, container).then(() => {
     console.log('[POC] Block loaded successfully:', notification.blockId)
-    console.log('[POC] Container HTML after load:', container.innerHTML)
+    console.log('[POC] Container HTML after load:', container.innerHTML.substring(0, 500))
     console.log('[POC] Container children count:', container.children.length)
+    console.log('[POC] Container first child:', container.firstElementChild?.tagName, container.firstElementChild?.className)
+    console.log('[POC] Loader diagnostics:', JSON.stringify(loader.getDiagnostics(), null, 2))
+    // Check if the block root element exists
+    const blockRoot = container.querySelector('.d3-line-graph-block')
+    console.log('[POC] Block root element found:', !!blockRoot, blockRoot?.tagName)
+    if (blockRoot) {
+      console.log('[POC] Block root className:', blockRoot.className)
+      console.log('[POC] Block root innerHTML preview:', (blockRoot as HTMLElement).innerHTML.substring(0, 200))
+    }
     container.style.display = 'block'
   }).catch(error => {
     console.error('[POC] Block loader failed:', error.message)
     console.error('[POC] Full error:', error)
+    console.error('[POC] Error stack:', error.stack)
     // Show proper error instead of fake content
     container.innerHTML = `
       <div class="block-error" style="
@@ -889,6 +899,15 @@ function handleEnvelope(data: ServerEnvelope) {
       const scenarioTitle = data.scenario?.title ?? 'Unknown Scenario'
       scenarioLabel.textContent = scenarioTitle
       scenarioDescription.textContent = data.scenario?.description ?? ''
+      
+      // Set up global graph context for blocks that need direct access to entity data
+      if (data.entityGraph) {
+        ;(window as any).__vivafolioGraphContext = { graph: data.entityGraph }
+        console.log('[Client] Set up global graph context with', data.entityGraph.entities?.length || 0, 'entities')
+      } else {
+        console.log('[Client] No entityGraph in connection_ack')
+      }
+      
       ensurePlaceholder(`Awaiting VivafolioBlock notifications for ${scenarioTitle}…`)
       break
     }
@@ -898,6 +917,11 @@ function handleEnvelope(data: ServerEnvelope) {
       blockType: data.payload.blockType,
       entityId: data.payload.entityId
     })
+    // Ensure global graph context is available for blocks that read directly from window
+    if (data.payload.entityGraph) {
+      ;(window as any).__vivafolioGraphContext = { graph: data.payload.entityGraph }
+      console.log('[Client] Updated global graph context from notification with', data.payload.entityGraph.entities?.length || 0, 'entities')
+    }
     clearPlaceholder()
     latestPayloads.set(data.payload.blockId, data.payload)
     const renderer = renderers[data.payload.blockType] ?? renderFallback

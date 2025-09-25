@@ -1,0 +1,43 @@
+:root {
+  --chart-bg: var(--vscode-editor-background, #1e1e1e);
+  --chart-fg: var(--vscode-foreground, #cccccc);
+  --chart-grid: color-mix(in srgb, var(--chart-fg) 25%, transparent);
+  --accent: var(--vscode-button-background, #3a8bd6);
+  --muted: color-mix(in srgb, var(--chart-fg) 60%, transparent);
+}
+.bp-line-chart { background: var(--chart-bg); color: var(--chart-fg); padding: 0.75rem; border-radius: 12px; }
+svg { max-width: 100%; height: auto; display: block; }
+
+/* Size controls */
+.size-controls {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+  padding: 0.5rem;
+  background: color-mix(in srgb, var(--chart-fg) 5%, transparent);
+  border-radius: 6px;
+}
+
+.size-controls label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.size-controls input[type="number"] {
+  width: 80px;
+  padding: 0.25rem 0.5rem;
+  background: var(--chart-bg);
+  color: var(--chart-fg);
+  border: 1px solid color-mix(in srgb, var(--chart-fg) 30%, transparent);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 0.875rem;
+}
+
+.size-controls input[type="number"]:focus {
+  outline: none;
+  border-color: var(--accent);
+}

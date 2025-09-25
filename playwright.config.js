@@ -1,12 +1,11 @@
 // Playwright configuration for Vivafolio E2E tests
 // This config is designed to work with VS Code extension testing
 
-const { defineConfig } = require('@playwright/test')
-const path = require('path')
-
-module.exports = defineConfig({
-  testDir: './test',
-  testMatch: 'e2e-vivafolioblock.js',
+// Minimal CommonJS Playwright config that avoids requiring @playwright/test
+// This prevents duplicate require issues when Playwright loads the config.
+module.exports = {
+  testDir: '.',
+  testMatch: '**/*.spec.ts',
 
   // Timeout settings for VS Code loading
   timeout: 60000,
@@ -14,7 +13,7 @@ module.exports = defineConfig({
     timeout: 10000,
   },
 
-  // Use VS Code's built-in browser for testing
+  // Use headless browser for testing
   use: {
     headless: true,
     viewport: { width: 1280, height: 720 },
@@ -23,29 +22,27 @@ module.exports = defineConfig({
     screenshot: 'only-on-failure',
   },
 
-  // Configure for VS Code extension testing
+  // Configure for VS Code extension testing (kept as project selector)
   projects: [
     {
       name: 'vivafolio-e2e',
-      testMatch: '**/e2e-vivafolioblock.js',
-      use: {
-        // VS Code extension testing requires special setup
-        // These tests will run against a VS Code instance with the extension loaded
-      },
+      testMatch: ['**/e2e-vivafolioblock.js', '**/*.spec.ts'],
+      use: {},
     },
   ],
 
   // Reporter configuration
+  // place HTML report outside the Playwright outputDir to avoid conflicts
   reporter: [
-    ['html', { outputFolder: 'test-results/playwright-report' }],
+    ['html', { outputFolder: 'playwright-report' }],
     ['json', { outputFile: 'test-results/results.json' }],
     ['line']
   ],
 
   // Output configuration
-  outputDir: 'test-results/',
+  outputDir: 'test-results',
 
   // Global setup and teardown if needed
   globalSetup: require.resolve('./test/playwright-setup.js'),
   globalTeardown: require.resolve('./test/playwright-teardown.js'),
-})
+}
