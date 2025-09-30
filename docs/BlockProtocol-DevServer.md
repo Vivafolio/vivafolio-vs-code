@@ -24,7 +24,7 @@ A clean separation of concerns where each component has a single, well-defined r
 ## Target Component Overview
 
 ### 1. Block Builder & Server (Block Development Only)
-**Location**: `blocks/` directory, `src/dev-server.ts` (new)
+**Location**: `blocks/dev-server.ts` (new)  
 **Purpose**: **Build, bundle, and serve block definitions during development**
 **Responsibilities** (Target State):
 - Framework compilation (SolidJS, Vue, Svelte, Lit, Angular)
