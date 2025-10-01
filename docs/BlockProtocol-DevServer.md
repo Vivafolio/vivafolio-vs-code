@@ -24,7 +24,8 @@ A clean separation of concerns where each component has a single, well-defined r
 ## Target Component Overview
 
 ### 1. Block Builder & Server (Block Development Only)
-**Location**: `blocks/dev-server.js`
+
+**Location**: `blocks/dev-server.js`  
 **Purpose**: **Serve block resources and provide hot-reload during development**
 **Responsibilities** (Current Implementation):
 - Load block metadata from `block-metadata.json` files in block directories
@@ -37,6 +38,7 @@ A clean separation of concerns where each component has a single, well-defined r
 **Current limitations vs. target:**
 - No framework auto-detection/compilation pipeline; relies on each block’s `npm run build`.
 - No cross-process cache invalidation broadcast to VS Code; consumers refresh or watch on their own.
+
 
 ### 2. Demo Application Server (POC Testing Only)
 **Location**: `apps/blockprotocol-poc/src/server.ts` (refactored)
