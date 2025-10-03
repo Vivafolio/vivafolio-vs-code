@@ -1,0 +1,467 @@
+Assignee,Title,Task Id,Status,Task Type,PR/MR Link,Project,Created by
+Stan Manilov,Improve Work Process,BSN-1667,In Progress,Epic,,Blocksense,Stan Manilov
+Stan Manilov,Reduce sequencer slot time to 15 seconds,BSN-1981,In Progress,Epic,,Blocksense,Stan Manilov
+Hristo Staykov,Add timestamp to price feed,BSN-2087,Next Up,Task,,Blocksense,Aneta Tsvetkova
+Hristo Staykov,Test run for high frequency updates (Pharos),BSN-3148,Next Up,Task,,Blocksense,Hristo Staykov
+Hristo Staykov,Parallel processing of transactions for updates to networks per network,BSN-3149,Next Up,Task,,Blocksense,Hristo Staykov
+Hristo Staykov,Implement Casper finality proofs using zkllvm,DETH-214,In Progress,Epic,,Dendreth,Hristo Staykov
+Hristo Staykov,Sequencer,BSN-622,In Progress,Epic,,Blocksense,Petar Kirov
+Hristo Staykov,Use decimals from feed config in node software,BSN-1624,Backlog,Epic,,Blocksense,Hristo Staykov
+Hristo Staykov,Fix flaky test in CI,BSN-2272,Backlog,Task,,Blocksense,Aneta Tsvetkova
+Hristo Staykov,Sort batched updates by Feed ID before inclusion in block/s.,BSN-2995,Backlog,Task,,Blocksense,Kristin Kirkov
+Hristo Staykov,Send veracity check from reporters to sequencer (signature?),BSN-3058,Backlog,Task,,Blocksense,Antoni Dikov
+Hristo Staykov,Design Feed Config changes to support high frequency updates if necessary,BSN-3150,Backlog,Task,,Blocksense,Hristo Staykov
+Antoni Dikov,"Load ac server config (address, port, model, hyperparams) from reporters and sequencer",BSN-3054,In Progress,Task,,Blocksense,Antoni Dikov
+Antoni Dikov,Replicate process-compose work for system-d and test,BSN-1679,Code review,Task,,Blocksense,Stan Manilov
+Antoni Dikov,Create test-scenario oracle script,BSN-1909,Backlog,Task,,Blocksense,Stan Manilov
+Antoni Dikov,API Docs for Rust SDK,BSN-1429,Backlog,Task,,Blocksense,Petar Kirov
+Yordan Madzhunkov,Initial implementation in sequencer,BSN-2178,Next Up,Task,,Blocksense,Stan Manilov
+Yordan Madzhunkov,Read last updates from providers,BSN-1983,In Progress,Task,,Blocksense,Stan Manilov
+Yordan Madzhunkov,Add health endpoint logic,BSN-1764,Backlog,Task,,Blocksense,Stan Manilov
+Yordan Madzhunkov,Extract aggregation code from sequencer,BSN-1814,Backlog,Task,,Blocksense,Stan Manilov
+Aneta Tsvetkova,Research Chain Abstraction,BSN-3322,Next Up,Task,,Blocksense,Aneta Tsvetkova
+Aneta Tsvetkova,Research Intent Solver,BSN-3323,Next Up,Task,,Blocksense,Aneta Tsvetkova
+Aneta Tsvetkova,Add request-response ADFS doc,BSN-2010,In Progress,Story,,Blocksense,Aneta Tsvetkova
+Aneta Tsvetkova,ADFS,BSN-2006,In Progress,Epic,,Blocksense,Aneta Tsvetkova
+Aneta Tsvetkova,Safe contracts on new testnets - take full ownership of the deployment process,BSN-2602,In Progress,Epic,,Blocksense,Petar Kirov
+Aneta Tsvetkova,Play with Chainlink Functions,BSN-3327,In Progress,Task,,Blocksense,Aneta Tsvetkova
+Aneta Tsvetkova,Decoder,BSN-2011,Code review,Story,,Blocksense,Aneta Tsvetkova
+Aneta Tsvetkova,Add SSZ handling,BSN-2013,Code review,Task,,Blocksense,Aneta Tsvetkova
+Aneta Tsvetkova,Add vanity address miner hardhat task,BSN-3314,Code review,Task,,Blocksense,Aneta Tsvetkova
+Aneta Tsvetkova,Add ADFS input parser + tests,BSN-3324,Code review,Task,,Blocksense,Aneta Tsvetkova
+Aneta Tsvetkova,Ship the ADFS,BSN-1609,Backlog,Epic,,Blocksense,Zahary Karadjov
+Aneta Tsvetkova,Add hardhat task for adding new reporters to reporter multisig,BSN-3063,Backlog,Task,,Blocksense,Aneta Tsvetkova
+Aneta Tsvetkova,Implement WIT frontend,BSN-3250,Backlog,Task,,Blocksense,Aneta Tsvetkova
+Aneta Tsvetkova,Update docs when npm contracts package available,BSN-3272,Backlog,Task,,Blocksense,Aneta Tsvetkova
+Kristin Kirkov,Verify - visualization,DETH-128,Paused,Epic,,Dendreth,Kristin Kirkov
+Kristin Kirkov,Dendreth Relay minor refactoring suggesions by Petar,DETH-1012,Code review,Task,,Dendreth,Kristin Kirkov
+Nikolay Kostadinov,Create commitment mapper poseidon tree non-circuit implementation,DETH-144,Code review,Task,,Dendreth,Dimo Dimov
+Martin Ivanov,Remove Params global variable in mcl ci_matrix,INFRA-1436,Paused,Task,,Infra,Martin Ivanov
+Martin Ivanov,Use FeedConfig v2 to filter results from crypto-price-feeds oracle script (only fill_results function),BSN-2579,Next Up,Task,,Blocksense,Petar Kirov
+Martin Ivanov,mcl ci_matrix HTTP should print the URL on error,INFRA-1443,In Progress,Task,,Infra,Martin Ivanov
+Martin Ivanov,mcl ci_matrix checkPackage should try multiple cache URLs,INFRA-1435,In Progress,Bug,,Infra,Martin Ivanov
+Emil Ivanichkov,Status Node Manager Documents,NIMB-239,Paused,Epic,,Nimbus,Emil Ivanichkov
+Emil Ivanichkov,Implement the new Rewards endpoints in the Beacon API,CT-569,Paused,Story,,CodeTracer,Emil Ivanichkov
+Emil Ivanichkov,Replace NetworkAddressExplorerLink with ContractAddress component,BSN-1282,Paused,Task,,Blocksense,Petar Kirov
+Emil Ivanichkov,Update read.me mdx file of blocksense repository,BSN-2234,Next Up,Task,,Blocksense,Vanya Pavlova
+Emil Ivanichkov,Redesign feed config schema,BSN-3362,Next Up,Epic,,Blocksense,Petar Kirov
+Emil Ivanichkov,Create @blocksense/ui workspace under libs/ts/ui,BSN-1230,In Progress,Epic,,Blocksense,Emil Ivanichkov
+Emil Ivanichkov,Hypurrfi,BSN-3350,In Progress,Task,,Blocksense,Petar Kirov
+Emil Ivanichkov,Hyperdrive,BSN-3352,In Progress,Task,,Blocksense,Petar Kirov
+Emil Ivanichkov,HyperLend,BSN-3359,In Progress,Task,,Blocksense,Emil Ivanichkov
+Emil Ivanichkov,Use `discriminated union` for oracle arguments schema,BSN-3276,Code review,Task,,Blocksense,Emil Ivanichkov
+Emil Ivanichkov,Init workspace,BSN-3383,Code review,Task,,Blocksense,Emil Ivanichkov
+Emil Ivanichkov,[Data Feed Page]: Fill Feed Registry card content,BSN-1249,Blocked,Task,,Blocksense,Emil Ivanichkov
+Emil Ivanichkov,Technical setup and architecture,BSN-277,Backlog,Epic,,Blocksense,Zahary Karadjov
+Emil Ivanichkov,[sol-reflector] :Add tests,BSN-914,Backlog,Task,,Blocksense,Emil Ivanichkov
+Emil Ivanichkov,[sol-reflector]: Support versions of generated output based on changes in the contracts.,BSN-915,Backlog,Task,,Blocksense,Emil Ivanichkov
+Emil Ivanichkov,Refactor anchor links to come from sol-reflector tool,BSN-1027,Backlog,Task,,Blocksense,Vanya Pavlova
+Emil Ivanichkov,Add comment with license on all source files,BSN-1132,Backlog,Task,,Blocksense,Emil Ivanichkov
+Emil Ivanichkov,Add link to data source from data feed row,BSN-1270,Backlog,Task,,Blocksense,Radoslav Dimchev
+Emil Ivanichkov,Ensure single instance of solc is used,BSN-745,Backlog,Task,,Blocksense,Emil Ivanichkov
+Emil Ivanichkov,Configure ESLint,BSN-850,Backlog,Task,,Blocksense,Petar Kirov
+Emil Ivanichkov,Fix Solidity imports,BSN-2271,Backlog,Task,,Blocksense,Aneta Tsvetkova
+Emil Ivanichkov,Show line with problems when logs based test fails,BSN-3287,Backlog,Task,,Blocksense,Emil Ivanichkov
+Emil Ivanichkov,Hyperbeat,BSN-3351,Backlog,Task,,Blocksense,Petar Kirov
+Radoslav Dimchev,Add Cookie Consent to docs.ws,BSN-1440,Next Up,Task,,Blocksense,Vanya Pavlova
+Radoslav Dimchev,Add common List component,BSN-2630,Next Up,Task,,Blocksense,Vanya Pavlova
+Radoslav Dimchev,Implement data feed liveness info for data feeds page,BSN-3363,Next Up,Epic,,Blocksense,Petar Kirov
+Radoslav Dimchev,Implement User Participation Form,BSN-2757,In Progress,Task,,Blocksense,Vanya Pavlova
+Radoslav Dimchev,Integrate Twitter API to Verify User Engagement and Set up API Access,BSN-2762,In Progress,Task,,Blocksense,Vanya Pavlova
+Radoslav Dimchev,Integrate Discord API to Verify User Subscription and Set up API Access,BSN-2763,In Progress,Task,,Blocksense,Vanya Pavlova
+Radoslav Dimchev,Migrate common Data Table and children components to Storybook,BSN-2798,In Progress,Task,https://github.com/blocksense-network/blocksense/pull/1147,Blocksense,Radoslav Dimchev
+Radoslav Dimchev,Expand table button,BSN-1993,Backlog,Task,,Blocksense,Petar Kirov
+Radoslav Dimchev,Expand code snippet button,BSN-1994,Backlog,Task,,Blocksense,Petar Kirov
+Vanya Pavlova,Add shadcn/ui components to explorer.blocksense.network,BSN-1283,In Progress,Task,,Blocksense,Vanya Pavlova
+Vanya Pavlova,Add common Sidebar component,BSN-2646,In Progress,Task,,Blocksense,Vanya Pavlova
+Vanya Pavlova,NFT Drop Stage 1,BSN-2754,In Progress,Epic,,Blocksense,Vanya Pavlova
+Vanya Pavlova,Collect functional requirements for Blocksense documentation,BSN-717,Backlog,Task,,Blocksense,Petar Kirov
+Vanya Pavlova,Design and Implement Figma wire frames for Blocksense documentation,BSN-727,Backlog,Task,,Blocksense,Emil Ivanichkov
+Vanya Pavlova,Refine UI for v1 of Blocksense documentation website,BSN-1081,Backlog,Epic,,Blocksense,Vanya Pavlova
+Vanya Pavlova,Blocksense UI Complementary Components,BSN-2632,Backlog,Epic,,Blocksense,Vanya Pavlova
+Vanya Pavlova,Add common Menu component,BSN-2639,Backlog,Task,,Blocksense,Vanya Pavlova
+Vanya Pavlova,Add common Pager component,BSN-2640,Backlog,Task,,Blocksense,Vanya Pavlova
+Vanya Pavlova,Add common Combobox component,BSN-2642,Backlog,Task,,Blocksense,Vanya Pavlova
+Vanya Pavlova,"Add common Context Menu component ",BSN-2643,Backlog,Task,,Blocksense,Vanya Pavlova
+Vanya Pavlova,Add common Grip component,BSN-2645,Backlog,Task,,Blocksense,Vanya Pavlova
+Vanya Pavlova,Add common Floating Panel component,BSN-2647,Backlog,Task,,Blocksense,Vanya Pavlova
+Vanya Pavlova,Add common Prompt component,BSN-2649,Backlog,Task,,Blocksense,Vanya Pavlova
+Vanya Pavlova,Implement redesign for the Home page,BSN-2667,Backlog,Task,,Blocksense,Vanya Pavlova
+Vanya Pavlova,Implement Products page,BSN-2668,Backlog,Task,,Blocksense,Vanya Pavlova
+Vanya Pavlova,Implement Community page,BSN-2669,Backlog,Task,,Blocksense,Vanya Pavlova
+Vanya Pavlova,Implement Docs page,BSN-2670,Backlog,Task,,Blocksense,Vanya Pavlova
+Vanya Pavlova,Implement Resources page,BSN-2671,Backlog,Task,,Blocksense,Vanya Pavlova
+Vanya Pavlova,Implement Company page,BSN-2672,Backlog,Task,,Blocksense,Vanya Pavlova
+Vanya Pavlova,Implement Legal related pages,BSN-2673,Backlog,Task,,Blocksense,Vanya Pavlova
+Vanya Pavlova,NFT Drop Stage 2,BSN-2755,Backlog,Epic,,Blocksense,Vanya Pavlova
+Kalin Hristov,Refactor and Isolate IntersectionObserver Logic Across Components,BSN-2959,Code review,Task,https://github.com/blocksense-network/blocksense/pull/1263,Blocksense,Vanya Pavlova
+Kalin Hristov,Upgrade Design System for nft.blocksense.network — Tailwind 4.0 Tokens & Architecture,BSN-2960,Backlog,Task,,Blocksense,Vanya Pavlova
+Mila Genova,"Research for alternative of gecko terminal ",BSN-3370,Paused,Task,,Blocksense,Mila Genova
+Mila Genova,Implement Open Exchange Rate  fetcher,BSN-3379,Next Up,Task,,Blocksense,Mila Genova
+Mila Genova,Implement xe fetcher,BSN-3380,Next Up,Task,,Blocksense,Mila Genova
+Mila Genova,"Add MYR/USD data feed ",BSN-3376,Code review,Task,https://github.com/blocksense-network/blocksense/pull/1609,Blocksense,Mila Genova
+Mila Genova,"Forex fetchers ",BSN-3377,Code review,Story,https://github.com/blocksense-network/blocksense/pull/1620,Blocksense,Mila Genova
+Mila Genova,Implement alpha vantage fetcher,BSN-3378,Code review,Task,https://github.com/blocksense-network/blocksense/pull/1620,Blocksense,Mila Genova
+Mila Genova,forex-price-feeds oracle,BSN-3381,Code review,Task,https://github.com/blocksense-network/blocksense/pull/1620,Blocksense,Emil Ivanichkov
+Mila Genova,Implement YF API fetcher,BSN-3382,Code review,Task,https://github.com/blocksense-network/blocksense/pull/1620,Blocksense,Emil Ivanichkov
+Mila Genova,Implement twelvedata fetcher,BSN-3385,Code review,Task,https://github.com/blocksense-network/blocksense/pull/1620,Blocksense,Emil Ivanichkov
+Mila Genova,Implement CLI tool for reading CLAggregatorAdapter contract data,BSN-3155,Blocked,Task,,Blocksense,Emil Ivanichkov
+Mila Genova,Blocksense Network Dashboard page,BSN-979,Backlog,Task,,Blocksense,Petar Kirov
+Mila Genova,Test the calldata from sequencer,BSN-3329,Backlog,Task,,Blocksense,Emil Ivanichkov
+Nikolay Nikolov,Handle arrays properly,BSN-1152,Next Up,Task,,Blocksense,Stan Manilov
+Nikolay Nikolov,Make zk_dungeon work with trace gen,BSN-2042,In Progress,Epic,,Blocksense,Stan Manilov
+Nikolay Nikolov,Proper support for the PLONKY2 Field type,BSN-1673,Backlog,Task,,Blocksense,Nikolay Nikolov
+Aristotelis Papanis,"If optimized away, nargo debug skips it",BSN-2335,Paused,Bug,,Blocksense,Aristotelis Papanis
+Aristotelis Papanis,Update Verus-lib backend version,BSN-2375,Paused,Epic,,Blocksense,Aristotelis Papanis
+Aristotelis Papanis,Venir initiative,BSN-2374,Paused,Epic,,Blocksense,Aristotelis Papanis
+Aristotelis Papanis,Disable the removal of unused functions,BSN-3134,Next Up,Task,,Blocksense,Aristotelis Papanis
+Aristotelis Papanis,"Investigate how to extend Nargo CLI ",BSN-3338,Next Up,Task,,Blocksense,Aristotelis Papanis
+Aristotelis Papanis,Formal Verification,BSN-1016,In Progress,Epic,,Blocksense,Stan Manilov
+Aristotelis Papanis,Noir FV as a finished beta product,BSN-2372,In Progress,Epic,,Blocksense,Aristotelis Papanis
+Aristotelis Papanis,Prototype new architecture inside our fork,BSN-3044,In Progress,Epic,,Blocksense,Aristotelis Papanis
+Aristotelis Papanis,"Compare paths in type_infer() , expr::Variable branch",BSN-3368,In Progress,Bug,,Blocksense,Aristotelis Papanis
+Aristotelis Papanis,Convert SpannedTypedExpr to VIR,BSN-3293,Code review,Task,,Blocksense,Aristotelis Papanis
+Aristotelis Papanis,Update fv_bridge to use new parser/type infer functions,BSN-3300,Code review,Task,https://github.com/blocksense-network/noir/pull/266/commits/1e23da7ff25711facb76bc118200d33e2643dac4,Blocksense,Aristotelis Papanis
+Aristotelis Papanis,Proper error propagation,BSN-3303,Code review,Task,https://github.com/blocksense-network/noir/pull/274,Blocksense,Aristotelis Papanis
+Aristotelis Papanis,Support structures in FV annotations,BSN-3306,Code review,Epic,,Blocksense,Aristotelis Papanis
+Aristotelis Papanis,Support structure field access operations,BSN-3307,Code review,Task,https://github.com/blocksense-network/noir/pull/283,Blocksense,Aristotelis Papanis
+Aristotelis Papanis,Parser for structure access operation,BSN-3369,Code review,Task,https://github.com/blocksense-network/noir/pull/282,Blocksense,Aristotelis Papanis
+Petar Kirov,Add rust-nightly with rust-analyzer support to the devshell,DETH-163,Paused,Task,,Dendreth,Petar Kirov
+Petar Kirov,"Switch boss to depend on  nixos-modules rather thannix-blockchain-development ",INFRA-2852,Next Up,Task,,Infra,Simeon Armenchev
+Petar Kirov,"Switch nix-supply-chain to depend on  nixos-modules rather thannix-blockchain-development ",INFRA-2851,Next Up,Task,,Infra,Simeon Armenchev
+Petar Kirov,Spout,BSN-3257,Next Up,Epic,,Blocksense,Petar Kirov
+Petar Kirov,Deploy on HyperEVM (chainId 999),BSN-3348,Next Up,Task,,Blocksense,Petar Kirov
+Petar Kirov,Deploy the system in a cloud hosting provider,DETH-40,In Progress,Epic,,Dendreth,Petar Kirov
+Petar Kirov,GCP,BSN-1614,In Progress,Epic,,Blocksense,Zahary Karadjov
+Petar Kirov,Mainnets,BSN-2607,In Progress,Epic,,Blocksense,Petar Kirov
+Petar Kirov,[Customers/Spout] Gather requirements,BSN-3258,In Progress,Task,,Blocksense,Petar Kirov
+Petar Kirov,Fix yarn-project.nix,DETH-52,Backlog,Bug,,Dendreth,Petar Kirov
+Petar Kirov,Check why nix flake update does not complete,BLKDMN-112,Backlog,Task,,Blockdaemon,Petar Kirov
+Petar Kirov,Write job description for DevOps position,OFFI-232,Backlog,Task,,Office Tasks,Petar Kirov
+Petar Kirov,API Docs for Nix Deployment Module,BSN-1430,Backlog,Task,,Blocksense,Petar Kirov
+Petar Kirov,Derivations for building docker images based on nix2container,BSN-1492,Backlog,Task,,Blocksense,Petar Kirov
+Petar Kirov,CI pipeline that publishes the docker images to an OCI registry,BSN-1493,Backlog,Task,,Blocksense,Petar Kirov
+Petar Kirov,Prepare OCI image for operators,BSN-1709,Backlog,Task,,Blocksense,Stan Manilov
+Petar Kirov,Execute the script every sync committee period in a cloud provider,DETH-1926,Backlog,Task,,Dendreth,Dimo Dimov
+Petar Kirov,Search improvements,BSN-2247,Backlog,Task,,Blocksense,Petar Kirov
+Petar Kirov,Ensure everyone on the FE team has access to Figma Dev Mode,BSN-2264,Backlog,Task,,Blocksense,Petar Kirov
+Petar Kirov,Should we support i11n?,BSN-2268,Backlog,Task,,Blocksense,Petar Kirov
+Petar Kirov,Create AWS account,BSN-3197,Backlog,Task,,Blocksense,Martin Nikov
+Petar Kirov,Deploy on Tac Mainnet,BSN-3308,Backlog,Task,,Blocksense,Kristin Kirkov
+Petar Kirov,Deploy on Matchain,BSN-3309,Backlog,Task,,Blocksense,Kristin Kirkov
+Dimo Dimov,Create a script that updates from current slot to a finalized slot in the next sync committee period,DETH-1925,In Progress,Task,,Dendreth,Dimo Dimov
+Dimo Dimov,Run plonk prover of plonky2 proofs,DETH-154,Code review,Task,,Dendreth,Dimo Dimov
+Dimo Dimov,Create disaggregated storage for the proofs in redis,DETH-118,Code review,Task,,Dendreth,Dimo Dimov
+Dimo Dimov,PoC cli tool for gnosis safe signatures,BSN-1686,Code review,Task,,Blocksense,Dimo Dimov
+Dimo Dimov,Design requirements for ZK,BSN-598,Backlog,Task,,Blocksense,Petar Kirov
+Dimo Dimov,Run bazel in tachyon project,CT-677,Backlog,Task,,CodeTracer,Dimo Dimov
+Dimo Dimov,Hashi deployment should turn on just once per day,DETH-1924,Backlog,Task,,Dendreth,Dimo Dimov
+Zahary Karadjov,Enable Github sub issues in the Blocksense org,BSN-1906,Paused,Task,,Blocksense,Zahary Karadjov
+Zahary Karadjov,Select License for the source code,BSN-627,Next Up,Task,,Blocksense,Petar Kirov
+Zahary Karadjov,Audit the ADFS,BSN-1610,Next Up,Task,,Blocksense,Zahary Karadjov
+Zahary Karadjov,Productize Validator and Balance Proof generators,DETH-39,In Progress,Epic,,Dendreth,Petar Kirov
+Martin Dobrev,"Add Descriptions of New APIs to nimbus-guide ",NIMB-1413,In Progress,Task,,Nimbus,Martin Dobrev
+Martin Dobrev,Document New Features for Nimbus Team Purposes,NIMB-1414,In Progress,Task,,Nimbus,Martin Dobrev
+Martin Dobrev,/eth/v1/validator/{pubkey}/voluntary_exit should route messages to the squad leader,NIMB-1416,In Progress,Task,,Nimbus,Martin Dobrev
+Martin Dobrev,Submit Pull Request for DVT Additions in nim-blscurve,NIMB-1405,In Progress,Task,,Nimbus,Martin Dobrev
+Martin Dobrev,Prepare/Update RAFT Specification,NIMB-1407,Code review,Task,,Nimbus,Martin Dobrev
+Martin Dobrev,"Integrate DVT Tests into Nimbus's General Tests ",NIMB-1408,Backlog,Task,,Nimbus,Martin Dobrev
+Grigor Gatchev,Update DVT Specification for keymanager-api,NIMB-1406,In Progress,Task,,Nimbus,Martin Dobrev
+Grigor Gatchev,"Define, Specify, and Stub Implement Step-by-Step Generation",NIMB-1410,In Progress,Task,,Nimbus,Martin Dobrev
+Grigor Gatchev,Generation of Shared Keys,NIMB-140,Code review,Task,,Nimbus,Grigor Gatchev
+Grigor Gatchev,Implement Delayed Result from DVT Generation and Update Specification,NIMB-1409,Backlog,Task,,Nimbus,Martin Dobrev
+Grigor Gatchev,"Update DVT Configuration for Nimbus ",NIMB-1412,Backlog,Task,,Nimbus,Martin Dobrev
+Nikola Gamzakov,"[fix] after first login in web, it says invalid token until full refresh (f5)",CT-420,In Progress,Task,,CodeTracer,Nikola Gamzakov
+Nikola Gamzakov,[feat] add gitlab-runner integration,CT-638,In Progress,Task,,CodeTracer,Nikola Gamzakov
+Nikola Gamzakov,[refactor] split frontend to libraries,CT-576,Backlog,Task,,CodeTracer,Nikola Gamzakov
+Nikola Gamzakov,[feat] display process usages in UI,CT-530,Backlog,Task,,CodeTracer,Nikola Gamzakov
+Nikola Gamzakov,[docs] collect information about which pages to have and what content to display,CT-413,Backlog,Task,,CodeTracer,Nikola Gamzakov
+Nikola Gamzakov,[test] check what and will it work with readonly database (if we have one write instance and multiple read instances),CT-410,Backlog,Task,,CodeTracer,Nikola Gamzakov
+Nikola Gamzakov,[test] add tests for all endpoints,CT-409,Backlog,Task,,CodeTracer,Nikola Gamzakov
+Nikola Gamzakov,[refactor] evaluate the need for separate core services (aggregate all in one for easier inject and later stub/test),CT-408,Backlog,Task,,CodeTracer,Nikola Gamzakov
+Nikola Gamzakov,[config] decide on default roles to have,CT-403,Backlog,Task,,CodeTracer,Nikola Gamzakov
+Nikola Gamzakov,"[feat] enable to have multiple projects, connected to the same github app installation",CT-402,Backlog,Task,,CodeTracer,Nikola Gamzakov
+Nikola Gamzakov,[feat] add billing options,CT-401,Backlog,Task,,CodeTracer,Nikola Gamzakov
+Nikola Gamzakov,"[feat] add option to delete old runs (some or all of them) and all of their data (logs, records etc)",CT-398,Backlog,Task,,CodeTracer,Nikola Gamzakov
+Nikola Gamzakov,[feat] change to run codetracer-desktop host from zip fs (when its supported),CT-397,Backlog,Task,,CodeTracer,Nikola Gamzakov
+Nikola Gamzakov,[feat] add permissions to the ui (hide buttons/links if not allowed etc),CT-396,Backlog,Task,,CodeTracer,Nikola Gamzakov
+Nikola Gamzakov,"[feat] send mail on failed ci ",CT-394,Backlog,Task,,CodeTracer,Nikola Gamzakov
+Nikola Gamzakov,[feat] send weekly reports,CT-393,Backlog,Task,,CodeTracer,Nikola Gamzakov
+Nikola Gamzakov,[feat] invite to organization + mail template,CT-391,Backlog,Task,,CodeTracer,Nikola Gamzakov
+Nikola Gamzakov,[feat] add payment provider,CT-400,Backlog,Task,,CodeTracer,Nikola Gamzakov
+Nikola Gamzakov,Pick appropriate Azure VM instance type,INFRA-2142,Backlog,Task,,Infra,Petar Kirov
+Alexander Ivanov,Virtualize the current flow interface,CT-1392,Paused,Task,,CodeTracer,Alexander Ivanov
+Alexander Ivanov,Make codetracer useful for nimsuggest,CT-528,Paused,Story,,CodeTracer,Alexander Ivanov
+Alexander Ivanov,[stability/optimization] Implement tracking processes for stable,CT-553,Paused,Task,,CodeTracer,Alexander Ivanov
+Alexander Ivanov,[db-backend]: add initial python tracing,CT-751,Paused,Task,,CodeTracer,Alexander Ivanov
+Alexander Ivanov,"[db-langs] implement a toy “small-lang” interpreter, test events/modifications with it",CT-779,Paused,Task,,CodeTracer,Alexander Ivanov
+Alexander Ivanov,[format] decide on a text/binary format for db-backend traces,CT-780,Paused,Task,,CodeTracer,Alexander Ivanov
+Alexander Ivanov,[test] fix/improve rust callgraph test db-backend,CT-994,Paused,Task,,CodeTracer,Alexander Ivanov
+Alexander Ivanov,[test] improve/add checks to generative db-backend “trace valid” test,CT-995,Paused,Task,,CodeTracer,Alexander Ivanov
+Alexander Ivanov,FIx codetracer to not break when used by multiple users on the same system,CT-1625,Paused,Bug,,CodeTracer,Alexander Ivanov
+Alexander Ivanov,implementing initial mcl add_task for our(and possibly other teams) coda issues,INFRA-1352,Code review,Task,https://github.com/metacraft-labs/nixos-modules/pull/162,Infra,Alexander Ivanov
+Alexander Ivanov,[tracepoint/rust]: Support simple call(&value) → String for rust tracepoints,CT-462,Backlog,Task,,CodeTracer,Alexander Ivanov
+Alexander Ivanov,[flow/bug]: detect loop in rust: now sometimes no loop flow there,CT-778,Backlog,Bug,,CodeTracer,Alexander Ivanov
+Alexander Ivanov,Fix initial flow problems when debugging nargo,CT-1635,Backlog,Bug,,CodeTracer,Alexander Ivanov
+Alexander Ivanov,Test task 5 (alexander),CT-2628,Backlog,Task,,CodeTracer,Alexander Ivanov
+Pavel Penev,Researching/cleaning up/possibly refactoring the dispatcher folder,CT-1353,Paused,Task,,CodeTracer,Alexander Ivanov
+Pavel Penev,"[bug/values] Can’t load rust value: key_event in tui ",CT-681,Backlog,Bug,,CodeTracer,Alexander Ivanov
+Petar Atanasov,Review/improve/test multithreading support for stepping,CT-1518,Backlog,Task,,CodeTracer,Alexander Ivanov
+Petar Atanasov,Review/improve/test tracepoint support in multithreaded programs,CT-1519,Backlog,Task,,CodeTracer,Alexander Ivanov
+Petar Atanasov,Review/improve/test event log support in multithreaded programs,CT-1520,Backlog,Task,,CodeTracer,Alexander Ivanov
+Petar Atanasov,multithreaded support: review/improve/test,CT-1521,Backlog,Epic,,CodeTracer,Alexander Ivanov
+Dimo Chanev,Experimental async tokio stepping support,CT-1481,Backlog,Story,,CodeTracer,Alexander Ivanov
+Stanislav Vasilev,"Dogfooding/debugging codetracer problems on a C++ project : UntitledDBusUtils ",CT-1363,Paused,Epic,,CodeTracer,Stanislav Vasilev
+Stanislav Vasilev,Improve expanding values in general/loading certain kinds of C++ values,CT-1393,Paused,Task,,CodeTracer,Alexander Ivanov
+Stanislav Vasilev,[callgraph] callgraph search for the rr/gdb backend,CT-1506,Paused,Task,,CodeTracer,Alexander Ivanov
+Stanislav Vasilev,Refactor/improve config/layout schema and loading,CT-1921,Paused,Task,,CodeTracer,Alexander Ivanov
+Stanislav Vasilev,macOS system integration epic,CT-2089,Next Up,Epic,,CodeTracer,Stanislav Vasilev
+Stanislav Vasilev,Rework keybindings system to support macOS,CT-2090,Next Up,Task,,CodeTracer,Stanislav Vasilev
+Stanislav Vasilev,Integrating with the macOS global menu,CT-2091,Next Up,Task,,CodeTracer,Stanislav Vasilev
+Stanislav Vasilev,Distribution on macOS,CT-2071,In Progress,Task,,CodeTracer,Stanislav Vasilev
+Stanislav Vasilev,Documentation epic,CT-2137,In Progress,Epic,,CodeTracer,Stanislav Vasilev
+Stanislav Vasilev,"C++, Core backend: cannot jump to certain lines UDBusUtils example",CT-1364,Backlog,Bug,,CodeTracer,Stanislav Vasilev
+Stanislav Vasilev,"C++, Core backend: Cannot expand deeply nested structures",CT-1365,Backlog,Bug,,CodeTracer,Stanislav Vasilev
+Stanislav Vasilev,C++: cannot resolve references,CT-1426,Backlog,Bug,,CodeTracer,Stanislav Vasilev
+Stanislav Vasilev,[Bug] epic: UntitledImGuiFramework issues,CT-1476,Backlog,Epic,,CodeTracer,Franz Fischbach
+Stanislav Vasilev,1.0: make codetracer i18n-compatible,CT-1485,Backlog,Task,,CodeTracer,Stanislav Vasilev
+Stanislav Vasilev,Collect lists of basic types for each language,CT-1509,Backlog,Task,,CodeTracer,Stanislav Vasilev
+Stanislav Vasilev,Implement support for displaying atomics in the backend,CT-1510,Backlog,Task,,CodeTracer,Stanislav Vasilev
+Stanislav Vasilev,Implement support for complex numbers in the backend,CT-1511,Backlog,Task,,CodeTracer,Stanislav Vasilev
+Stanislav Vasilev,Add support for the decimal floating point format,CT-1512,Backlog,Task,,CodeTracer,Stanislav Vasilev
+Stanislav Vasilev,Add support for the bfloat floating point format,CT-1513,Backlog,Task,,CodeTracer,Stanislav Vasilev
+Stanislav Vasilev,C++: add STL containers support,CT-1514,Backlog,Task,,CodeTracer,Stanislav Vasilev
+Stanislav Vasilev,Implement a way to know the number of iterations in a loop during replay,CT-1522,Backlog,Task,,CodeTracer,Stanislav Vasilev
+Stanislav Vasilev,Optimise large recordings,CT-1576,Backlog,Bug,,CodeTracer,Stanislav Vasilev
+Stanislav Vasilev,Add the ability for the user to create custom color themes,CT-1628,Backlog,Task,,CodeTracer,Stanislav Vasilev
+Stanislav Vasilev,Document(with examples) the strategies for hotspot debugging with tracepoints,CT-2138,Backlog,Task,,CodeTracer,Stanislav Vasilev
+Stanislav Vasilev,Document(with examples) the plans for CodeTracer Shell,CT-2139,Backlog,Task,,CodeTracer,Stanislav Vasilev
+Stanislav Vasilev,Add glossary doc for all the terms we are going to use for each component,CT-2140,Backlog,Task,,CodeTracer,Franz Fischbach
+Nedislav Miladinov,[Bug] (ruby) only 50 trace events are displayed,CT-1876,Paused,Bug,,CodeTracer,Franz Fischbach
+Nedislav Miladinov,[tracepoint] Tracepoint values expansion needs an internal jump to that moment,CT-378,Backlog,Task,,CodeTracer,Nedislav Miladinov
+Nedislav Miladinov,[Bug] (Callgraph) Not All Clicks are processed,CT-1176,Backlog,Bug,,CodeTracer,Franz Fischbach
+Nedislav Miladinov,[bug] make event and tracepoint processing in event_db independent of the order they're sent,CT-1278,Backlog,Task,,CodeTracer,Alexander Ivanov
+Franz Fischbach,[Automate] Trace Point Reload,CT-425,Paused,Task,,CodeTracer,Franz Fischbach
+Franz Fischbach,[Automate] Assert tracepoint jumps right event,CT-426,Paused,Task,,CodeTracer,Franz Fischbach
+Franz Fischbach,[Automate] Trace point multiple statements,CT-427,Paused,Task,,CodeTracer,Franz Fischbach
+Franz Fischbach,[Automate] Add tracepoint to all visited lines of code,CT-428,Paused,Task,,CodeTracer,Franz Fischbach
+Franz Fischbach,[Automate] Trace point expressions,CT-455,Paused,Task,,CodeTracer,Franz Fischbach
+Franz Fischbach,Create onboarding email template,INFRA-70,Paused,Task,,Infra,Petar Kirov
+Franz Fischbach,A collection of smaller tasks,INFRA-866,Paused,Task,,Infra,Franz Fischbach
+Franz Fischbach,[test ui] simple single tracepoint,CT-1499,Paused,Task,,CodeTracer,Alexander Ivanov
+Franz Fischbach,Product research for codetracer-web,CT-1629,Paused,Story,,CodeTracer,Alexander Ivanov
+Franz Fischbach,Manual testing / logging bugs,CT-499,In Progress,Task,,CodeTracer,Franz Fischbach
+Franz Fischbach,Discussions/cooperation with designers,CT-1396,In Progress,Task,,CodeTracer,Alexander Ivanov
+Franz Fischbach,[Automate] Trace Point Page Object,CT-642,Code review,Task,,CodeTracer,Franz Fischbach
+Franz Fischbach,"[Automate] Editor Pane Page Object and Procedures ",CT-546,Code review,Task,,CodeTracer,Franz Fischbach
+Franz Fischbach,[Automation] Define Trace Point in layout page object,CT-433,Code review,Task,,CodeTracer,Franz Fischbach
+Franz Fischbach,conf room video setup,OFFI-102,Backlog,Task,,Office Tasks,Hristo Georgiev
+Franz Fischbach,[feat] ct commands support for rust/noir project files/folders,CT-986,Backlog,Task,,CodeTracer,Alexander Ivanov
+Franz Fischbach,[Automate] (general) Search Keyboard Shortcuts,CT-416,Backlog,Task,,CodeTracer,Franz Fischbach
+Franz Fischbach,Create onboarding document in coda,CT-422,Backlog,Task,,CodeTracer,Franz Fischbach
+Franz Fischbach,Create test program that makes use of the tokio library,CT-423,Backlog,Task,,CodeTracer,Franz Fischbach
+Franz Fischbach,[Automate] Closure env variables in the state panel for nim programs,CT-429,Backlog,Task,,CodeTracer,Franz Fischbach
+Franz Fischbach,[Automate] Callgraph jumps,CT-430,Backlog,Task,,CodeTracer,Franz Fischbach
+Franz Fischbach,[Automate] X button,CT-431,Backlog,Task,,CodeTracer,Franz Fischbach
+Franz Fischbach,[Automate] Add Callgraph to layout page,CT-434,Backlog,Task,,CodeTracer,Franz Fischbach
+Franz Fischbach,[Automate] Resetting/cancelling operations,CT-435,Backlog,Task,,CodeTracer,Franz Fischbach
+Franz Fischbach,[Automate] Step-out,CT-436,Backlog,Task,,CodeTracer,Franz Fischbach
+Franz Fischbach,[Automate] Call graph search,CT-437,Backlog,Task,,CodeTracer,Franz Fischbach
+Franz Fischbach,[Automate] File system pane - page object and model,CT-440,Backlog,Task,,CodeTracer,Franz Fischbach
+Franz Fischbach,[Automate] Triple click,CT-441,Backlog,Task,,CodeTracer,Franz Fischbach
+Franz Fischbach,[Automate] Terminal page object and model,CT-444,Backlog,Task,,CodeTracer,Franz Fischbach
+Franz Fischbach,[Automate] Command palette,CT-446,Backlog,Task,,CodeTracer,Franz Fischbach
+Franz Fischbach,[Automate] Call Graph expand and collapse,CT-456,Backlog,Task,,CodeTracer,Franz Fischbach
+Franz Fischbach,[Automate] Reopen editor tab with event jump,CT-457,Backlog,Task,,CodeTracer,Franz Fischbach
+Franz Fischbach,[Automate] Reopen Editor Using Event jump,CT-471,Backlog,Task,,CodeTracer,Franz Fischbach
+Franz Fischbach,Create Test suite for CodeTracer’s welcome screen,CT-472,Backlog,Task,,CodeTracer,Franz Fischbach
+Franz Fischbach,[Automate] Ctrl + Enter in trace point,CT-473,Backlog,Task,,CodeTracer,Franz Fischbach
+Franz Fischbach,[Automate] Big Int,CT-474,Backlog,Task,,CodeTracer,Franz Fischbach
+Franz Fischbach,[Automate] Interrupt flow requests,CT-475,Backlog,Task,,CodeTracer,Franz Fischbach
+Franz Fischbach,[test ui]  multiple simple tracepoints,CT-1500,Backlog,Task,,CodeTracer,Alexander Ivanov
+Franz Fischbach,[test ui]: changing tracepoint expression,CT-1501,Backlog,Task,,CodeTracer,Alexander Ivanov
+Franz Fischbach,[test ui]: Jumping to tracepoint logs,CT-1502,Backlog,Task,,CodeTracer,Alexander Ivanov
+Simeon Armenchev,"Switch blocksense-infra to depend on  nixos-modules rather thannix-blockchain-development ",INFRA-2850,Next Up,Task,,Infra,Simeon Armenchev
+Simeon Armenchev,"Create nixos-configuration playground for modules defined in nixos-modules  ",INFRA-3137,Next Up,Epic,,Infra,Simeon Armenchev
+Simeon Armenchev,Deploy vast.ai,INFRA-606,In Progress,Task,,Infra,Petar Kirov
+Simeon Armenchev,Archive nix-blockchain-development and merge it into nixos-modules,INFRA-2166,In Progress,Task,,Infra,Martin Nikov
+Simeon Armenchev,"Switch nixos-machine-config to depend on  nixos-modules rather thannix-blockchain-development ",INFRA-2847,In Progress,Task,,Infra,Simeon Armenchev
+Simeon Armenchev,"Switch blocksense to depend on  nixos-modules rather thannix-blockchain-development ",INFRA-2849,In Progress,Task,,Infra,Simeon Armenchev
+Simeon Armenchev,"Switch DendrETH to depend on  nixos-modules rather thannix-blockchain-development ",INFRA-2848,In Progress,Task,,Infra,Simeon Armenchev
+Simeon Armenchev,Create a module that allows easy creation of readiness checks for systemd (like process-compose),INFRA-3116,In Progress,Task,,Infra,Martin Nikov
+Simeon Armenchev,Optimize blocksense rust nix derivation for faster local development,BSN-2854,Code review,Task,https://github.com/blocksense-network/blocksense/pull/1180,Blocksense,Simeon Armenchev
+Simeon Armenchev,"Migrate CLI args parsing to argparse ",INFRA-2169,Code review,Task,https://github.com/metacraft-labs/nixos-modules/pull/235,Infra,Martin Nikov
+Simeon Armenchev,Create mcl dev commit command,INFRA-168,Code review,Task,https://github.com/metacraft-labs/nixos-modules/pull/107,Infra,Franz Fischbach
+Simeon Armenchev,Deploy ComfyUI,INFRA-604,Code review,Task,https://github.com/metacraft-labs/nixos-modules/pull/253,Infra,Petar Kirov
+Simeon Armenchev,Refactor mcl,INFRA-1106,Code review,Task,https://github.com/metacraft-labs/nixos-modules/pull/125,Infra,Simeon Armenchev
+Simeon Armenchev,Fix nix flake update,BSN-2956,Code review,Task,,Blocksense,Simeon Armenchev
+Simeon Armenchev,Ensure all services restart in all cases,BSN-2978,Code review,Task,https://github.com/blocksense-network/blocksense/pull/1267,Blocksense,Petar Kirov
+Simeon Armenchev,Add NixOS VM integration test to the Blocksense CI,BSN-2987,Code review,Task,https://github.com/blocksense-network/blocksense/pull/1279,Blocksense,Petar Kirov
+Simeon Armenchev,Ensure downstream triggers happen only for meaningful changes,BSN-2988,Code review,Task,https://github.com/blocksense-network/blocksense/pull/1279,Blocksense,Petar Kirov
+Simeon Armenchev,Pharos,BSN-3013,Code review,Epic,https://github.com/metacraft-labs/nixos-modules/pull/260,Blocksense,Petar Kirov
+Simeon Armenchev,Tac,BSN-3014,Code review,Epic,https://github.com/metacraft-labs/nixos-modules/pull/261,Blocksense,Petar Kirov
+Simeon Armenchev,"Create nix package for balance-script.ts in blocksense repo and deploy the systemd service in infra ",BSN-3069,Code review,Task,,Blocksense,Martin Nikov
+Simeon Armenchev,Web3Signer use SGX/TSX as backend,INFRA-92,Backlog,Epic,,Infra,Martin Nikov
+Simeon Armenchev,"Migrate mcl derivation to the nixpkgs version of buildDubPackage ",INFRA-2879,Backlog,Task,,Infra,Petar Kirov
+Simeon Armenchev,Adjust mcl derivation to include debug info,INFRA-2933,Backlog,Task,,Infra,Simeon Armenchev
+Martin Nikov,Commit Grafana dashboard in git,INFRA-91,Paused,Epic,,Infra,Martin Nikov
+Martin Nikov,Server security auditing,INFRA-100,Paused,Epic,https://github.com/metacraft-labs/nimbus-test/pull/10,Infra,Martin Nikov
+Martin Nikov,Create Terraform (via Terranix) IaC config,DETH-49,Paused,Task,https://github.com/metacraft-labs/nixos-machine-config/pull/190,Dendreth,Petar Kirov
+Martin Nikov,Create distinct databases under a single Clickhouse service for several Ethereum networks,INFRA-550,Paused,Task,,Infra,Martin Nikov
+Martin Nikov,Fix e-v-m service and dashboards,INFRA-838,Paused,Task,,Infra,Martin Nikov
+Martin Nikov,Integration Tests for Ethereum Nodes,INFRA-1714,Paused,Task,,Infra,Martin Nikov
+Martin Nikov,Create monitoring dashboards and define alerts,BSN-1616,Next Up,Epic,,Blocksense,Zahary Karadjov
+Martin Nikov,Make a nixpkgs instance independent of nixos-modules,INFRA-2834,Next Up,Task,,Infra,Martin Nikov
+Martin Nikov,"Re-enable aarch64-linux, x86_64-darwin and aarch64-darwin systems",INFRA-2364,Next Up,Task,,Infra,Petar Kirov
+Martin Nikov,Grafana Auth: Enable Google SSO,BSN-2764,Next Up,Task,,Blocksense,Petar Kirov
+Martin Nikov,Add eradicate package to the Blocksense devshell,BSN-3320,Next Up,Task,,Blocksense,Petar Kirov
+Martin Nikov,Create alerts for our metrics based on our dashboard,INFRA-835,In Progress,Task,,Infra,Martin Nikov
+Martin Nikov,Observability,BSN-1700,In Progress,Epic,,Blocksense,Petar Kirov
+Martin Nikov,Integration tests for blocksense services,BSN-1713,In Progress,Task,,Blocksense,Martin Nikov
+Martin Nikov,Trigger alert when no “result from network”,BSN-1863,In Progress,Task,,Blocksense,Stan Manilov
+Martin Nikov,Deploy Pyroscope on Observatory and Integrate Sequencer Profiling,BSN-3264,In Progress,Task,,Blocksense,Martin Nikov
+Martin Nikov,Create Nix derivation for eradicate2(3),BSN-3319,In Progress,Task,https://github.com/metacraft-labs/nix-blockchain-development/pull/375,Blocksense,Petar Kirov
+Martin Nikov,Configure Pyroscope for Nimbus-eth2,INFRA-95,Backlog,Epic,,Infra,Martin Nikov
+Martin Nikov,Create script to rotate all agenix secrets and use it,INFRA-94,Backlog,Epic,,Infra,Martin Nikov
+Martin Nikov,Learn to use e-v-m dashboards,INFRA-839,Backlog,Task,,Infra,Martin Nikov
+Martin Nikov,New team members should be onboarded to Grafana,INFRA-1578,Backlog,Task,,Infra,Zahary Karadjov
+Martin Nikov,The Blocksense grafana dashboards should be hosted under a blocksense.network sub-domain.,INFRA-1577,Backlog,Task,,Infra,Zahary Karadjov
+Galin Stefanov,"flake-parts usage improvements ",INFRA-2431,Paused,Epic,,Infra,Petar Kirov
+Galin Stefanov,Test Crowdsec by deploying on Hetzner GitLab machine,INFRA-580,Next Up,Task,,Infra,Petar Kirov
+Galin Stefanov,Upgrade flake deps 2025-04-21,INFRA-2141,Next Up,Task,,Infra,Petar Kirov
+Galin Stefanov,Allow creating ZFS mirrors,INFRA-1736,Code review,Task,https://github.com/metacraft-labs/nixos-machine-config/pull/482/commits,Infra,Galin Stefanov
+Galin Stefanov,Migrate Hetzner 001 storage to ZFS datasets,INFRA-69,Blocked,Task,,Infra,Petar Kirov
+Galin Stefanov,Determine whether servers need reboot after update,INFRA-579,Backlog,Task,,Infra,Petar Kirov
+Nikolay Kostadinov,Redeploy ADFS with the latest changes,BSN-3033,Next Up,Task,,Blocksense,Nikolay Kostadinov
+Nikolay Kostadinov,Integration test,BSN-3114,Next Up,Task,,Blocksense,Aneta Tsvetkova
+Nikolay Kostadinov,Deploy Aztec Relayer,BSN-3165,Next Up,Story,,Blocksense,Aneta Tsvetkova
+Nikolay Kostadinov,Separate command for deploying the contract,BSN-3166,Next Up,Task,,Blocksense,Aneta Tsvetkova
+Nikolay Kostadinov,Integrate Prometheus metrics and logging library,BSN-3167,Next Up,Task,,Blocksense,Aneta Tsvetkova
+Nikolay Kostadinov,Expose metrics,BSN-3168,Next Up,Task,,Blocksense,Aneta Tsvetkova
+Nikolay Kostadinov,Run aztec relayer in Blocksense CI,BSN-3175,Next Up,Task,,Blocksense,Aneta Tsvetkova
+Nikolay Kostadinov,Use prettier for TS,BSN-3178,Next Up,Task,,Blocksense,Aneta Tsvetkova
+Nikolay Kostadinov,Measure test coverage,BSN-3216,Next Up,Task,,Blocksense,Aneta Tsvetkova
+Nikolay Kostadinov,Add tests to CI,BSN-3217,Next Up,Task,,Blocksense,Aneta Tsvetkova
+Nikolay Kostadinov,Integrate Aztec Sandbox into process-compose,BSN-3174,Next Up,Task,,Blocksense,Aneta Tsvetkova
+Nikolay Kostadinov,Refactor,BSN-3160,In Progress,Story,,Blocksense,Aneta Tsvetkova
+Nikolay Kostadinov,Add README documentation for the usage of the getters of the contract,BSN-3034,In Progress,Task,,Blocksense,Nikolay Kostadinov
+Nikolay Kostadinov,Establish sequencer/smart contract connection,BSN-3035,In Progress,Story,,Blocksense,Nikolay Kostadinov
+Nikolay Kostadinov,Rename serializeFeedsDataStructsToArray -> serializeFeedsToArray,BSN-3161,In Progress,Task,,Blocksense,Aneta Tsvetkova
+Nikolay Kostadinov,Rename/use appendZeros -> padEnd,BSN-3162,In Progress,Task,,Blocksense,Aneta Tsvetkova
+Nikolay Kostadinov,Refactor ts test,BSN-3180,In Progress,Task,,Blocksense,Aneta Tsvetkova
+Nikolay Kostadinov,Implement ts websocket that listens to Kafka message queue,BSN-3088,Code review,Task,,Blocksense,Nikolay Kostadinov
+Nikolay Kostadinov,Keep internal state,BSN-3110,Code review,Task,,Blocksense,Aneta Tsvetkova
+Nikolay Kostadinov,Kafka input conversion,BSN-3111,Code review,Task,,Blocksense,Aneta Tsvetkova
+Nikolay Kostadinov,Research multicall contracts,BSN-3112,Backlog,Task,,Blocksense,Aneta Tsvetkova
+Nikolay Kostadinov,Get index context on start,BSN-3113,Backlog,Task,,Blocksense,Aneta Tsvetkova
+Nikolay Kostadinov,Create a dedicated page for Aztec in the docs.ws,BSN-3163,Backlog,Task,,Blocksense,Aneta Tsvetkova
+Nikolay Kostadinov,Deterministic deployment,BSN-3164,Backlog,Task,,Blocksense,Aneta Tsvetkova
+Nikolay Kostadinov,Use Effect TS to improve the code quality and testing,BSN-3169,Backlog,Story,,Blocksense,Aneta Tsvetkova
+Nikolay Kostadinov,Describe all data types with effect/schema,BSN-3170,Backlog,Task,,Blocksense,Aneta Tsvetkova
+Nikolay Kostadinov,Replace JSON.parse with schema decode,BSN-3171,Backlog,Task,,Blocksense,Aneta Tsvetkova
+Nikolay Kostadinov,Use effect/platform,BSN-3172,Backlog,Task,,Blocksense,Aneta Tsvetkova
+Nikolay Kostadinov,Use effect channels,BSN-3173,Backlog,Task,,Blocksense,Aneta Tsvetkova
+Nikolay Kostadinov,Testing,BSN-3176,Backlog,Story,,Blocksense,Aneta Tsvetkova
+Nikolay Kostadinov,Research macros in Aztec Noir,BSN-3189,Backlog,Task,,Blocksense,Aneta Tsvetkova
+Iskra Kirova,Review tasks in Status=’Backlog’ and clear their assignee (or move them to ‘Next Up’),OFFI-2131,Next Up,Task,,Office Tasks,Petar Kirov
+Iskra Kirova,Review tasks with Status=’Ready to Start’ and change them to Backlog,OFFI-2130,Next Up,Task,,Office Tasks,Petar Kirov
+Iskra Kirova,Review and delete empty Coda tasks,OFFI-2129,Next Up,Task,,Office Tasks,Petar Kirov
+Iskra Kirova,Employee list,OFFI-711,In Progress,Task,,Office Tasks,Iskra Kirova
+Iskra Kirova,Employee detailed info,OFFI-712,In Progress,Task,,Office Tasks,Iskra Kirova
+Iskra Kirova,test 4,OFFI-869,Backlog,Task,,Office Tasks,Iskra Kirova
+Stefan Nikolov,Unify LightClient and RecurssiveLightClient,DETH-124,Paused,Task,,Dendreth,Stefan Nikolov
+Stefan Nikolov,Sequential Verification,DETH-119,In Progress,Epic,,Dendreth,Stefan Nikolov
+Kristin Kirkov,Code quality improvements,BSN-3229,Next Up,Story,,Blocksense,Aneta Tsvetkova
+Kristin Kirkov,Add Blocksense to the docs or websites of our partnets,BSN-3220,In Progress,Story,,Blocksense,Petar Kirov
+Kristin Kirkov,Balance monitoring,BSN-3222,In Progress,Story,,Blocksense,Aneta Tsvetkova
+Kristin Kirkov,Cost calculation,BSN-3223,In Progress,Story,,Blocksense,Aneta Tsvetkova
+Kristin Kirkov,Unstuck transactions,BSN-3224,In Progress,Story,,Blocksense,Aneta Tsvetkova
+Kristin Kirkov,Check pending transactions,BSN-3225,In Progress,Story,,Blocksense,Aneta Tsvetkova
+Kristin Kirkov,Deploy on Plasma testnet,BSN-3289,In Progress,Task,,Blocksense,Kristin Kirkov
+Kristin Kirkov,Add Blocksense to Rise docs,BSN-3219,Code review,Task,https://github.com/risechain/proj-list/pull/87,Blocksense,Aneta Tsvetkova
+Kristin Kirkov,Add metrics to Cost calculation,BSN-3227,Code review,Task,,Blocksense,Aneta Tsvetkova
+Kristin Kirkov,Add Blocksense to Hemi ecosystem page,BSN-3239,Code review,Task,,Blocksense,Kristin Kirkov
+Kristin Kirkov,Add Blocksense to Ink website,BSN-3240,Code review,Task,,Blocksense,Kristin Kirkov
+Kristin Kirkov,Add Blocksense to Mantle ecosystem page,BSN-3241,Code review,Task,,Blocksense,Kristin Kirkov
+Kristin Kirkov,Add Blocksense to Taiko ecosystem page,BSN-3243,Code review,Task,https://github.com/taikoxyz/website-v3/issues/17,Blocksense,Kristin Kirkov
+Kristin Kirkov,Add Blocksense to Superseed ecosystem page,BSN-3244,Code review,Task,,Blocksense,Kristin Kirkov
+Kristin Kirkov,Add Blocksense to Creator chain ecosystem page,BSN-3245,Code review,Task,,Blocksense,Kristin Kirkov
+Kristin Kirkov,Add Blocksense to Frax exosystem page,BSN-3251,Code review,Task,https://github.com/FraxFinance/docs/pull/126,Blocksense,Kristin Kirkov
+Kristin Kirkov,Add Blocksense to Unichain explore page,BSN-3252,Code review,Task,,Blocksense,Kristin Kirkov
+Kristin Kirkov,Add Blocksense to Cyber ecosystem page,BSN-3253,Code review,Task,,Blocksense,Kristin Kirkov
+Kristin Kirkov,Add metrics to check-pending-tx,BSN-3254,Code review,Task,,Blocksense,Kristin Kirkov
+Kristin Kirkov,Add Blocksense to Rootstock ecosystem page,BSN-3340,Code review,Task,,Blocksense,Kristin Kirkov
+Kristin Kirkov,Deploy on Stable chain,BSN-3141,Backlog,Task,,Blocksense,Georgi Zlatarev
+Kristin Kirkov,Create monitoring service,BSN-3226,Backlog,Task,,Blocksense,Petar Kirov
+Kristin Kirkov,"Move scripts in /apps ",BSN-3230,Backlog,Task,,Blocksense,Aneta Tsvetkova
+Kristin Kirkov,Define scripts as effect command program,BSN-3231,Backlog,Task,,Blocksense,Aneta Tsvetkova
+Dilyan Dokov,[Sequencer] Implement majority aggregator,BSN-944,Backlog,Task,,Blocksense,Dilyan Dokov
+Aleks Popov,Erase Your Darlings (aka make systems more immutable),INFRA-2534,Paused,Task,,Infra,Aleks Popov
+Aleks Popov,Reusable flake checks: merge generate matrix jobs,INFRA-2657,Paused,Task,,Infra,Petar Kirov
+Aleks Popov,Fix SSH key not being successfully copied to VM final installation on GCS,BSN-2651,Paused,Task,,Blocksense,Aleks Popov
+Aleks Popov,Create CI pipeline which apply terraform files,BSN-2623,In Progress,Task,,Blocksense,Martin Nikov
+Aleks Popov,Enable system.etc.overlay  and make it immutable,INFRA-562,Blocked,Task,,Infra,Petar Kirov
+Aleks Popov,Integrate nvd for desktop nixos configurations,INFRA-558,Backlog,Task,,Infra,Petar Kirov
+Aleks Popov,Integrate nvd and nix-diff into the CI pipeline,INFRA-557,Backlog,Task,,Infra,Petar Kirov
+Nikolay Fenixov,New Brand ID Launch,BSN-2720,In Progress,Task,,Blocksense,Nikolay Fenixov
+Nikolay Fenixov,Presentation templates,BSN-2510,In Progress,Task,,Blocksense,Yosif Bozhinov
+Nikolay Fenixov,Core Brand Elements,BSN-2536,Backlog,Epic,,Blocksense,Yosif Bozhinov
+Nikolay Fenixov,Brand Assets,BSN-2537,Backlog,Epic,,Blocksense,Yosif Bozhinov
+Nikolay Fenixov,Visual Content,BSN-2545,Backlog,Task,,Blocksense,Yosif Bozhinov
+Nikolay Fenixov,Icons,BSN-2549,Backlog,Task,,Blocksense,Yosif Bozhinov
+Nikolay Fenixov,NFT,BSN-2683,Backlog,Task,,Blocksense,Nikolay Fenixov
+Yosif Bozhinov,One Pager - Blocksense,BSN-2511,In Progress,Task,,Blocksense,Yosif Bozhinov
+Yosif Bozhinov,Design Finalization,BSN-2887,In Progress,Task,,Blocksense,Yosif Bozhinov
+Yosif Bozhinov,Design All Pages,BSN-2459,Backlog,Epic,,Blocksense,Yosif Bozhinov
+Yosif Bozhinov,Product Pages,BSN-2460,Backlog,Epic,,Blocksense,Yosif Bozhinov
+Yosif Bozhinov,Wireframes,BSN-2894,Backlog,Task,,Blocksense,Yosif Bozhinov
+Yosif Bozhinov,Design Finalization,BSN-2896,Backlog,Task,,Blocksense,Yosif Bozhinov
+Yosif Bozhinov,Wireframes,BSN-2897,Backlog,Task,,Blocksense,Yosif Bozhinov
+Yosif Bozhinov,Design Finalization,BSN-2899,Backlog,Task,,Blocksense,Yosif Bozhinov
+Yosif Bozhinov,Wireframes,BSN-2900,Backlog,Task,,Blocksense,Yosif Bozhinov
+Yosif Bozhinov,Design Finalization,BSN-2902,Backlog,Task,,Blocksense,Yosif Bozhinov
+Yosif Bozhinov,Wireframes,BSN-2910,Backlog,Task,,Blocksense,Yosif Bozhinov
+Yosif Bozhinov,Design Finalization,BSN-2912,Backlog,Task,,Blocksense,Yosif Bozhinov
+Pavel Atanasov,Refactor nixos-machine config,INFRA-3025,Next Up,Epic,,Infra,Martin Nikov
+Pavel Atanasov,"Integrate blama in process-compose ",BSN-3152,Next Up,Task,,Blocksense,Pavel Atanasov
+Pavel Atanasov,Create a dev env for the ZKVM-benchmark repo,BSN-3343,In Progress,Epic,,Blocksense,Aristotelis Papanis
+Pavel Atanasov,Lex/Parse/Elaborate FV attributes,BSN-3144,Code review,Epic,https://github.com/blocksense-network/noir/pull/266,Blocksense,Aristotelis Papanis
+Pavel Atanasov,Define our own AST structure,BSN-3290,Code review,Task,,Blocksense,Aristotelis Papanis
+Pavel Atanasov,Rewrite the parser functions to use our own new AST type,BSN-3291,Code review,Task,,Blocksense,Aristotelis Papanis
+Pavel Atanasov,"Write parsers for quantifiers, array indexing, tuple indexing",BSN-3292,Code review,Task,https://github.com/blocksense-network/noir/pull/266,Blocksense,Aristotelis Papanis
+Pavel Atanasov,Type checking/inferring for FV attributes (convert SpannedExpr to SpannedTypedExpr),BSN-3145,Code review,Task,,Blocksense,Aristotelis Papanis
+Pavel Atanasov,Proper errors,BSN-3312,Code review,Task,,Blocksense,Pavel Atanasov
+Pavel Atanasov,Add support for cast expressions,BSN-3311,Code review,Task,,Blocksense,Aristotelis Papanis
+Pavel Atanasov,Parse array literals,BSN-3316,Code review,Task,,Blocksense,Aristotelis Papanis
+Pavel Atanasov,Parse tuple literals,BSN-3317,Code review,Task,,Blocksense,Aristotelis Papanis
+Pavel Atanasov,Proper type checking for bitshifts,BSN-3318,Code review,Task,,Blocksense,Aristotelis Papanis
+Pavel Atanasov,Parse derefence expr,BSN-3330,Code review,Task,,Blocksense,Aristotelis Papanis
+Pavel Atanasov,Fix Span for parser errors,BSN-3335,Code review,Task,,Blocksense,Aristotelis Papanis
+Pavel Atanasov,Assign Local_Id to quantifier indices,BSN-3336,Code review,Task,,Blocksense,Aristotelis Papanis
+Pavel Atanasov,Fix Span for the “new” parsers,BSN-3339,Code review,Task,,Blocksense,Aristotelis Papanis
+Pavel Atanasov,Hashing benchmarks,BSN-2869,Backlog,Epic,,Blocksense,Kamen Mladenov
+Pavel Atanasov,Verification benchmarks,BSN-2925,Backlog,Epic,,Blocksense,Kamen Mladenov
+Pavel Atanasov,Signature benchmarks,BSN-2940,Backlog,Task,,Blocksense,Kamen Mladenov
+Pavel Atanasov,Compare Noir with hand-written circuits,BSN-3015,Backlog,Task,,Blocksense,Kamen Mladenov
+Pavel Atanasov,Noir RSA vs zkVM RSA benchmark,BSN-3036,Backlog,Task,,Blocksense,Aristotelis Papanis
+Pavel Atanasov,Research which hashing functions are available in Noir,BSN-3037,Backlog,Task,,Blocksense,Aristotelis Papanis
+Pavel Atanasov,Benchmark Hashing in Noir vs zkVMs,BSN-3038,Backlog,Task,,Blocksense,Aristotelis Papanis
+Pavel Atanasov,RSA signature in Noir & Circom,BSN-3097,Backlog,Task,https://github.com/blocksense-network/Circom-vs-Noir-benchmarks/pull/TODO,Blocksense,Pavel Atanasov
+Martin Ivanov,Optimize direnv reload time (when all dependencies are already built),BSN-2942,In Progress,Task,,Blocksense,Simeon Armenchev
+Daniel Stoyanov,Data feed diff tool V1,BSN-3089,Paused,Story,,Blocksense,Daniel Stoyanov
+Daniel Stoyanov,Release notes,BSN-3090,Paused,Epic,,Blocksense,Daniel Stoyanov
+Daniel Stoyanov,"Create command for comparing data feeds configs  in changelog-generator ",BSN-3191,Paused,Task,,Blocksense,Daniel Stoyanov
+Daniel Stoyanov,Mock Oracle Script,BSN-3009,Next Up,Epic,,Blocksense,Petar Kirov
+Daniel Stoyanov,Create mock oracle script workspace,BSN-3076,Next Up,Task,,Blocksense,Daniel Stoyanov
+Daniel Stoyanov,changelog-generator list-feeds: Update table colums,BSN-3207,Next Up,Task,,Blocksense,Petar Kirov
+Daniel Stoyanov,Address PR comments/suggestions,BSN-3302,Next Up,Task,,Blocksense,Daniel Stoyanov
+Daniel Stoyanov,Improve e2e tests,BSN-3325,Next Up,Task,,Blocksense,Daniel Stoyanov
+Daniel Stoyanov,Verify sent reports via Viem client,BSN-3373,Next Up,Task,,Blocksense,Daniel Stoyanov
+Daniel Stoyanov,Directly send reports to the sequencer and verify them with Viem client,BSN-3346,In Progress,Story,,Blocksense,Petar Kirov
+Daniel Stoyanov,Create utility functions for sending reports to the sequencer,BSN-3371,Code review,Task,https://github.com/blocksense-network/blocksense/pull/1600,Blocksense,Daniel Stoyanov
+Daniel Stoyanov,Encode reports results correctly in TS,BSN-3372,Code review,Task,https://github.com/blocksense-network/blocksense/pull/1600,Blocksense,Daniel Stoyanov
+Daniel Stoyanov,Data feed diff tool V2,BSN-3192,Backlog,Task,,Blocksense,Daniel Stoyanov
+Daniel Stoyanov,Research cyber security vulnerabilities within the Blocksense network,BSN-3101,Backlog,Task,,Blocksense,Daniel Stoyanov
+Daniel Stoyanov,[list-feeds command]Add optional —feed-id and —feed-name options to allow filtering,BSN-3199,Backlog,Task,,Blocksense,Petar Kirov
+Daniel Stoyanov,"Improve error handling in base-utils/fs  and config-types/read-write-config  by using @effect/platform/fileSystem ",BSN-3203,Backlog,Task,,Blocksense,Daniel Stoyanov
+Daniel Stoyanov,Make sure we kill process-compose when we Ctr + C  tests run,BSN-3364,Backlog,Task,,Blocksense,Emil Ivanichkov

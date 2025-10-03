@@ -1,10 +1,31 @@
 {
   "name": "d3-line-graph",
   "version": "0.1.0",
-  "title": "D3 Line Graph – GDP per capita",
-  "description": "Interactive line chart for GDP per capita from Eurostat CSV; click countries to toggle lines.",
+  "title": "Line Chart",
+  "description": "Generic line chart that renders from hydrated graph data only (no network).",
   "entry": "main.js",
   "icon": "icon.svg",
   "author": "Vivafolio",
-  "license": "MIT"
+  "license": "MIT",
+  "propertiesSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "required": ["mapping"],
+    "properties": {
+      "mapping": {
+        "type": "object",
+        "required": ["x", "y"],
+        "properties": {
+          "x": { "type": "string" },
+          "y": { "type": "string" },
+          "series": { "type": "string" }
+        },
+        "additionalProperties": true
+      },
+      "data": { "type": "array", "items": { "type": "object" } },
+      "datasetEntityId": { "type": "string" },
+      "title": { "type": "string" }
+    },
+    "additionalProperties": true
+  }
 }

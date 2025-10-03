@@ -325,6 +325,30 @@ function nextCachingTag() {
   return `v${resourceCounter}`
 }
 
+// Helper to hydrate a Line Chart subgraph with config + dataset rows
+function buildLineChartSubgraph(params: {
+  rows: Array<Record<string, unknown>>
+}): EntityGraph {
+  const configEntity: Entity = {
+    entityId: 'linechart-config',
+    entityTypeId: 'vivafolio:viz:LineChartConfig',
+    properties: {
+      title: 'Line Chart',
+      mapping: { x: 'TIME_PERIOD', y: 'OBS_VALUE', series: 'geo' },
+  datasetEntityId: 'linechart-dataset',
+  // Provide inline data as a first-class source to maximize block compatibility
+  // The block prefers config.properties.data when available
+  data: params.rows
+    }
+  }
+  const datasetEntity: Entity = {
+    entityId: 'linechart-dataset',
+    entityTypeId: 'vivafolio:data:Dataset',
+    properties: { rows: params.rows }
+  }
+  return { entities: [configEntity, datasetEntity], links: [] }
+}
+
 // Framework compilation helpers
 function generateAssetHash(content: string): string {
   // Creates a content-based hash for cache busting and integrity checking
@@ -1809,7 +1833,9 @@ let localBlockBuilder: BlockBuilder | undefined
     watchPaths: [
       // Only scan for direct data files - CSV and Markdown files
       // vivafolio_data! constructs in .viv files are handled via LSP notifications
-      path.join(ROOT_DIR, '..', '..', 'test', 'projects')
+      path.join(ROOT_DIR, '..', '..', 'test', 'projects'),
+  // Also watch the demo datasets used by scenarios (CSV, etc.)
+  path.join(ROOT_DIR, 'data')
     ],
     supportedExtensions: ['csv', 'md'], // Only direct data files, not source files
     excludePatterns: ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/vivafolio-data-examples/**']
@@ -1989,6 +2015,59 @@ function getContentType(filePath: string): string {
       return 'font/woff2'
     default:
       return 'text/plain'
+  }
+}
+
+// Robust CSV parser (handles quotes and escaped quotes) and entity builder
+function parseCsvLine(line: string): string[] {
+  const out: string[] = []
+  let cur = ''
+  let inQuotes = false
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') { // escaped quote
+        cur += '"'
+        i++
+      } else {
+        inQuotes = !inQuotes
+      }
+    } else if (ch === ',' && !inQuotes) {
+      out.push(cur)
+      cur = ''
+    } else {
+      cur += ch
+    }
+  }
+  out.push(cur)
+  return out.map((s) => s.trim())
+}
+
+async function parseCsvEntities(filePath: string) {
+  try {
+    const content = await fs.readFile(filePath, 'utf8')
+    const lines = content.split(/\r?\n/).filter(Boolean)
+    if (lines.length < 2) return []
+    const headers = parseCsvLine(lines[0]).map(h => h.replace(/^\"|\"$/g, ''))
+    const entities: any[] = []
+    for (let i = 1; i < lines.length; i++) {
+      const cells = parseCsvLine(lines[i])
+      const props: Record<string, unknown> = {}
+      headers.forEach((h, idx) => {
+        props[h] = cells[idx] ?? ''
+      })
+      entities.push({
+        entityId: `${path.basename(filePath, '.csv')}-row-${i - 1}`,
+        entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
+        properties: props,
+        sourceType: 'csv',
+        sourcePath: filePath
+      })
+    }
+    return entities
+  } catch (e) {
+    console.warn('[d3-line-graph] CSV fallback parse failed:', e)
+    return []
   }
 }
 
@@ -2248,9 +2327,9 @@ function getContentType(filePath: string): string {
     const scenario = scenarios[scenarioId] ?? scenarios['hello-world']
     const state = scenario.createState()
 
-    // Special handling for indexing-service scenario
+  // Special handling for indexing-service and d3-line-graph scenarios
     let entityGraph = state.graph
-    if (scenarioId === 'indexing-service') {
+  if (scenarioId === 'indexing-service') {
       // Get entities from IndexingService for the indexing-service scenario
       const allEntities = indexingService.getAllEntities()
       const entities = allEntities.map((metadata: any) => ({
@@ -2261,6 +2340,37 @@ function getContentType(filePath: string): string {
         sourcePath: metadata.sourcePath
       }))
       entityGraph = { entities, links: [] }
+  } else if (scenarioId === 'd3-line-graph-example') {
+      // tiny wait in case initial scan is still in progress
+      await new Promise(r => setTimeout(r, 50))
+      // re-pull after delay
+      const allEntitiesDelayed = indexingService.getAllEntities()
+      const allEntities = allEntitiesDelayed
+      // Populate the graph with CSV-derived entities for the D3 line graph
+      console.log('[d3-line-graph] allEntities:', allEntities.length)
+      if (allEntities.length) {
+        const sample = allEntities.slice(0, 3).map((e: any) => ({ id: e.entityId, src: e.sourcePath, type: e.sourceType }))
+        console.log('[d3-line-graph] sample entities:', sample)
+      }
+
+      // Prefer exact CSV basename match for robustness across absolute paths
+      const targetName = 'sdg_08_10_page_linear_2_0.csv'
+      const fromTargetCsv = allEntities.filter((m: any) => typeof m.sourcePath === 'string' && path.basename(m.sourcePath) === targetName)
+      console.log('[d3-line-graph] fromTargetCsv:', fromTargetCsv.length)
+
+      // Deterministic materialization: parse CSV directly to ensure stable headers/values
+      const csvPath = path.join(ROOT_DIR, 'data', 'sdg_08_10_page_linear_2_0.csv')
+      let materializedRows: Array<Record<string, unknown>> = []
+      try {
+        const parsedEntities = await parseCsvEntities(csvPath)
+        materializedRows = parsedEntities.map((e: any) => e.properties)
+      } catch (e) {
+        console.warn('[d3-line-graph] direct CSV parse failed, falling back to indexer entities', e)
+        const selected = (fromTargetCsv.length ? fromTargetCsv : allEntities.filter((m: any) => m.sourceType === 'csv'))
+        materializedRows = selected.map((m: any) => m.properties).filter(Boolean)
+      }
+      console.log('[d3-line-graph] sending rows:', materializedRows.length)
+      entityGraph = buildLineChartSubgraph({ rows: materializedRows })
     }
 
     // Register transport for Block Protocol operations (for LSP-driven updates)
@@ -2308,6 +2418,18 @@ function getContentType(filePath: string): string {
           }
         })
       )
+      } else if (scenarioId === 'd3-line-graph-example') {
+        // Send the D3 line graph notification with the populated entityGraph from IndexingService
+        const notifications = scenario.buildNotifications(state, request)
+        for (const base of notifications) {
+          const payload = { ...base, entityGraph, entityId: 'linechart-config' }
+          socket.send(
+            JSON.stringify({
+              type: 'vivafolioblock-notification',
+              payload
+            })
+          )
+        }
     } else {
       dispatchScenarioNotifications(socket, scenario, state, customParams)
     }

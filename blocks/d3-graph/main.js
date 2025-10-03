@@ -1,6 +1,6 @@
 /* global window, document */
-// D3 Line Graph Block (UMD style). The POC BlockLoader evals this file and calls the default export
-// Function signature aligns with existing examples: either ({ graph }) or ({ entity, readonly, updateEntity })
+// Line Graph Block (no network). The loader evals this file and calls the default export.
+// It reads hydrated data from the Host-provided graph/config only.
 
 module.exports = function D3LineGraphBlock({ graph }) {
   const container = document.createElement('div')
@@ -9,193 +9,264 @@ module.exports = function D3LineGraphBlock({ graph }) {
     width: 50%;
     min-width: 420px;
     background: #ffffff;
-    color: #111827; /* enforce dark text */
+    color: #111827;
     border: 1px solid #e5e7eb;
     border-radius: 8px;
     padding: 12px;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   `
 
-  const header = document.createElement('div')
-  header.style.cssText = 'display:flex; align-items:center; justify-content:space-between; margin-bottom: 8px;'
-  header.innerHTML = `
-    <div>
-      <strong>D3 Line Graph</strong>
-      <br> <br>
-      <div style="font-size:12px; color:#6b7280">GDP per capita (Chain linked volumes 2020, euro per capita)</div>
-    </div>
-    <div style="font-size:12px; color:#6b7280">Source: Eurostat SDG_08_10</div>
-  `
-  container.appendChild(header)
+  const titleEl = document.createElement('div')
+  titleEl.style.cssText = 'font-weight:600; margin-bottom:6px;'
+  container.appendChild(titleEl)
 
-  const controls = document.createElement('div')
-  controls.style.cssText = 'display:flex; flex-wrap:wrap; gap:8px; margin-bottom: 8px;'
-  container.appendChild(controls)
+  const status = document.createElement('div')
+  status.style.cssText = 'font-size:12px; color:#6b7280; margin-bottom:6px;'
+  container.appendChild(status)
 
   const chartHost = document.createElement('div')
   chartHost.style.cssText = 'width: 100%; height: 420px; position: relative;'
   container.appendChild(chartHost)
 
-  // Load D3 from CDN if not already present
-  function ensureD3() {
-    return new Promise((resolve, reject) => {
-      if (window.d3) return resolve(window.d3)
-      const s = document.createElement('script')
-      s.src = 'https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js'
-      s.onload = () => resolve(window.d3)
-      s.onerror = reject
-      document.head.appendChild(s)
+  // Helpers
+  try {
+    window.addEventListener('message', (ev) => {
+      const data = ev && ev.data
+      if (data && data.type === 'graph:init' && data.graph && (!window.__vivafolioGraphContext || !window.__vivafolioGraphContext.graph)) {
+        try {
+          window.__vivafolioGraphContext = { graph: data.graph }
+          console.debug('[d3-block] graph:init received; set global graph context with', Array.isArray(data.graph?.entities) ? data.graph.entities.length : null, 'entities')
+        } catch (_) {}
+      }
     })
-  }
-
-  // Fetch CSV from the POC server static route for this block
-  const CSV_PATH = '/external/d3-line-graph/sdg_08_10_page_linear_2_0.csv'
-
-  function normalizeRows(rawRows) {
-    return rawRows
-      .map(r => {
-        const year = parseInt(r.TIME_PERIOD || r.Time, 10)
-        const geo = (r.geo || '').trim()
-        const country = (r['Geopolitical entity (reporting)'] || r.STRUCTURE_NAME || geo || '').trim()
-        const valStr = (r.OBS_VALUE || '').trim()
-        const value = valStr ? parseFloat(valStr) : null
-        return { geo, country: country || geo, year, value: Number.isFinite(value) ? value : null, unit: r.unit, indicator: r.na_item }
+  } catch (_) {}
+  function entitiesFromGraph() {
+    const globalGraph = (window && (window.__vivafolioGraphContext || (window.parent && window.parent.__vivafolioGraphContext)) && (window.__vivafolioGraphContext || (window.parent && window.parent.__vivafolioGraphContext)).graph) || null
+    const sources = [
+      globalGraph && globalGraph.entities,
+      graph && graph.blockGraph && graph.blockGraph.linkedEntities,
+      graph && graph.entities
+    ]
+    // Diagnostics
+    try {
+      console.debug('[d3-block] entitiesFromGraph counts:', {
+        global: Array.isArray(sources[0]) ? sources[0].length : null,
+        blockGraph: Array.isArray(sources[1]) ? sources[1].length : null,
+        direct: Array.isArray(sources[2]) ? sources[2].length : null
       })
-      .filter(r => r.geo && r.year)
+    } catch (_) {}
+    for (const src of sources) {
+      if (Array.isArray(src) && src.length > 0) return src
+    }
+    // Fallback: if any source is an empty array, prefer that structure; else return []
+    for (const src of sources) {
+      if (Array.isArray(src)) return src
+    }
+    return []
   }
 
-  function buildUI(d3, allRows) {
-    // Group by country code
-    const byCountry = new Map()
-    for (const r of allRows) {
-      if (!r.geo) continue
-      if (!byCountry.has(r.geo)) byCountry.set(r.geo, [])
-      byCountry.get(r.geo).push(r)
-    }
-    // Sort series by last value desc
-    const series = Array.from(byCountry.entries()).map(([geo, rows]) => ({
-      geo,
-      name: rows[0]?.country || geo,
-      values: rows.filter(r => r.value != null).sort((a, b) => a.year - b.year)
-    }))
-    .filter(s => s.values.length)
-    .sort((a, b) => (b.values[b.values.length - 1]?.value ?? 0) - (a.values[a.values.length - 1]?.value ?? 0))
-
-    // Build multi-select (checkboxes)
-    controls.innerHTML = ''
-    const defaultPick = new Set(series.slice(0, 5).map(s => s.geo))
-    const selected = new Set(defaultPick)
-
-    for (const s of series) {
-      const label = document.createElement('label')
-      label.style.cssText = 'display:inline-flex; align-items:center; gap:6px; font-size:12px; color:#374151;'
-      const cb = document.createElement('input')
-      cb.type = 'checkbox'
-      cb.value = s.geo
-      cb.checked = selected.has(s.geo)
-      cb.addEventListener('change', () => {
-        if (cb.checked) selected.add(s.geo)
-        else selected.delete(s.geo)
-        renderChart(d3, series.filter(x => selected.has(x.geo)))
-      })
-      const name = document.createElement('span')
-      name.textContent = s.name + ` (${s.geo})`
-      label.appendChild(cb)
-      label.appendChild(name)
-      controls.appendChild(label)
-    }
-
-  const rerender = () => renderChart(d3, series.filter(x => selected.has(x.geo)))
-  window.addEventListener('resize', rerender)
-  renderChart(d3, series.filter(x => selected.has(x.geo)))
+  function pickConfigEntity(entities) {
+    return entities.find((e) => {
+      const p = e && e.properties
+      return p && typeof p.mapping === 'object'
+    }) || null
   }
 
-  function renderChart(d3, series) {
-    chartHost.innerHTML = ''
-  const margin = { top: 10, right: 140, bottom: 28, left: 44 } // allocate space for vertical legend
-  const width = chartHost.clientWidth || 600
-    const height = chartHost.clientHeight || 420
+  function pathGet(obj, path) {
+    if (!obj || !path) return undefined
+    const parts = String(path).split('.')
+    let cur = obj
+    for (const k of parts) {
+      if (cur && Object.prototype.hasOwnProperty.call(cur, k)) cur = cur[k]
+      else return undefined
+    }
+    return cur
+  }
+
+  function getAny(obj, keys) {
+    for (const k of keys) {
+      const v = pathGet(obj, k)
+      if (v != null && v !== '') return v
+    }
+    return undefined
+  }
+
+  function getConfigAndRows() {
+    const entities = entitiesFromGraph()
+    if (!Array.isArray(entities) || !entities.length) return { config: null, rows: [] }
+
+    const config = pickConfigEntity(entities) || null
+    const p = (config && config.properties) || {}
+    try { console.debug('[d3-block] config found:', !!config, 'mapping:', p && p.mapping) } catch (_) {}
+
+    // 1) Inline materialized data
+    if (Array.isArray(p.data)) return { config, rows: p.data }
+
+    // 2) Linked dataset with properties.rows
+    const dsId = p.datasetEntityId
+    if (dsId) {
+      const dataset = entities.find((e) => e && e.entityId === dsId)
+      const rows = (dataset && Array.isArray(dataset.properties && dataset.properties.rows))
+        ? dataset.properties.rows
+        : []
+      try { console.debug('[d3-block] dataset rows length:', Array.isArray(rows) ? rows.length : null) } catch (_) {}
+      return { config, rows }
+    }
+
+    // 3) Dataset-only fallback: use any entity that looks like a dataset with rows
+    const datasetLike = entities.find((e) => e && e.properties && Array.isArray(e.properties.rows))
+    if (datasetLike) {
+      try { console.debug('[d3-block] dataset-like entity used, rows:', datasetLike.properties.rows.length) } catch (_) {}
+      return { config, rows: datasetLike.properties.rows }
+    }
+
+    // 4) Last resort: treat other entities as candidate rows (no network)
+    const rows = entities.map((e) => e && e.properties).filter(Boolean)
+    return { config, rows }
+  }
+
+  function toSeries(rows, mapping) {
+    const xKey = mapping && mapping.x
+    const yKey = mapping && mapping.y
+    const sKey = mapping && mapping.series
+    if (!xKey || !yKey) return []
+
+    // Common alternates seen in CSV/IndexingService
+    const xAlts = [xKey, 'TIME_PERIOD', 'Time', 'year', 'Year']
+    const yAlts = [yKey, 'OBS_VALUE', 'Observation value', 'value', 'Value']
+    const sAlts = [sKey, 'geo', 'STRUCTURE_NAME', 'country', 'series', 'Series']
+
+    const groups = new Map()
+    for (const r of rows) {
+      const xvRaw = getAny(r, xAlts.filter(Boolean))
+      const yvRaw = getAny(r, yAlts.filter(Boolean))
+      const sRaw = getAny(r, sAlts.filter(Boolean))
+      const xv = typeof xvRaw === 'string' ? Number(xvRaw) : xvRaw
+      const yv = typeof yvRaw === 'string' ? Number(yvRaw) : yvRaw
+      const key = sRaw != null ? String(sRaw) : 'Series'
+      if (!Number.isFinite(xv) || !Number.isFinite(yv)) continue
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key).push({ x: xv, y: yv })
+    }
+    for (const arr of groups.values()) arr.sort((a, b) => a.x - b.x)
+    return Array.from(groups.values())
+  }
+
+  function renderSimpleLineChart(host, series) {
+    host.innerHTML = ''
+    const width = host.clientWidth || 700
+    const height = host.clientHeight || 420
+    const margin = { top: 10, right: 16, bottom: 28, left: 44 }
     const innerW = width - margin.left - margin.right
     const innerH = height - margin.top - margin.bottom
 
-    const svg = d3.select(chartHost)
-      .append('svg')
-      .attr('width', width)
-      .attr('height', height)
+    const svgNS = 'http://www.w3.org/2000/svg'
+    const svg = document.createElementNS(svgNS, 'svg')
+    svg.setAttribute('width', String(width))
+    svg.setAttribute('height', String(height))
+    const g = document.createElementNS(svgNS, 'g')
+    g.setAttribute('transform', `translate(${margin.left},${margin.top})`)
+    svg.appendChild(g)
 
-    const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`)
+    const all = series.flat()
+    if (!all.length) { host.appendChild(svg); return }
+    const xs = all.map(d => d.x)
+    const ys = all.map(d => d.y)
+    const xMin = Math.min(...xs), xMax = Math.max(...xs)
+    const yMin = Math.min(...ys), yMax = Math.max(...ys)
+    const xScale = (x) => innerW * (x - xMin) / Math.max(1e-9, (xMax - xMin || 1))
+    const yScale = (y) => innerH - innerH * (y - yMin) / Math.max(1e-9, (yMax - yMin || 1))
 
-    const allX = d3.extent(series.flatMap(s => s.values.map(v => v.year)))
-    const allY = d3.extent(series.flatMap(s => s.values.map(v => v.value)))
-    const x = d3.scaleLinear().domain(allX).range([0, innerW])
-    const y = d3.scaleLinear().domain([Math.max(0, allY[0] ?? 0), allY[1] ?? 1]).nice().range([innerH, 0])
-
-  const totalYears = (allX[1] ?? 0) - (allX[0] ?? 0)
-  const approxTicks = Math.max(3, Math.min(8, Math.floor(totalYears / 3)))
-  const xAxis = d3.axisBottom(x).ticks(approxTicks).tickFormat(d3.format('d'))
-  const yAxis = d3.axisLeft(y).ticks(6)
-  const gx = g.append('g').attr('transform', `translate(0,${innerH})`).call(xAxis)
-  const gy = g.append('g').call(yAxis)
-  // Force axis label colors (overrides any global white styling)
-  gx.selectAll('text').attr('fill', '#111827')
-  gy.selectAll('text').attr('fill', '#111827')
-  gx.selectAll('line').attr('stroke', '#d1d5db')
-  gy.selectAll('line').attr('stroke', '#d1d5db')
-  gx.selectAll('path').attr('stroke', '#9ca3af')
-  gy.selectAll('path').attr('stroke', '#9ca3af')
-
-    const color = d3.scaleOrdinal(d3.schemeTableau10).domain(series.map(s => s.geo))
-    const line = d3.line().x(d => x(d.year)).y(d => y(d.value))
-
-    const group = g.append('g').attr('fill', 'none').attr('stroke-width', 2)
-    for (const s of series) {
-      group.append('path')
-        .datum(s.values)
-        .attr('stroke', color(s.geo))
-        .attr('d', line)
-        .append('title')
-        .text(`${s.name} (${s.geo})`)
+    // axes
+    const xTicks = 6, yTicks = 6
+    for (let i = 0; i <= xTicks; i++) {
+      const xi = xMin + (i * (xMax - xMin)) / xTicks
+      const xpx = xScale(xi)
+      const tick = document.createElementNS(svgNS, 'line')
+      tick.setAttribute('x1', String(xpx))
+      tick.setAttribute('y1', String(innerH))
+      tick.setAttribute('x2', String(xpx))
+      tick.setAttribute('y2', String(innerH + 6))
+      tick.setAttribute('stroke', '#9ca3af')
+      g.appendChild(tick)
+      const lbl = document.createElementNS(svgNS, 'text')
+      lbl.setAttribute('x', String(xpx))
+      lbl.setAttribute('y', String(innerH + 18))
+      lbl.setAttribute('text-anchor', 'middle')
+      lbl.setAttribute('font-size', '10')
+      lbl.setAttribute('fill', '#374151')
+      lbl.textContent = Number.isFinite(xi) ? String(Math.round(xi)) : ''
+      g.appendChild(lbl)
+    }
+    for (let i = 0; i <= yTicks; i++) {
+      const yi = yMin + (i * (yMax - yMin)) / yTicks
+      const ypx = yScale(yi)
+      const grid = document.createElementNS(svgNS, 'line')
+      grid.setAttribute('x1', '0')
+      grid.setAttribute('y1', String(ypx))
+      grid.setAttribute('x2', String(innerW))
+      grid.setAttribute('y2', String(ypx))
+      grid.setAttribute('stroke', i === 0 ? '#9ca3af' : '#e5e7eb')
+      g.appendChild(grid)
+      const lbl = document.createElementNS(svgNS, 'text')
+      lbl.setAttribute('x', String(-6))
+      lbl.setAttribute('y', String(ypx + 3))
+      lbl.setAttribute('text-anchor', 'end')
+      lbl.setAttribute('font-size', '10')
+      lbl.setAttribute('fill', '#374151')
+      lbl.textContent = Number.isFinite(yi) ? String(Math.round(yi)) : ''
+      g.appendChild(lbl)
     }
 
-    // Vertical legend on right
-    const legendGroup = g.append('g').attr('class', 'legend').attr('transform', `translate(${innerW + 16},0)`)
-    const entries = series.map(s => s.geo)
-    const entryH = 16
-    legendGroup.append('rect')
-      .attr('x', -8)
-      .attr('y', -8)
-      .attr('width', 120)
-      .attr('height', entries.length * entryH + 16)
-      .attr('fill', '#f9fafb')
-      .attr('stroke', '#e5e7eb')
-      .attr('rx', 4)
-    entries.forEach((geo, i) => {
-      const s = series.find(x => x.geo === geo)
-      const row = legendGroup.append('g').attr('transform', `translate(0,${i * entryH})`)
-      row.append('rect').attr('width', 12).attr('height', 12).attr('y', -2).attr('fill', color(geo))
-      row.append('text')
-        .attr('x', 18)
-        .attr('y', 8)
-        .attr('font-size', 11)
-        .attr('fill', '#111827')
-        .text(geo)
-        .append('title').text(`${s?.name || geo}`)
+    const colors = ['#3366CC', '#DC3912', '#FF9900', '#109618', '#990099', '#0099C6', '#DD4477', '#66AA00', '#B82E2E', '#316395']
+    series.forEach((arr, i) => {
+      const path = document.createElementNS(svgNS, 'path')
+      const d = arr.map((p, idx) => `${idx === 0 ? 'M' : 'L'}${xScale(p.x)},${yScale(p.y)}`).join(' ')
+      path.setAttribute('d', d)
+      path.setAttribute('fill', 'none')
+      path.setAttribute('stroke', colors[i % colors.length])
+      path.setAttribute('stroke-width', '2')
+      g.appendChild(path)
     })
+
+    host.appendChild(svg)
   }
 
-  ;(async () => {
+  // Execute with a short retry loop if data isn't ready yet
+  let attempts = 0
+  const maxAttempts = 10
+  const tick = () => {
+    attempts += 1
     try {
-  const d3 = await ensureD3()
-  const raw = await d3.csv(CSV_PATH)
-  const rows = normalizeRows(raw)
-  buildUI(d3, rows)
+      const { config, rows } = getConfigAndRows()
+      try {
+        console.log('[d3-block] rows length:', Array.isArray(rows) ? rows.length : null,
+          'sample keys:', rows && rows[0] ? Object.keys(rows[0]).slice(0, 6) : [])
+        console.log('[d3-block] mapping:', (config && config.properties && config.properties.mapping) || { x: 'TIME_PERIOD', y: 'OBS_VALUE', series: 'geo' })
+      } catch (_) {}
+      const mapping = (config && config.properties && config.properties.mapping) || { x: 'TIME_PERIOD', y: 'OBS_VALUE', series: 'geo' }
+      const series = toSeries(rows, mapping)
+
+      titleEl.textContent = (config && config.properties && config.properties.title) || 'Line Chart'
+      if (!series.length) {
+        status.textContent = attempts < maxAttempts
+          ? 'Loading data…'
+          : 'No data found in entity graph. Host must hydrate config.data or dataset.rows.'
+        if (attempts < maxAttempts) setTimeout(tick, 150)
+        return
+      }
+
+      chartHost.innerHTML = ''
+      renderSimpleLineChart(chartHost, series)
+      status.textContent = `Series: ${series.length}, Points: ${series.reduce((n, s) => n + s.length, 0)}`
     } catch (err) {
       const pre = document.createElement('pre')
       pre.style.color = 'crimson'
-      pre.textContent = String(err?.stack || err)
+      pre.textContent = String((err && err.stack) || err)
       container.appendChild(pre)
     }
-  })()
+  }
+  tick()
 
   return container
 }
