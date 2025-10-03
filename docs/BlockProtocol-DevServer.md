@@ -37,6 +37,7 @@ A clean separation of concerns where each component has a single, well-defined r
 - No framework auto-detection/compilation pipeline; relies on each block’s `npm run build`.
 - No cross-process cache invalidation broadcast to VS Code; consumers refresh or watch on their own.
 
+
 ### 2. Demo Application Server (POC Testing Only)
 **Location**: `apps/blockprotocol-poc/src/server.ts` (refactored)
 **Purpose**: **Provide a web application for testing Block Protocol scenarios**
