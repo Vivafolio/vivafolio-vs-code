@@ -25,14 +25,13 @@ A clean separation of concerns where each component has a single, well-defined r
 
 ### 1. Block Builder & Server (Block Development Only)
 **Location**: `blocks/dev-server.js`
-**Purpose**: **Serve block resources and provide hot-reload during development**
-**Responsibilities** (Current Implementation):
-- Load block metadata from `block-metadata.json` files in block directories
-- Set up file watching for source changes in `*/src/**/*` using Chokidar
-- Automatically rebuild blocks via `npm run build` when source files change
-- Serve block resources (e.g., built files from `dist/` directories) via HTTP endpoints
-- Provide REST API for block metadata, health checks, and block listing
-- Static file serving for development assets
+**Purpose**: **Build, bundle, and serve block definitions during development**
+**Responsibilities** :
+- Supports block building in different frameworks (SolidJS, Vue, Svelte, Lit, Angular)
+- Block packaging and bundling
+- Hot-reload development serving
+- Cache invalidation hooks for VS Code integration
+- REST API for block metadata and health checks
 
 **Current limitations vs. target:**
 - No framework auto-detection/compilation pipeline; relies on each block’s `npm run build`.
@@ -76,14 +75,18 @@ A clean separation of concerns where each component has a single, well-defined r
 
 ## 1. Block Builder & Server Capabilities
 
+### Core Duties (Target Implementation)
+* **Framework compilation** – Hot-reload compilation for SolidJS, Vue, Svelte, Lit, Angular with proper bundling and optimization
+* **Block packaging** – Build blocks for both development (hot-reload) and production (optimized bundles)
+* **Resource serving** – Host `block-metadata.json`, bundle chunks, stylesheets, HTML entry points under predictable paths
+* **Cache invalidation hooks** – Notify BlockResourcesCache when blocks are rebuilt for automatic webview updates
+
 ### Core Duties (Current Implementation)
 * **Block loading** – Scan directories for blocks with `block-metadata.json` and load metadata
 * **File watching** – Monitor `*/src/**/*` for changes and trigger rebuilds via `npm run build`
 * **Resource serving** – Host built block files from `dist/` directories via HTTP
 * **API endpoints** – Provide REST APIs for block metadata and health checks
 * **Static serving** – Serve static assets for development
-
-**Note**: The current `dev-server.js` is a basic implementation. The target architecture envisions a more advanced system with framework-specific compilation, bundling, and cache invalidation hooks.
 
 ### Integration Duties (VS Code Extension)
 * **Development API** – REST endpoints for block metadata, health checks, and development tools
@@ -114,7 +117,7 @@ Supported flags and env vars (current implementation):
 | `--host <string>` | `BLOCK_DEV_SERVER_HOST` or `HOST` | `0.0.0.0` | Bind address; banner prints `localhost` when binding to all interfaces. |
 
 ## 3. Block Builder & Server Programmatic API
-
+# Current implementation:  
 ```javascript
 const { startServer } = require('./blocks/dev-server.js');
 
@@ -122,6 +125,24 @@ startServer().catch(console.error);
 ```
 
 The `startServer` function initializes blocks, sets up file watching, and starts the HTTP server.
+
+# Target implementation:  
+
+```ts
+import { startBlockBuilderServer } from './blocks/dev-server.js'
+
+const { httpServer, close } = await startBlockBuilderServer({
+  port: 0,
+  attachSignalHandlers: false,
+  enableVite: false,
+})
+
+// use httpServer.address() to discover listening port
+await close()
+```
+
+* `startBlockBuilderServer()` returns `{ app, httpServer, close }`. Call `close()` to tear down sockets and any Vite middleware.
+* Flag `attachSignalHandlers=false` keeps the helper from registering process-wide SIGINT/SIGTERM handlers (essential for smoke tests).
 
 ## 4. Block Builder & Server API Endpoints
 
