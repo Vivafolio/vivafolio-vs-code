@@ -342,7 +342,7 @@ function buildLineChartSubgraph(params: {
       xField: 'time_period',
       yField: 'obs_value',
       seriesField: 'geo',
-      width: 800,
+      width: 400,
       height: 400
     }
   }
@@ -1811,6 +1811,17 @@ export async function startServer(options: StartServerOptions = {}) {
   const enableFrameworkWatch = options.enableFrameworkWatch ?? process.env.ENABLE_FRAMEWORK_WATCH === 'true'
 
   const app = express()
+
+  // Enable CORS for cross-origin block loading (dev-server on different port)
+  app.use((req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*')
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE')
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200)
+    }
+    next()
+  })
 
   // Enable compression for all responses in production
   if (process.env.NODE_ENV === 'production') {

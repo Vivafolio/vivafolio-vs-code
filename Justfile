@@ -300,12 +300,10 @@ vscode-dev-trace: install-mocklang-extension
 build-blocks:
 	cd blocks && npm run build
 
-# Watch blocks and rebuild automatically
+# Watch blocks and rebuild automatically (uses block dev-server with hot reload)
 watch-blocks:
-	@echo "Watching block files for changes..."
-	@echo "Note: Manual watching - edit files and run 'just build-blocks' to rebuild"
-	@echo "For automatic watching, install fswatch: brew install fswatch"
-	@while true; do sleep 2; done
+	@echo "Starting block development server with file watching and hot reload..."
+	@cd blocks && npm run dev-server
 
 # Clean all block builds
 clean-blocks:
@@ -315,9 +313,9 @@ clean-blocks:
 build-blocks-production:
 	cd blocks && npm run build:all
 
-# Start block development server
+# Start block development server with hot reload
 block-dev-server:
-	@echo "Starting block development server..."
+	@echo "Starting block development server with hot reload..."
 	@cd blocks && npm run dev-server
 
 # Launch VS Code with block dev server
@@ -332,11 +330,6 @@ vscode-with-server: install-mocklang-extension
 		--disable-workspace-trust \
 		--new-window \
 		"${PWD}/test/projects/vivafolio-data-examples"
-
-# Watch all blocks simultaneously
-watch-all-blocks:
-	@echo "Watching all block files..."
-	@fswatch -r blocks/*/src/ | xargs -n1 -I{} sh -c 'echo "Building block: {}"; block_name=$(basename $(dirname $(dirname {}))); cd blocks/$block_name && npm run build'
 
 # Test blocks
 test-blocks:
@@ -404,6 +397,9 @@ clean-all:
 
 # Launch Block Protocol POC dev server (basic mode)
 dev-blockprotocol-poc:
+	@echo "Building all blocks..."
+	@just build-blocks
+	@echo "Starting Block Protocol POC dev server..."
 	cd apps/blockprotocol-poc && \
 		node ../../scripts/guarded-run.js \
 			--name blockprotocol-poc-dev \
@@ -415,6 +411,9 @@ dev-blockprotocol-poc:
 
 # Launch Block Protocol POC dev server once (with timeout, for testing)
 dev-blockprotocol-poc-once:
+	@echo "Building all blocks..."
+	@just build-blocks
+	@echo "Starting Block Protocol POC dev server..."
 	cd apps/blockprotocol-poc && \
 		PORT="${PORT:-0}" node ../../scripts/guarded-run.js \
 			--name blockprotocol-poc-dev-once \

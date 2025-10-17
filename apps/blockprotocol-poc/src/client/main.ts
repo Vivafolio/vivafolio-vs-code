@@ -382,6 +382,7 @@ type ServerEnvelope =
     }
   | { type: 'vivafolioblock-notification'; payload: VivafolioBlockNotification }
   | { type: 'graph/ack'; receivedAt: string }
+  | { type: 'cache:invalidate'; payload: { blockId: string } }
 
 const PLACEHOLDER_CLASS = 'block-region__placeholder'
 
@@ -911,6 +912,41 @@ function handleEnvelope(data: ServerEnvelope) {
       ensurePlaceholder(`Awaiting VivafolioBlock notifications for ${scenarioTitle}…`)
       break
     }
+  case 'cache:invalidate': {
+    console.log('[Client] Received cache:invalidate for blockId:', data.payload.blockId)
+    const blockId = data.payload.blockId
+    if (blockId) {
+      // Reload the block by re-rendering with the latest payload
+      const payload = latestPayloads.get(blockId)
+      if (payload) {
+        console.log('[Client] Reloading block:', blockId, '- forcing iframe reload')
+        const existing = blockRegion.querySelector<HTMLElement>(
+          `[data-block-id="${blockId}"]`
+        )
+        if (existing) {
+          // For iframe-based blocks, force a full reload by recreating the iframe
+          const iframe = existing.querySelector('iframe')
+          if (iframe) {
+            const src = iframe.src
+            console.log('[Client] Reloading iframe with cache-busting:', src)
+            // Add cache-busting parameter to force reload
+            const cacheBuster = `_reload=${Date.now()}`
+            const newSrc = src.includes('?') ? `${src}&${cacheBuster}` : `${src}?${cacheBuster}`
+            iframe.src = newSrc
+          } else {
+            // Non-iframe block: re-render from scratch
+            const renderer = renderers[payload.blockType] ?? renderFallback
+            const element = renderer(payload)
+            existing.replaceWith(element)
+            requestFrameInit(blockId)
+          }
+        }
+      } else {
+        console.warn('[Client] No cached payload found for blockId:', blockId, '- block may need full reload')
+      }
+    }
+    break
+  }
   case 'vivafolioblock-notification': {
     console.log('[Client] Received vivafolioblock-notification:', {
       blockId: data.payload.blockId,
@@ -1019,6 +1055,37 @@ function bootstrap() {
 
   socket.addEventListener('error', (error) => {
     console.error('[Client] WebSocket error:', error)
+  })
+
+  // Connect to block dev-server for hot reload notifications
+  const blockDevServerUrl = `ws://localhost:3001`
+  console.log('[Client] Connecting to block dev-server:', blockDevServerUrl)
+  const blockDevSocket = new WebSocket(blockDevServerUrl)
+
+  blockDevSocket.addEventListener('open', () => {
+    console.log('[Client] Block dev-server WebSocket connected')
+  })
+
+  blockDevSocket.addEventListener('close', () => {
+    console.log('[Client] Block dev-server WebSocket disconnected')
+  })
+
+  blockDevSocket.addEventListener('message', (event) => {
+    console.log('[Client] Block dev-server message received:', event.data)
+    try {
+      const data = JSON.parse(event.data)
+      console.log('[Client] Block dev-server message type:', data.type)
+      // Handle hot reload messages from block dev-server
+      if (data.type === 'cache:invalidate') {
+        handleEnvelope(data)
+      }
+    } catch (error) {
+      console.error('[Client] Failed to parse block dev-server message', error)
+    }
+  })
+
+  blockDevSocket.addEventListener('error', (error) => {
+    console.error('[Client] Block dev-server WebSocket error:', error)
   })
 }
 
