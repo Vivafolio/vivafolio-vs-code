@@ -5,7 +5,7 @@ import { existsSync } from 'fs';
 import chokidar, { FSWatcher } from 'chokidar';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import WebSocket from 'ws';
+import WebSocket, { WebSocketServer } from 'ws';
 import http from 'http';
 import { BlockBuilder, FrameworkBundle } from './builder.js';
 
@@ -45,7 +45,7 @@ export interface BlockInfo {
 export class BlockServer {
   private app: express.Application;
   private server?: http.Server;
-  private wss?: WebSocket.Server;
+  private wss?: WebSocketServer;
   private blockBuilder?: BlockBuilder;
   private options: Required<BlockServerOptions>;
   private blocks = new Map<string, BlockMetadata>();
@@ -194,14 +194,8 @@ export class BlockServer {
       ...this.options.frameworkOptions,
       onBundleUpdate: (framework, bundle) => {
         this.notifyClients({
-          type: 'framework-update',
-          framework,
-          bundle: {
-            id: bundle.id,
-            hash: bundle.hash,
-            entryPoint: bundle.entryPoint,
-            lastModified: bundle.lastModified.toISOString()
-          }
+          type: 'cache:invalidate',
+          payload: { blockId: `${framework}-${bundle.id}` }
         });
       }
     });
@@ -235,17 +229,50 @@ export class BlockServer {
   }
 
   private setupBlockWatching(): void {
-    if (!this.options.enableHotReload) return;
+    if (!this.options.enableHotReload) {
+      console.log('⚠️  Hot reload is DISABLED');
+      return;
+    }
 
-    const watcher = chokidar.watch('*/src/**/*', {
-      cwd: this.options.blocksDir,
+    console.log(`📁 Setting up file watcher in: ${this.options.blocksDir}`);
+    
+    // Build list of directories to watch (one for each loaded block)
+    const watchPaths: string[] = [];
+    for (const blockName of this.blocks.keys()) {
+      const srcPath = path.join(this.options.blocksDir, blockName, 'src');
+      if (existsSync(srcPath)) {
+        watchPaths.push(srcPath);
+        console.log(`📁 Will watch: ${blockName}/src`);
+      }
+    }
+    
+    if (watchPaths.length === 0) {
+      console.error('⚠️  No block src directories found to watch!');
+      return;
+    }
+    
+    const watcher = chokidar.watch(watchPaths, {
       ignoreInitial: true,
-      ignored: ['**/node_modules/**', '**/dist/**']
+      ignored: ['**/node_modules/**', '**/dist/**'],
+      persistent: true,
+      awaitWriteFinish: {
+        stabilityThreshold: 300,
+        pollInterval: 100
+      }
+    });
+
+    watcher.on('ready', () => {
+      console.log('✅ File watcher ready');
+      const watched = watcher.getWatched();
+      const dirs = Object.keys(watched);
+      console.log(`📂 Actively watching ${dirs.length} directories`);
     });
 
     watcher.on('change', (filePath) => {
-      const blockName = filePath.split('/')[0];
-      console.log(`Block ${blockName} source changed: ${filePath}`);
+      // Extract block name from absolute path
+      const relativePath = filePath.replace(this.options.blocksDir + '/', '');
+      const blockName = relativePath.split('/')[0];
+      console.log(`🔥 Block ${blockName} source changed: ${relativePath}`);
 
       // Rebuild the block
       execAsync(`cd ${blockName} && npm run build`, { cwd: this.options.blocksDir })
@@ -256,8 +283,8 @@ export class BlockServer {
 
           // Notify clients about the block update
           this.notifyClients({
-            type: 'block-update',
-            blockName
+            type: 'cache:invalidate',
+            payload: { blockId: blockName }
           });
         })
         .catch((error) => {
@@ -272,7 +299,7 @@ export class BlockServer {
   private setupWebSocket(): void {
     if (!this.options.enableWebSocket || !this.server) return;
 
-    this.wss = new WebSocket.Server({ server: this.server });
+    this.wss = new WebSocketServer({ server: this.server });
 
     this.wss.on('connection', (ws) => {
       console.log('Client connected');

@@ -156,3 +156,6 @@ temp/
 # Local block development test artifacts
 apps/blockprotocol-poc/test-local-blocks-*/
 apps/blockprotocol-poc/test-blocks/
+
+#Commands
+commands

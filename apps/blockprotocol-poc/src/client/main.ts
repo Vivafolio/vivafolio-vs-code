@@ -382,6 +382,7 @@ type ServerEnvelope =
     }
   | { type: 'vivafolioblock-notification'; payload: VivafolioBlockNotification }
   | { type: 'graph/ack'; receivedAt: string }
+  | { type: 'cache:invalidate'; payload: { blockId: string } }
 
 const PLACEHOLDER_CLASS = 'block-region__placeholder'
 
@@ -765,12 +766,22 @@ function renderPublishedBlock(notification: VivafolioBlockNotification): HTMLEle
   console.log('[POC] About to call loader.loadBlock...')
   loader.loadBlock(adaptedNotification, container).then(() => {
     console.log('[POC] Block loaded successfully:', notification.blockId)
-    console.log('[POC] Container HTML after load:', container.innerHTML)
+    console.log('[POC] Container HTML after load:', container.innerHTML.substring(0, 500))
     console.log('[POC] Container children count:', container.children.length)
+    console.log('[POC] Container first child:', container.firstElementChild?.tagName, container.firstElementChild?.className)
+    console.log('[POC] Loader diagnostics:', JSON.stringify(loader.getDiagnostics(), null, 2))
+    // Check if the block root element exists
+    const blockRoot = container.querySelector('.d3-line-graph-block')
+    console.log('[POC] Block root element found:', !!blockRoot, blockRoot?.tagName)
+    if (blockRoot) {
+      console.log('[POC] Block root className:', blockRoot.className)
+      console.log('[POC] Block root innerHTML preview:', (blockRoot as HTMLElement).innerHTML.substring(0, 200))
+    }
     container.style.display = 'block'
   }).catch(error => {
     console.error('[POC] Block loader failed:', error.message)
     console.error('[POC] Full error:', error)
+    console.error('[POC] Error stack:', error.stack)
     // Show proper error instead of fake content
     container.innerHTML = `
       <div class="block-error" style="
@@ -889,15 +900,64 @@ function handleEnvelope(data: ServerEnvelope) {
       const scenarioTitle = data.scenario?.title ?? 'Unknown Scenario'
       scenarioLabel.textContent = scenarioTitle
       scenarioDescription.textContent = data.scenario?.description ?? ''
+      
+      // Set up global graph context for blocks that need direct access to entity data
+      if (data.entityGraph) {
+        ;(window as any).__vivafolioGraphContext = { graph: data.entityGraph }
+        console.log('[Client] Set up global graph context with', data.entityGraph.entities?.length || 0, 'entities')
+      } else {
+        console.log('[Client] No entityGraph in connection_ack')
+      }
+      
       ensurePlaceholder(`Awaiting VivafolioBlock notifications for ${scenarioTitle}…`)
       break
     }
+  case 'cache:invalidate': {
+    console.log('[Client] Received cache:invalidate for blockId:', data.payload.blockId)
+    const blockId = data.payload.blockId
+    if (blockId) {
+      // Reload the block by re-rendering with the latest payload
+      const payload = latestPayloads.get(blockId)
+      if (payload) {
+        console.log('[Client] Reloading block:', blockId, '- forcing iframe reload')
+        const existing = blockRegion.querySelector<HTMLElement>(
+          `[data-block-id="${blockId}"]`
+        )
+        if (existing) {
+          // For iframe-based blocks, force a full reload by recreating the iframe
+          const iframe = existing.querySelector('iframe')
+          if (iframe) {
+            const src = iframe.src
+            console.log('[Client] Reloading iframe with cache-busting:', src)
+            // Add cache-busting parameter to force reload
+            const cacheBuster = `_reload=${Date.now()}`
+            const newSrc = src.includes('?') ? `${src}&${cacheBuster}` : `${src}?${cacheBuster}`
+            iframe.src = newSrc
+          } else {
+            // Non-iframe block: re-render from scratch
+            const renderer = renderers[payload.blockType] ?? renderFallback
+            const element = renderer(payload)
+            existing.replaceWith(element)
+            requestFrameInit(blockId)
+          }
+        }
+      } else {
+        console.warn('[Client] No cached payload found for blockId:', blockId, '- block may need full reload')
+      }
+    }
+    break
+  }
   case 'vivafolioblock-notification': {
     console.log('[Client] Received vivafolioblock-notification:', {
       blockId: data.payload.blockId,
       blockType: data.payload.blockType,
       entityId: data.payload.entityId
     })
+    // Ensure global graph context is available for blocks that read directly from window
+    if (data.payload.entityGraph) {
+      ;(window as any).__vivafolioGraphContext = { graph: data.payload.entityGraph }
+      console.log('[Client] Updated global graph context from notification with', data.payload.entityGraph.entities?.length || 0, 'entities')
+    }
     clearPlaceholder()
     latestPayloads.set(data.payload.blockId, data.payload)
     const renderer = renderers[data.payload.blockType] ?? renderFallback
@@ -995,6 +1055,37 @@ function bootstrap() {
 
   socket.addEventListener('error', (error) => {
     console.error('[Client] WebSocket error:', error)
+  })
+
+  // Connect to block dev-server for hot reload notifications
+  const blockDevServerUrl = `ws://localhost:3001`
+  console.log('[Client] Connecting to block dev-server:', blockDevServerUrl)
+  const blockDevSocket = new WebSocket(blockDevServerUrl)
+
+  blockDevSocket.addEventListener('open', () => {
+    console.log('[Client] Block dev-server WebSocket connected')
+  })
+
+  blockDevSocket.addEventListener('close', () => {
+    console.log('[Client] Block dev-server WebSocket disconnected')
+  })
+
+  blockDevSocket.addEventListener('message', (event) => {
+    console.log('[Client] Block dev-server message received:', event.data)
+    try {
+      const data = JSON.parse(event.data)
+      console.log('[Client] Block dev-server message type:', data.type)
+      // Handle hot reload messages from block dev-server
+      if (data.type === 'cache:invalidate') {
+        handleEnvelope(data)
+      }
+    } catch (error) {
+      console.error('[Client] Failed to parse block dev-server message', error)
+    }
+  })
+
+  blockDevSocket.addEventListener('error', (error) => {
+    console.error('[Client] Block dev-server WebSocket error:', error)
   })
 }
 

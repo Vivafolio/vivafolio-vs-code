@@ -199,45 +199,61 @@ async function buildFrameworkBundle(framework: string, sourcePath: string, outpu
 async function buildGeneralBlocks() {
   const rootDir = process.cwd()
   const examplesDir = path.join(rootDir, 'examples/blocks')
+  const mainBlocksDir = '/home/elidim/Dev/vivafolio-vs-code/blocks'
   const outputDir = path.join(rootDir, 'dist/frameworks')
   const builtBundles: FrameworkBundle[] = []
 
-  if (!existsSync(examplesDir)) {
-    console.log('[build-frameworks] General examples directory not found, skipping...')
-    return builtBundles
-  }
+  const dirsToCheck = [
+    { dir: examplesDir, label: 'examples' },
+    { dir: mainBlocksDir, label: 'main blocks' }
+  ]
 
-  console.log('[build-frameworks] Processing general example blocks...')
-
-  try {
-    const blockDirs = await fs.readdir(examplesDir)
-
-    for (const blockDir of blockDirs) {
-      const blockPath = path.join(examplesDir, blockDir)
-      const stat = await fs.stat(blockPath)
-
-      if (!stat.isDirectory()) continue
-
-      const mainFile = path.join(blockPath, 'main.js')
-      if (!existsSync(mainFile)) continue
-
-      console.log(`[build-frameworks] Building general block: ${blockDir}`)
-
-      const outputName = `${blockDir}-block`
-      const blockOutputDir = path.join(outputDir, blockDir)
-
-      try {
-        const bundle = await buildFrameworkBundle('general', mainFile, blockOutputDir)
-        // Update the bundle ID to use the block name instead of the file path
-        bundle.id = outputName
-        builtBundles.push(bundle)
-        console.log(`[build-frameworks] ✓ Built general block: ${blockDir}`)
-      } catch (error) {
-        console.error(`[build-frameworks] ✗ Failed to build general block ${blockDir}:`, error)
-      }
+  for (const { dir, label } of dirsToCheck) {
+    if (!existsSync(dir)) {
+      console.log(`[build-frameworks] ${label} directory not found at ${dir}, skipping...`)
+      continue
     }
-  } catch (error) {
-    console.error('[build-frameworks] Error processing general blocks:', error)
+
+    console.log(`[build-frameworks] Processing ${label} blocks from ${dir}...`)
+
+    try {
+      const blockDirs = await fs.readdir(dir)
+
+      for (const blockDir of blockDirs) {
+        const blockPath = path.join(dir, blockDir)
+        const stat = await fs.stat(blockPath)
+
+        if (!stat.isDirectory()) continue
+
+        // Check for typical entry files: main.js, src/index.js, src/index.ts
+            // Detect entry file for general blocks: prefer main.js, then src/index.js, then src/index.ts
+            let mainFile = path.join(blockPath, 'main.js')
+            if (!existsSync(mainFile)) {
+              const srcIndexJs = path.join(blockPath, 'src', 'index.js')
+              const srcIndexTs = path.join(blockPath, 'src', 'index.ts')
+              if (existsSync(srcIndexJs)) mainFile = srcIndexJs
+              else if (existsSync(srcIndexTs)) mainFile = srcIndexTs
+              else continue
+            }
+
+        console.log(`[build-frameworks] Building ${label} block: ${blockDir} from ${mainFile}`)
+
+        const outputName = `${blockDir}-block`
+        const blockOutputDir = path.join(outputDir, blockDir)
+
+        try {
+          const bundle = await buildFrameworkBundle('general', mainFile, blockOutputDir)
+          // Update the bundle ID to use the block name instead of the file path
+          bundle.id = outputName
+          builtBundles.push(bundle)
+          console.log(`[build-frameworks] ✓ Built ${label} block: ${blockDir}`)
+        } catch (error) {
+          console.error(`[build-frameworks] ✗ Failed to build ${label} block ${blockDir}:`, error)
+        }
+      }
+    } catch (error) {
+      console.error(`[build-frameworks] Error processing ${label} blocks:`, error)
+    }
   }
 
   return builtBundles

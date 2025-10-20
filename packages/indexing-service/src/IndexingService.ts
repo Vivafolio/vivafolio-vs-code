@@ -45,6 +45,19 @@ export interface IndexingServiceConfig {
   watchPaths: string[];
   supportedExtensions: string[];
   excludePatterns: string[];
+  csv?: {
+    dialect?: { delimiter?: string; quote?: string; escape?: string; header?: boolean };
+    schema?: {
+      id?: { from: 'column' | 'template'; column?: string; template?: string };
+      columns?: Record<string, { rename?: string; type?: 'string'|'int'|'float'|'bool'|'date'; required?: boolean }>;
+      nullPolicy?: 'strict'|'loose';
+      delimiter?: string; quote?: string; escape?: string; header?: boolean;
+    };
+    typing?: boolean;
+    nullPolicy?: 'strict'|'loose';
+    headerSanitizer?: (raw: string, i: number) => string;
+    onRow?: (row: Record<string, any>, ctx: { filePath: string; rowIndex: number }) => void;
+  };
 }
 
 // Enhanced event types emitted by the indexing service
@@ -252,7 +265,7 @@ export class IndexingService {
       const ext = path.extname(filePath).toLowerCase();
 
       if (ext === '.csv') {
-        await this.processCSVFile(filePath);
+  await this.processCSVFile(filePath);
       } else if (ext === '.md') {
         await this.processMarkdownFile(filePath);
       }
@@ -262,23 +275,138 @@ export class IndexingService {
     }
   }
 
-  // Process CSV files
+  // Process CSV files with robust parsing and optional dialect/schema
   private async processCSVFile(filePath: string): Promise<void> {
     const content = await fs.readFile(filePath, 'utf-8');
-    const lines = content.trim().split('\n');
+    const cfg = this.config.csv || {};
+    const dialect = cfg.dialect || {};
+    const delimiter = (cfg.schema?.delimiter ?? dialect.delimiter ?? ',');
+    const quote = (cfg.schema?.quote ?? dialect.quote ?? '"');
+    const escape = (cfg.schema?.escape ?? dialect.escape ?? undefined);
+    const headerEnabled = (cfg.schema?.header ?? dialect.header);
 
-    if (lines.length < 2) return;
+    // Normalize newlines and optionally strip BOM
+    const normalized = content.replace(/^\uFEFF/, '').replace(/\r\n|\r/g, '\n');
+    // One-pass robust CSV parser: build records (arrays of cells) directly
+    const records: string[][] = [];
+    {
+      let cell = '';
+      let row: string[] = [];
+      let inQ = false;
+      for (let i = 0; i < normalized.length; i++) {
+        const ch = normalized[i];
+        if (ch === quote) {
+          // Escaped quote inside a quoted cell
+          if (inQ && normalized[i + 1] === quote) {
+            cell += quote;
+            i += 1; // consume second quote
+          } else {
+            inQ = !inQ; // enter/exit quotes, do not include the quote char
+          }
+          continue;
+        }
+        if (escape && ch === escape && normalized[i + 1] !== undefined) {
+          // Lenient escape handling: take the next char verbatim
+          cell += normalized[i + 1];
+          i += 1;
+          continue;
+        }
+        if (!inQ && ch === delimiter) {
+          row.push(cell);
+          cell = '';
+          continue;
+        }
+        if (!inQ && ch === '\n') {
+          row.push(cell);
+          records.push(row);
+          // reset for next row
+          row = [];
+          cell = '';
+          continue;
+        }
+        cell += ch;
+      }
+      // flush last cell/row
+      row.push(cell);
+      records.push(row);
+    }
 
-    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+    if (!records.length) return;
 
-    for (let i = 1; i < lines.length; i++) {
-      const cells = lines[i].split(',').map(c => c.trim().replace(/"/g, ''));
-      const entityId = `${path.basename(filePath, '.csv')}-row-${i - 1}`;
+    // Headers
+    const headerRow = records[0] ?? [];
+    let rawHeaders = headerRow.map((h) => h.replace(/^"|"$/g, ''));
+    if (headerEnabled === false) {
+      // No headers: generate col1..colN from longest row
+      const longest = records.slice(1).reduce((n, r) => Math.max(n, r.length), 0);
+      rawHeaders = Array.from({ length: longest }, (_, i) => `col${i + 1}`);
+    }
 
+    // Sanitize and dedupe headers
+    const sanitize = cfg.headerSanitizer || ((raw: string, idx: number) => {
+      const base = raw.trim().toLowerCase().replace(/\s+/g, '_');
+      return base || `col${idx + 1}`;
+    });
+    const headers: string[] = [];
+    const seen = new Map<string, number>();
+    rawHeaders.forEach((h, idx) => {
+      let key = sanitize(h, idx);
+      if (seen.has(key)) {
+        const n = (seen.get(key) || 0) + 1;
+        seen.set(key, n);
+        key = `${key}_${n}`;
+      } else {
+        seen.set(key, 0);
+      }
+      headers.push(key);
+    });
+
+    const typing = !!cfg.typing;
+    const nullLoose = (cfg.nullPolicy === 'loose' || cfg.schema?.nullPolicy === 'loose');
+    const toTyped = (val: string): any => {
+      const v = val;
+      if (!typing) return v;
+      // Null policy
+      if (nullLoose && (v === '' || v.toLowerCase() === 'null' || v.toLowerCase() === 'nan')) return null;
+      // Booleans
+      if (v === 'true' || v === 'false') return v === 'true';
+      // Integers
+      if (/^[+-]?\d+$/.test(v)) return parseInt(v, 10);
+      // Floats
+      if (/^[+-]?(\d+\.)?\d+(e[+-]?\d+)?$/i.test(v)) return parseFloat(v);
+      // ISO date (basic check)
+      if (/^\d{4}-\d{2}-\d{2}(T.*)?$/.test(v)) return v;
+      return v;
+    };
+
+    // Build entities row-by-row
+    for (let i = 1; i < records.length; i++) {
+      const cells = records[i];
+      if (cells.every((c) => c.trim() === '')) continue; // skip empty rows
       const properties: Record<string, any> = {};
-      headers.forEach((header, idx) => {
-        properties[header] = cells[idx] || '';
-      });
+      for (let c = 0; c < headers.length; c++) {
+        const raw = (cells[c] ?? '');
+        properties[headers[c]] = toTyped(raw.replace(/^"|"$/g, ''));
+      }
+      // Extra cells policy: drop or store as _extra_n
+      for (let c = headers.length; c < cells.length; c++) {
+        properties[`_extra_${c - headers.length}`] = cells[c].replace(/^"|"$/g, '');
+      }
+
+      // Compute entityId
+      const basename = path.basename(filePath, '.csv');
+      let entityId = `${basename}-row-${i - 1}`;
+      const idSpec = cfg.schema?.id;
+      if (idSpec?.from === 'column' && idSpec.column) {
+        const candidate = properties[idSpec.column];
+        if (candidate && String(candidate).length > 0) {
+          entityId = String(candidate);
+        }
+      } else if (idSpec?.from === 'template' && idSpec.template) {
+        entityId = idSpec.template
+          .replace('${basename}', basename)
+          .replace('${i}', String(i - 1));
+      }
 
       const metadata: EntityMetadata = {
         entityId,
@@ -289,6 +417,9 @@ export class IndexingService {
       };
 
       this.entityMetadata.set(entityId, metadata);
+      if (typeof cfg.onRow === 'function') {
+        try { cfg.onRow(properties, { filePath, rowIndex: i - 1 }); } catch {}
+      }
     }
   }
 
@@ -492,6 +623,16 @@ export class IndexingService {
   // Get all entity metadata
   getAllEntities(): EntityMetadata[] {
     return Array.from(this.entityMetadata.values());
+  }
+
+  // Helper: get entities by source type
+  getEntitiesBySourceType(sourceType: string): EntityMetadata[] {
+    return Array.from(this.entityMetadata.values()).filter((m) => m.sourceType === sourceType);
+  }
+
+  // Helper: get entities by CSV basename
+  getEntitiesByBasename(basename: string): EntityMetadata[] {
+    return Array.from(this.entityMetadata.values()).filter((m) => m.sourceType === 'csv' && path.basename(m.sourcePath) === basename);
   }
 
   // Batch operations support

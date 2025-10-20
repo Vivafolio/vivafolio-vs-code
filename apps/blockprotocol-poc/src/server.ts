@@ -325,6 +325,35 @@ function nextCachingTag() {
   return `v${resourceCounter}`
 }
 
+// Helper to hydrate a Line Chart subgraph with config + dataset rows
+function buildLineChartSubgraph(params: {
+  rows: Array<Record<string, unknown>>
+}): EntityGraph {
+  const configEntity: Entity = {
+    entityId: 'linechart-config',
+    entityTypeId: 'vivafolio:viz:LineChartConfig',
+    properties: {
+      title: 'Line Chart',
+      mapping: { x: 'time_period', y: 'obs_value', series: 'geo' },
+  datasetEntityId: 'linechart-dataset',
+  // Provide inline data as a first-class source to maximize block compatibility
+  // The block prefers config.properties.rows when available
+  rows: params.rows,
+      xField: 'time_period',
+      yField: 'obs_value',
+      seriesField: 'geo',
+      width: 400,
+      height: 400
+    }
+  }
+  const datasetEntity: Entity = {
+    entityId: 'linechart-dataset',
+    entityTypeId: 'vivafolio:data:Dataset',
+    properties: { rows: params.rows }
+  }
+  return { entities: [configEntity, datasetEntity], links: [] }
+}
+
 // Framework compilation helpers
 function generateAssetHash(content: string): string {
   // Creates a content-based hash for cache busting and integrity checking
@@ -1397,8 +1426,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
           entityId: 'd3-line-graph-entity',
           entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
           properties: {
-            'https://blockprotocol.org/@blockprotocol/types/property-type/name/': 'D3 Line Graph – GDP per capita',
-            'https://blockprotocol.org/@blockprotocol/types/property-type/name/v/1': 'D3 Line Graph – GDP per capita'
+            'https://blockprotocol.org/@blockprotocol/types/property-type/name/': 'D3 Line Graph – GDP per capita'
           }
         }],
         links: []
@@ -1415,9 +1443,12 @@ const scenarios: Record<string, ScenarioDefinition> = {
         initialHeight: 480,
         resources: [
           { logicalName: 'block-metadata.json', physicalPath: '/external/d3-line-graph/block-metadata.json', cachingTag: nextCachingTag() },
-          { logicalName: 'main.js', physicalPath: '/external/d3-line-graph/main.js', cachingTag: nextCachingTag() },
+          // Prefer compiled TS output directly for this local block
+          { logicalName: 'main.js', physicalPath: '/external/d3-line-graph/dist/index.js', cachingTag: nextCachingTag() },
+          // Local dependency used by the compiled block (resolved via BlockLoader require)
+          { logicalName: 'libs/d3/dist/index.js', physicalPath: '/external/d3-line-graph/libs/d3/dist/index.js', cachingTag: nextCachingTag() },
           { logicalName: 'icon.svg', physicalPath: '/external/d3-line-graph/icon.svg', cachingTag: nextCachingTag() }
-        ]
+        ],
       }
     ],
     applyUpdate: ({ state, update }) => {
@@ -1781,6 +1812,17 @@ export async function startServer(options: StartServerOptions = {}) {
 
   const app = express()
 
+  // Enable CORS for cross-origin block loading (dev-server on different port)
+  app.use((req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*')
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE')
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200)
+    }
+    next()
+  })
+
   // Enable compression for all responses in production
   if (process.env.NODE_ENV === 'production') {
     app.use(compression({
@@ -1809,10 +1851,17 @@ let localBlockBuilder: BlockBuilder | undefined
     watchPaths: [
       // Only scan for direct data files - CSV and Markdown files
       // vivafolio_data! constructs in .viv files are handled via LSP notifications
-      path.join(ROOT_DIR, '..', '..', 'test', 'projects')
+      path.join(ROOT_DIR, '..', '..', 'test', 'projects'),
+  // Also watch the demo datasets used by scenarios (CSV, etc.)
+  path.join(ROOT_DIR, 'data')
     ],
     supportedExtensions: ['csv', 'md'], // Only direct data files, not source files
-    excludePatterns: ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/vivafolio-data-examples/**']
+    excludePatterns: ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/vivafolio-data-examples/**'],
+    csv: {
+      // Enable typing so numeric columns (e.g., OBS_VALUE, TIME_PERIOD) are numbers
+      typing: true,
+      nullPolicy: 'loose'
+    }
   })
 
   // Initialize transport layer
@@ -1992,6 +2041,59 @@ function getContentType(filePath: string): string {
   }
 }
 
+// Robust CSV parser (handles quotes and escaped quotes) and entity builder
+function parseCsvLine(line: string): string[] {
+  const out: string[] = []
+  let cur = ''
+  let inQuotes = false
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') { // escaped quote
+        cur += '"'
+        i++
+      } else {
+        inQuotes = !inQuotes
+      }
+    } else if (ch === ',' && !inQuotes) {
+      out.push(cur)
+      cur = ''
+    } else {
+      cur += ch
+    }
+  }
+  out.push(cur)
+  return out.map((s) => s.trim())
+}
+
+async function parseCsvEntities(filePath: string) {
+  try {
+    const content = await fs.readFile(filePath, 'utf8')
+    const lines = content.split(/\r?\n/).filter(Boolean)
+    if (lines.length < 2) return []
+    const headers = parseCsvLine(lines[0]).map(h => h.replace(/^\"|\"$/g, ''))
+    const entities: any[] = []
+    for (let i = 1; i < lines.length; i++) {
+      const cells = parseCsvLine(lines[i])
+      const props: Record<string, unknown> = {}
+      headers.forEach((h, idx) => {
+        props[h] = cells[idx] ?? ''
+      })
+      entities.push({
+        entityId: `${path.basename(filePath, '.csv')}-row-${i - 1}`,
+        entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
+        properties: props,
+        sourceType: 'csv',
+        sourcePath: filePath
+      })
+    }
+    return entities
+  } catch (e) {
+    console.warn('[d3-line-graph] CSV fallback parse failed:', e)
+    return []
+  }
+}
+
   // Setup framework watchers if enabled
   if (enableFrameworkWatch) {
     try {
@@ -2090,8 +2192,14 @@ function getContentType(filePath: string): string {
   app.use('/external/feature-showcase-block', express.static(path.resolve(ROOT_DIR, 'external/feature-showcase-block'), createOptimizedStaticOptions()))
   app.use('/external/custom-element-block', express.static(path.resolve(ROOT_DIR, 'external/custom-element-block'), createOptimizedStaticOptions()))
   app.use('/external/solidjs-task-block', express.static(path.resolve(ROOT_DIR, 'external/solidjs-task-block'), createOptimizedStaticOptions()))
-  // Serve d3-line-graph block from workspace (blocks/d3-graph)
-  app.use('/external/d3-line-graph', express.static(path.resolve(REPO_ROOT, 'blocks', 'd3-graph'), createOptimizedStaticOptions()))
+  // Ensure the ESM helper path serves a CJS-compatible shim for the BlockLoader
+  app.get('/external/d3-line-graph/libs/d3/dist/index.js', (_req, res) => {
+    res.sendFile(path.resolve(REPO_ROOT, 'blocks', 'libs', 'd3', 'dist', 'cjs', 'index.js'))
+  })
+  // Serve the shared D3 helpers under the expected relative path
+  app.use('/external/d3-line-graph/libs', express.static(path.resolve(REPO_ROOT, 'blocks', 'libs'), createOptimizedStaticOptions()))
+  // Serve d3-line-graph block directly from workspace dist after build
+  app.use('/external/d3-line-graph', express.static(path.resolve(REPO_ROOT, 'blocks', 'd3-line-chart'), createOptimizedStaticOptions()))
   app.use('/blocks/status-pill', express.static(path.resolve(REPO_ROOT, 'blocks', 'status-pill'), createOptimizedStaticOptions()))
   app.use('/examples/blocks/person-chip', express.static(path.resolve(ROOT_DIR, 'dist/frameworks/person-chip'), createOptimizedStaticOptions()))
   app.use('/examples/blocks/table-view', express.static(path.resolve(ROOT_DIR, 'dist/frameworks/table-view'), createOptimizedStaticOptions()))
@@ -2248,9 +2356,9 @@ function getContentType(filePath: string): string {
     const scenario = scenarios[scenarioId] ?? scenarios['hello-world']
     const state = scenario.createState()
 
-    // Special handling for indexing-service scenario
+  // Special handling for indexing-service and d3-line-graph scenarios
     let entityGraph = state.graph
-    if (scenarioId === 'indexing-service') {
+  if (scenarioId === 'indexing-service') {
       // Get entities from IndexingService for the indexing-service scenario
       const allEntities = indexingService.getAllEntities()
       const entities = allEntities.map((metadata: any) => ({
@@ -2261,6 +2369,43 @@ function getContentType(filePath: string): string {
         sourcePath: metadata.sourcePath
       }))
       entityGraph = { entities, links: [] }
+  } else if (scenarioId === 'd3-line-graph-example') {
+      // Wait for initial index scan to yield CSV entities
+  for (let i = 0; i < 50; i++) {
+        const hasCsv = indexingService.getAllEntities().some((m: any) => m.sourceType === 'csv')
+        if (hasCsv) break
+        await new Promise(r => setTimeout(r, 100))
+      }
+      // Prefer exact CSV basename match to avoid mixing datasets
+      const targetName = 'sdg_08_10_page_linear_2_0.csv'
+  // Filter entities locally (helpers may not be present in built dist)
+  const allEntities = indexingService.getAllEntities()
+  const fromTargetCsv = allEntities.filter((m: any) => m.sourceType === 'csv' && path.basename(m.sourcePath) === targetName)
+  const allCsv = allEntities.filter((m: any) => m.sourceType === 'csv')
+      console.log('[d3-line-graph] target matches:', fromTargetCsv.length, 'all csv:', allCsv.length)
+
+      const selected = (fromTargetCsv.length ? fromTargetCsv : allCsv)
+  const materializedRows: Array<Record<string, unknown>> = selected.map((m: any) => m.properties).filter(Boolean)
+
+      // Debug: write an indexer snapshot to logs for investigation
+      try {
+        const LOG_DIR = path.resolve(ROOT_DIR, 'logs')
+        await fs.mkdir(LOG_DIR, { recursive: true })
+        const snapshot = {
+          timestamp: new Date().toISOString(),
+          targetName,
+          counts: { fromTargetCsv: fromTargetCsv.length, allCsv: allCsv.length, rows: materializedRows.length },
+          sampleTarget: fromTargetCsv.slice(0, 5).map((m: any) => ({ entityId: m.entityId, sourcePath: m.sourcePath, properties: m.properties })),
+          sampleAllCsv: allCsv.slice(0, 5).map((m: any) => ({ entityId: m.entityId, sourcePath: m.sourcePath, properties: m.properties }))
+        }
+        const filePath = path.join(LOG_DIR, `indexer-snapshot-${Date.now()}.json`)
+        await fs.writeFile(filePath, JSON.stringify(snapshot, null, 2), 'utf8')
+        console.log('[d3-line-graph] wrote indexer snapshot:', filePath)
+      } catch (e) {
+        console.warn('[d3-line-graph] failed to write indexer snapshot:', e)
+      }
+      console.log('[d3-line-graph] sending rows:', materializedRows.length)
+      entityGraph = buildLineChartSubgraph({ rows: materializedRows })
     }
 
     // Register transport for Block Protocol operations (for LSP-driven updates)
@@ -2308,6 +2453,18 @@ function getContentType(filePath: string): string {
           }
         })
       )
+      } else if (scenarioId === 'd3-line-graph-example') {
+        // Send the D3 line graph notification with the populated entityGraph from IndexingService
+        const notifications = scenario.buildNotifications(state, request)
+        for (const base of notifications) {
+          const payload = { ...base, entityGraph, entityId: 'linechart-config' }
+          socket.send(
+            JSON.stringify({
+              type: 'vivafolioblock-notification',
+              payload
+            })
+          )
+        }
     } else {
       dispatchScenarioNotifications(socket, scenario, state, customParams)
     }
