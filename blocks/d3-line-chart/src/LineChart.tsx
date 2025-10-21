@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal, type Accessor } from 'solid-js';
+import { For, Show, createMemo, createSignal, createEffect, onMount, type Accessor } from 'solid-js';
 import * as d3 from 'd3';
 
 interface FacetDef {
@@ -123,12 +123,31 @@ export default function LineChart(props: Props) {
 
     let chartMount!: HTMLDivElement;
     const rerender = () => {
-        chartMount.innerHTML = '';
+        if (!chartMount) return;
+        // Properly clean up D3 selections to avoid memory leaks
+        d3.select(chartMount).selectAll('*').remove();
         mountChart(chartMount);
     };
 
-    // Initial render
-    setTimeout(rerender);
+    // Initial render after mount
+    onMount(() => {
+        rerender();
+    });
+
+    // Reactively update chart when data or display options change
+    createEffect(() => {
+        // Track reactive dependencies
+        filteredRows();
+        bySeries();
+        chartWidth();
+        chartHeight();
+        hidden();
+        
+        // Skip initial render (handled by onMount)
+        if (chartMount && chartMount.children.length > 0) {
+            rerender();
+        }
+    });
 
     return (
         <div class="d3-line-graph-block" role="img" aria-label="Line chart">
@@ -225,7 +244,7 @@ export default function LineChart(props: Props) {
                 </div>
             </header>
 
-            <div class="chart-wrap" ref={chartMount!} />
+            <div class="chart-wrap" ref={chartMount} />
 
             <Show when={p().showLegend !== false}>
                 <div class="legend" role="list">
