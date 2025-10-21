@@ -292,7 +292,7 @@ just test-block-loader-hooks      # Run block-loader hook tests specifically
   - **Milestone F0 (Complete)**: Host Dev Server Blueprint implemented with CLI contract, programmatic API, and reusable requirements documented in `docs/BlockProtocol-DevServer.md`. Server can be launched programmatically and serves multiple block types concurrently (`apps/blockprotocol-poc/src/server.ts:808`, `apps/blockprotocol-poc/tests-node/dev-server-smoke.test.ts`).
 - **2025-09-18 (Late Evening)**
   - **Milestone F1 (Complete)**: Custom Element Baseline implemented with vanilla WebComponent block demonstrating Graph service integration and entity updates (`apps/blockprotocol-poc/external/custom-element-block/`, `apps/blockprotocol-poc/src/server.ts:752`, `apps/blockprotocol-poc/src/client/main.ts:401`). Playwright coverage validates round-trip updates through the dev server.
-  - **Milestone F2 (Prototype)**: Framework Starter Kits created for SolidJS, Vue.js, Svelte, Lit, and Angular with TypeScript helper libraries wrapping component lifecycles to produce Block Protocol custom elements (`apps/blockprotocol-poc/libs/block-frameworks/solidjs/`, `apps/blockprotocol-poc/libs/block-frameworks/vue/`, `apps/blockprotocol-poc/libs/block-frameworks/svelte/`, `apps/blockprotocol-poc/libs/block-frameworks/lit/`, `apps/blockprotocol-poc/libs/block-frameworks/angular/`). Each framework includes basic examples but compilation is placeholder-only.
+  - **Milestone F2 (Prototype)**: Framework Starter Kits created for SolidJS, Vue.js, Svelte, Lit, and Angular with TypeScript helper libraries wrapping component lifecycles to produce Block Protocol custom elements (`packages/block-frameworks/solidjs/`, `packages/block-frameworks/vue/`, `packages/block-frameworks/svelte/`, `packages/block-frameworks/lit/`, `packages/block-frameworks/angular/`). Each framework includes basic examples but compilation is placeholder-only.
   - **Milestone F3 (Prototype)**: Basic framework watching and recompilation implemented in server (`apps/blockprotocol-poc/src/server.ts:249-538`) but uses simple JavaScript wrappers instead of proper bundlers. Hot-reload works for development but lacks production optimization.
   - **Milestone F4 (Prototype)**: Cross-framework concepts demonstrated but actual interoperability not fully implemented due to placeholder compilation.
   - **Milestone F5 (Partial)**: Basic scaffolding tool exists (`scripts/scaffold-block.ts`) but framework-specific generation not implemented.
@@ -307,9 +307,9 @@ just test-block-loader-hooks      # Run block-loader hook tests specifically
     - Block rendering: `apps/blockprotocol-poc/src/client/main.ts`
     - Framework compilation: `apps/blockprotocol-poc/src/server.ts:249-538`
     - HTML template blocks: `third_party/blockprotocol/libs/block-template-html/`
-    - Framework libraries: `apps/blockprotocol-poc/libs/block-frameworks/{solidjs,vue,svelte,lit,angular}/`
+    - Framework libraries: `packages/block-frameworks/{solidjs,vue,svelte,lit,angular}/`
     - Example blocks: `apps/blockprotocol-poc/examples/blocks/{status-pill,person-chip,table-view,board-view}/`
-    - TypeScript definitions: `apps/blockprotocol-poc/libs/block-frameworks/types/index.ts`
+    - TypeScript definitions: `packages/block-frameworks/types/index.ts`
     - Scaffolding tool: `scripts/scaffold-block.ts`
 
 ## 📁 Key Implementation Files
@@ -340,12 +340,12 @@ just test-block-loader-hooks      # Run block-loader hook tests specifically
 - `apps/blockprotocol-poc/examples/blocks/board-view/` - BoardViewBlock (Lit) - Kanban board container
 
 **Framework Libraries:**
-- `apps/blockprotocol-poc/libs/block-frameworks/solidjs/` - SolidJS helper library with reactive components
-- `apps/blockprotocol-poc/libs/block-frameworks/vue/` - Vue.js helper library with composition API
-- `apps/blockprotocol-poc/libs/block-frameworks/svelte/` - Svelte helper library with store integration
-- `apps/blockprotocol-poc/libs/block-frameworks/lit/` - Lit helper library with reactive properties
-- `apps/blockprotocol-poc/libs/block-frameworks/angular/` - Angular helper library with dependency injection
-- `apps/blockprotocol-poc/libs/block-frameworks/types/index.ts` - Comprehensive TypeScript definitions for all frameworks
+- `packages/block-frameworks/solidjs/` - SolidJS helper library with reactive components
+- `packages/block-frameworks/vue/` - Vue.js helper library with composition API
+- `packages/block-frameworks/svelte/` - Svelte helper library with store integration
+- `packages/block-frameworks/lit/` - Lit helper library with reactive properties
+- `packages/block-frameworks/angular/` - Angular helper library with dependency injection
+- `packages/block-frameworks/types/index.ts` - Comprehensive TypeScript definitions for all frameworks
 
 **Developer Tools:**
 - `scripts/scaffold-block.ts` - CLI tool for scaffolding new blocks
@@ -445,7 +445,7 @@ just test-block-loader-hooks      # Run block-loader hook tests specifically
    Implemented vanilla WebComponent block with full Block Protocol integration demonstrating Graph service round-trips and entity updates (`apps/blockprotocol-poc/external/custom-element-block/`). Includes helper utilities for block registration, asset loading, and Playwright test coverage (`apps/blockprotocol-poc/src/server.ts:752`, `apps/blockprotocol-poc/src/client/main.ts:401`).
 
 3. **Milestone F2 — Framework Starter Kits (Prototype)**
-   Created basic TypeScript helper libraries for SolidJS, Vue.js, Svelte, Lit, and Angular with Block Protocol integration concepts. Libraries include basic examples but lack full framework-specific optimizations and advanced features (`apps/blockprotocol-poc/libs/block-frameworks/{solidjs,vue,svelte,lit,angular}/`). Implemented simple example blocks demonstrating basic patterns but not comprehensive cross-framework interoperability.
+   Created basic TypeScript helper libraries for SolidJS, Vue.js, Svelte, Lit, and Angular with Block Protocol integration concepts. Libraries include basic examples but lack full framework-specific optimizations and advanced features (`packages/block-frameworks/{solidjs,vue,svelte,lit,angular}/`). Implemented simple example blocks demonstrating basic patterns but not comprehensive cross-framework interoperability.
 
 4. **Milestone F3 — Stand-alone Rendering Harness (Prototype)**
    Basic framework watching and recompilation implemented using simple JavaScript wrappers instead of proper bundlers. Hot-reload works for development but lacks production optimization, code splitting, and proper framework compilation (`apps/blockprotocol-poc/src/server.ts:249-538`).
@@ -454,7 +454,7 @@ just test-block-loader-hooks      # Run block-loader hook tests specifically
    **✅ COMPLETED in G4**: Production-ready hook mechanism for nested block composition with React hooks, mini-host functionality, and shared graph context (`packages/block-loader/src/hooks.ts`, `packages/block-loader/src/BlockLoader.ts`).
 
 6. **Milestone F5 — Helper Library DX (Partial)**
-   Basic scaffolding tool exists with TypeScript definitions but framework-specific generation and advanced DX features not implemented. Requires development of proper build system for comprehensive developer experience (`apps/blockprotocol-poc/libs/block-frameworks/types/index.ts`, `scripts/scaffold-block.ts`).
+   Basic scaffolding tool exists with TypeScript definitions but framework-specific generation and advanced DX features not implemented. Requires development of proper build system for comprehensive developer experience (`packages/block-frameworks/types/index.ts`, `scripts/scaffold-block.ts`).
 
 **📋 PENDING:**
 7. **Milestone F6 — Dev Server Reuse Validation (Complete)**
@@ -469,7 +469,7 @@ just test-block-loader-hooks      # Run block-loader hook tests specifically
 - `apps/blockprotocol-poc/src/standalone-server.ts` - Standalone server library for external consumption.
 - `apps/blockprotocol-poc/package-standalone.json` - NPM package configuration for standalone server.
 - `apps/blockprotocol-poc/tsconfig.standalone.json` - TypeScript configuration for standalone builds.
-- `apps/blockprotocol-poc/libs/block-frameworks/{solidjs,vue,svelte,lit,angular}/` - Framework helper libraries (completed).
+- `packages/block-frameworks/{solidjs,vue,svelte,lit,angular}/` - Framework helper libraries (completed).
 - `apps/blockprotocol-poc/examples/blocks/{status-pill,person-chip,table-view,board-view}/` - Real-world example blocks (completed).
 - Playwright reports archived under `test-results/blockprotocol-poc/`.
 - Upstream-ready patches to Block Protocol components when fixes are required.

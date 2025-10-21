@@ -130,7 +130,7 @@ The server expects frameworks to be organized as:
 
 ```
 project/
-├── libs/
+├── packages/
 │   └── block-frameworks/
 │       ├── solidjs/
 │       │   └── examples/

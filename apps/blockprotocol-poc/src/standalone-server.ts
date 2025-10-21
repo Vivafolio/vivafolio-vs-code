@@ -181,7 +181,7 @@ async function setupFrameworkWatchers(
   const watchers: FrameworkWatcher[] = []
 
   for (const framework of frameworks) {
-    let sourceDir = customDirs?.[framework] || path.join(baseDir, 'libs/block-frameworks', framework, 'examples')
+    let sourceDir = customDirs?.[framework] || path.join(baseDir, '..', '..', 'packages', 'block-frameworks', framework, 'examples')
 
     console.log(`[standalone-server] Checking ${framework} at: ${sourceDir}`)
     console.log(`[standalone-server] Base dir: ${baseDir}`)
@@ -190,7 +190,7 @@ async function setupFrameworkWatchers(
     // Check if the directory exists in the current context
     if (!existsSync(sourceDir)) {
       // Try relative to the current working directory
-      const altSourceDir = path.join(process.cwd(), 'libs/block-frameworks', framework, 'examples')
+      const altSourceDir = path.join(process.cwd(), 'packages', 'block-frameworks', framework, 'examples')
       console.log(`[standalone-server] Primary path not found, trying: ${altSourceDir}`)
 
       if (existsSync(altSourceDir)) {

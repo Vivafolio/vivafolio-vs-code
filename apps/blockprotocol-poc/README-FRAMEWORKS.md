@@ -57,7 +57,7 @@ The dev server automatically:
 ### File Structure
 
 ```
-libs/block-frameworks/
+packages/block-frameworks/
 ├── solidjs/
 │   ├── examples/
 │   │   ├── task-block.tsx
@@ -89,7 +89,7 @@ dist/frameworks/
 
 ### Shared TypeScript Types
 
-All frameworks share common types from `libs/block-frameworks/types/index.ts`:
+All frameworks share common types from `packages/block-frameworks/types/index.ts`:
 
 ```typescript
 import {
@@ -98,14 +98,14 @@ import {
   BlockProps,
   BlockMetadata,
   FrameworkAPI
-} from '../libs/block-frameworks/types'
+} from '../../../packages/block-frameworks/types'
 ```
 
 ### Framework-Specific Features
 
 #### SolidJS
 ```typescript
-import { createBlock, useEntity, BlockContainer } from '../libs/block-frameworks/solidjs/src'
+import { createBlock, useEntity, BlockContainer } from '../../../packages/block-frameworks/solidjs/src'
 
 const MyBlock = createBlock((props) => {
   const entity = useEntity(props.graph)
@@ -116,7 +116,7 @@ const MyBlock = createBlock((props) => {
 #### Vue.js
 ```vue
 <script setup lang="ts">
-import { useEntity, BlockContainer } from '../libs/block-frameworks/vue/src'
+import { useEntity, BlockContainer } from '../../../packages/block-frameworks/vue/src'
 
 const props = defineProps<{ graph: GraphService }>()
 const entity = useEntity(props.graph)

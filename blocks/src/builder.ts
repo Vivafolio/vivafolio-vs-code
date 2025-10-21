@@ -308,7 +308,7 @@ export class BlockBuilder {
     const watchers: FrameworkWatcher[] = [];
 
     for (const framework of this.options.frameworks!) {
-      const sourceDir = path.join(process.cwd(), 'libs', 'block-frameworks', framework, 'examples');
+      const sourceDir = path.join(process.cwd(), 'packages', 'block-frameworks', framework, 'examples');
       const frameworkOutputDir = path.join(this.options.outputDir!, framework);
 
       // Check if framework examples exist

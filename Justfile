@@ -474,37 +474,37 @@ install-all:
 	cd mocklang-extension && npm install
 	@echo "Checking framework packages..."
 	@echo "Checking Angular framework..."
-	@if [ ! -d "apps/blockprotocol-poc/libs/block-frameworks/angular/node_modules" ]; then \
+	@if [ ! -d "packages/block-frameworks/angular/node_modules" ]; then \
 		echo "Installing Angular framework dependencies..."; \
-		cd apps/blockprotocol-poc/libs/block-frameworks/angular && npm install; \
+		cd packages/block-frameworks/angular && npm install; \
 	else \
 		echo "Angular framework dependencies already installed"; \
 	fi
 	@echo "Checking Lit framework..."
-	@if [ ! -d "apps/blockprotocol-poc/libs/block-frameworks/lit/node_modules" ]; then \
+	@if [ ! -d "packages/block-frameworks/lit/node_modules" ]; then \
 		echo "Installing Lit framework dependencies..."; \
-		cd apps/blockprotocol-poc/libs/block-frameworks/lit && npm install; \
+		cd packages/block-frameworks/lit && npm install; \
 	else \
 		echo "Lit framework dependencies already installed"; \
 	fi
 	@echo "Checking SolidJS framework..."
-	@if [ ! -d "apps/blockprotocol-poc/libs/block-frameworks/solidjs/node_modules" ]; then \
+	@if [ ! -d "packages/block-frameworks/solidjs/node_modules" ]; then \
 		echo "Installing SolidJS framework dependencies..."; \
-		cd apps/blockprotocol-poc/libs/block-frameworks/solidjs && npm install; \
+		cd packages/block-frameworks/solidjs && npm install; \
 	else \
 		echo "SolidJS framework dependencies already installed"; \
 	fi
 	@echo "Checking Svelte framework..."
-	@if [ ! -d "apps/blockprotocol-poc/libs/block-frameworks/svelte/node_modules" ]; then \
+	@if [ ! -d "packages/block-frameworks/svelte/node_modules" ]; then \
 		echo "Installing Svelte framework dependencies..."; \
-		cd apps/blockprotocol-poc/libs/block-frameworks/svelte && npm install; \
+		cd packages/block-frameworks/svelte && npm install; \
 	else \
 		echo "Svelte framework dependencies already installed"; \
 	fi
 	@echo "Checking Vue framework..."
-	@if [ ! -d "apps/blockprotocol-poc/libs/block-frameworks/vue/node_modules" ]; then \
+	@if [ ! -d "packages/block-frameworks/vue/node_modules" ]; then \
 		echo "Installing Vue framework dependencies..."; \
-		cd apps/blockprotocol-poc/libs/block-frameworks/vue && npm install; \
+		cd packages/block-frameworks/vue && npm install; \
 	else \
 		echo "Vue framework dependencies already installed"; \
 	fi
@@ -539,15 +539,15 @@ build-all:
 	@echo "Building block resources cache package..."
 	-cd packages/block-resources-cache && npm run build && echo "✅ Block resources cache built successfully" || echo "❌ Block resources cache build failed"
 	@echo "Building SolidJS framework package..."
-	-cd apps/blockprotocol-poc/libs/block-frameworks/solidjs && npm run build && echo "✅ SolidJS built successfully" || echo "❌ SolidJS build failed"
+	-cd packages/block-frameworks/solidjs && npm run build && echo "✅ SolidJS built successfully" || echo "❌ SolidJS build failed"
 	@echo "Building Vue framework package..."
-	-cd apps/blockprotocol-poc/libs/block-frameworks/vue && npm run build && echo "✅ Vue built successfully" || echo "❌ Vue build failed"
+	-cd packages/block-frameworks/vue && npm run build && echo "✅ Vue built successfully" || echo "❌ Vue build failed"
 	@echo "Building Svelte framework package..."
-	-cd apps/blockprotocol-poc/libs/block-frameworks/svelte && npm run build && echo "✅ Svelte built successfully" || echo "❌ Svelte build failed"
+	-cd packages/block-frameworks/svelte && npm run build && echo "✅ Svelte built successfully" || echo "❌ Svelte build failed"
 	@echo "Building Lit framework package..."
-	-cd apps/blockprotocol-poc/libs/block-frameworks/lit && npm run build && echo "✅ Lit built successfully" || echo "❌ Lit build failed"
+	-cd packages/block-frameworks/lit && npm run build && echo "✅ Lit built successfully" || echo "❌ Lit build failed"
 	@echo "Building Angular framework package..."
-	-cd apps/blockprotocol-poc/libs/block-frameworks/angular && npm run build && echo "✅ Angular built successfully" || echo "❌ Angular build failed"
+	-cd packages/block-frameworks/angular && npm run build && echo "✅ Angular built successfully" || echo "❌ Angular build failed"
 	@echo "Build process completed (check individual results above)"
 
 # -----------------------------
