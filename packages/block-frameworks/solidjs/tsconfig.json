@@ -10,10 +10,10 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "jsx": "preserve",
-    "jsxImportSource": "solid-js",
+  "jsx": "react-jsx",
+  "jsxImportSource": "solid-js",
     "allowJs": true,
-    "types": []
+  "types": []
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

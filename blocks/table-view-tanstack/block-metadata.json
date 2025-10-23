@@ -1,0 +1,123 @@
+{
+  "id": "https://vivafolio.org/blocks/table-view",
+  "name": "Table View",
+  "version": "0.1.0",
+  "blockType": "custom-element",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "collectionId": {
+        "type": "string"
+      },
+      "columns": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string"
+            },
+            "width": {
+              "type": "number"
+            },
+            "chipBlockType": {
+              "type": "string"
+            },
+            "options": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "color": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "label"
+                ]
+              }
+            }
+          },
+          "required": [
+            "id",
+            "title",
+            "path",
+            "type"
+          ]
+        }
+      },
+      "sort": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "dir": {
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          "required": [
+            "path",
+            "dir"
+          ]
+        }
+      },
+      "filters": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "op": {
+              "type": "string"
+            },
+            "value": {}
+          },
+          "required": [
+            "path",
+            "op"
+          ]
+        }
+      },
+      "pageSize": {
+        "type": "number",
+        "default": 50
+      }
+    },
+    "required": [
+      "collectionId",
+      "columns"
+    ]
+  },
+  "resources": {
+    "js": [
+      "dist/app.js"
+    ],
+    "css": [
+      "dist/styles.css"
+    ]
+  }
+}
