@@ -166,7 +166,8 @@ Each package is wired in the root `package.json` via `file:` dependencies, so lo
 
 ### `blocks/`
 
-- Example blocks used by tests and manual exploration (e.g., `color-picker/`, `table-view-tanstack/`, `d3-line-chart/`).
+- Production blocks WIP (e.g., `color-picker/`, `table-view-tanstack/`, `d3-line-chart/`).
+- myBlock is the template of a block provided by the Block Protocol. To be used as a reference
 - `dev-server.js` – Hot‑reload dev server for block development.
 - `libs/` – Shared utilities for blocks (e.g., d3 wrapper).
 

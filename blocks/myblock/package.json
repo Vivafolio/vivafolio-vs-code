@@ -1,0 +1,63 @@
+{
+  "name": "myblock",
+  "version": "0.0.0",
+  "description": "myblock block",
+  "keywords": [
+    "blockprotocol",
+    "blocks"
+  ],
+  "license": "MIT",
+  "author": "Elitsa Dimitrova",
+  "scripts": {
+    "build": "block-scripts build",
+    "codegen": "block-scripts codegen && yarn format",
+    "dev": "block-scripts dev",
+    "format": "prettier --write --ignore-unknown .",
+    "lint:tsc": "tsc --noEmit",
+    "serve": "block-scripts serve"
+  },
+  "prettier": {
+    "printWidth": 80,
+    "trailingComma": "all"
+  },
+  "dependencies": {
+    "@blockprotocol/graph": "0.3.4"
+  },
+  "devDependencies": {
+    "@types/react-dom": "18.0.9",
+    "@types/react-is": "18.2.0",
+    "block-scripts": "0.3.5",
+    "mock-block-dock": "0.1.10",
+    "prettier": "2.8.2",
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  },
+  "block-scripts": {
+    "port": 63212
+  },
+  "blockprotocol": {
+    "blockType": {
+      "entryPoint": "react"
+    },
+    "displayName": "myblock",
+    "icon": "public/omega.svg",
+    "image": "public/block-preview.png",
+    "name": "myblock",
+    "protocol": "0.3",
+    "blockEntityType": "https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/3",
+    "codegen": {
+      "outputFolder": "src/types/generated",
+      "targets": {
+        "block-entity.ts": [
+          {
+            "blockEntityType": true
+          }
+        ]
+      }
+    }
+  }
+}

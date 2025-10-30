@@ -5,6 +5,7 @@
 .env.production
 .env.development
 .env.test
+.obsidian
 
 # Build artifacts
 out/

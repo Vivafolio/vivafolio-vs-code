@@ -1,0 +1,28 @@
+{
+  "name": "my-solid-block",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A SolidJS-based Block Protocol block (no React)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --strictPort",
+    "clean": "rm -rf dist node_modules"
+  },
+  "keywords": [
+    "blockprotocol",
+    "solidjs",
+    "block"
+  ],
+  "author": "Vivafolio Team",
+  "license": "MIT",
+  "dependencies": {
+    "solid-js": "^1.9.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "vite": "^6.0.1",
+    "vite-plugin-solid": "^2.10.2"
+  }
+}

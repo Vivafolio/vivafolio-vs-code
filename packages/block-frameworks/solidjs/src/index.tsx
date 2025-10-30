@@ -8,7 +8,7 @@ export type { Entity, BlockGraph, GraphService, BlockProps } from '@vivafolio/bl
 export type BlockComponent<TProps extends Record<string, any> = BlockProps> = Component<TProps>
 
 // Helper to create a Block Protocol compatible SolidJS component
-export function createBlock<T extends Record<string, any> = {}>(
+export function createSolidBlock<T extends Record<string, any> = {}>(
   component: BlockComponent<BlockProps & T>,
   options: {
     name: string
@@ -309,54 +309,7 @@ export function createBlockElement<TGraph extends Partial<GraphService> = GraphS
   }
 }
 
-// Legacy API for backward compatibility
-export function createBlockElementLegacy(
-  component: Component<BlockProps>,
-  options: {
-    name: string
-    version?: string
-    description?: string
-  }
-): {
-  element: typeof HTMLElement
-  init: (params: {
-    element: HTMLElement
-    entity: Entity
-    readonly: boolean
-    updateEntity: (updates: Partial<Entity['properties']>) => void
-  }) => void
-  updateEntity: (params: {
-    element: HTMLElement
-    entity: Entity
-    readonly: boolean
-  }) => void
-} {
-  const enhanced = createBlockElement(component, options)
-  
-  return {
-    element: enhanced.element,
-    init: (params) => {
-      const graph: GraphService = {
-        blockEntity: params.entity,
-        blockGraph: { depth: 0, linkedEntities: [], linkGroups: [] },
-        entityTypes: [],
-        linkedAggregations: [],
-        readonly: params.readonly
-      }
-      enhanced.init({ element: params.element, graph })
-    },
-    updateEntity: (params) => {
-      const graph: GraphService = {
-        blockEntity: params.entity,
-        blockGraph: { depth: 0, linkedEntities: [], linkGroups: [] },
-        entityTypes: [],
-        linkedAggregations: [],
-        readonly: params.readonly
-      }
-      enhanced.updateGraph({ element: params.element, graph })
-    }
-  }
-}
+
 
 // Utility function to register a SolidJS component as a Web Component
 export function registerBlockElement(
