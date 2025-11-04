@@ -35,22 +35,9 @@ import { readFileSync, existsSync, watch, statSync, mkdirSync } from 'fs'
 import crypto from 'crypto'
 
 import type { ViteDevServer } from 'vite'
+import type { Entity, LinkEntity, EntityGraph, VivafolioBlockNotification } from '@vivafolio/block-loader'
 
-interface Entity {
-  entityId: string
-  entityTypeId: string
-  properties: Record<string, unknown>
-}
-
-interface LinkEntity extends Entity {
-  sourceEntityId?: string
-  destinationEntityId?: string
-}
-
-interface EntityGraph {
-  entities: Entity[]
-  links: LinkEntity[]
-}
+// Using shared Entity, LinkEntity, and EntityGraph from block-core via block-loader
 
 interface ScenarioState {
   graph: EntityGraph
@@ -63,26 +50,13 @@ interface GraphUpdate {
   properties: Record<string, unknown>
 }
 
-interface VivafolioBlockNotificationPayload {
-  blockId: string
-  blockType: string
-  entityId: string
-  displayMode: 'multi-line' | 'inline'
-  entityGraph: EntityGraph
-  supportsHotReload?: boolean
-  initialHeight?: number
-  resources?: Array<{
-    logicalName: string
-    physicalPath: string
-    cachingTag?: string
-  }>
-}
+// Alias VivafolioBlockNotification from shared types as VivafolioBlockNotification for server code
 
 interface UpdateContext {
   state: ScenarioState
   update: GraphUpdate
   socket: WebSocket
-  broadcast: (payload: VivafolioBlockNotificationPayload) => void
+  broadcast: (payload: VivafolioBlockNotification) => void
 }
 
 interface ScenarioDefinition {
@@ -90,7 +64,7 @@ interface ScenarioDefinition {
   title: string
   description: string
   createState(): ScenarioState
-  buildNotifications(state: ScenarioState, request?: any): VivafolioBlockNotificationPayload[]
+  buildNotifications(state: ScenarioState, request?: any): VivafolioBlockNotification[]
   applyUpdate?(context: UpdateContext): void
 }
 
@@ -748,7 +722,7 @@ function createKanbanGraph(): EntityGraph {
     destinationEntityId: String(task.properties.assigneeId ?? '')
   }))
 
-  return { entities: [board, ...tasks, ...users], links }
+  return { entities: [board, ...tasks, ...users] as Entity[], links }
 }
 
 function buildBoardColumns(tasks: Entity[]) {
@@ -879,8 +853,8 @@ const scenarios: Record<string, ScenarioDefinition> = {
       if (!entity) return
       entity.properties = { ...entity.properties, ...update.properties }
 
-      if (entity.entityTypeId === 'https://vivafolio.dev/entity-types/task/v1') {
-        const tasks = state.graph.entities.filter(
+  if ((entity as Entity).entityTypeId === 'https://vivafolio.dev/entity-types/task/v1') {
+        const tasks = (state.graph.entities as Entity[]).filter(
           (item) => item.entityTypeId === 'https://vivafolio.dev/entity-types/task/v1'
         )
         const board = state.graph.entities.find(
@@ -933,8 +907,8 @@ const scenarios: Record<string, ScenarioDefinition> = {
       if (!entity) return
       entity.properties = { ...entity.properties, ...update.properties }
 
-      if (entity.entityTypeId === 'https://vivafolio.dev/entity-types/task/v1') {
-        const tasks = state.graph.entities.filter(
+  if ((entity as Entity).entityTypeId === 'https://vivafolio.dev/entity-types/task/v1') {
+        const tasks = (state.graph.entities as Entity[]).filter(
           (item) => item.entityTypeId === 'https://vivafolio.dev/entity-types/task/v1'
         )
         const board = state.graph.entities.find(
@@ -996,8 +970,8 @@ const scenarios: Record<string, ScenarioDefinition> = {
       if (!entity) return
       entity.properties = { ...entity.properties, ...update.properties }
 
-      if (entity.entityTypeId === 'https://vivafolio.dev/entity-types/task/v1') {
-        const tasks = state.graph.entities.filter(
+  if ((entity as Entity).entityTypeId === 'https://vivafolio.dev/entity-types/task/v1') {
+        const tasks = (state.graph.entities as Entity[]).filter(
           (item) => item.entityTypeId === 'https://vivafolio.dev/entity-types/task/v1'
         )
         const board = state.graph.entities.find((item) => item.entityId === 'kanban-board-1')
@@ -1476,7 +1450,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
       }
     }),
     buildNotifications: (state) => {
-      const notifications: VivafolioBlockNotificationPayload[] = []
+      const notifications: VivafolioBlockNotification[] = []
 
       // Add the original static status-pill block
       notifications.push({
@@ -1575,7 +1549,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
       }
     }),
     buildNotifications: (state) => {
-      const notifications: VivafolioBlockNotificationPayload[] = []
+      const notifications: VivafolioBlockNotification[] = []
 
       // Parent block (using existing implementation)
       notifications.push({
@@ -1868,7 +1842,7 @@ let localBlockBuilder: BlockBuilder | undefined
   const transportLayer = new IndexingServiceTransportLayer(indexingService)
 
   // Broadcast function for LSP-driven block notifications
-  const broadcastLspNotification = (notification: VivafolioBlockNotificationPayload) => {
+  const broadcastLspNotification = (notification: VivafolioBlockNotification) => {
     // Only broadcast to LSP-driven sockets (not in socketStates = not scenario-driven)
     for (const socket of liveSockets) {
       if (!socketStates.has(socket)) {

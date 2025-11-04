@@ -2,36 +2,10 @@
  * Core types for the Vivafolio Block Loader
  * These types define the public API for loading and managing Block Protocol blocks in webviews
  */
+import type { VivafolioBlockNotification, BlockResource, Entity, EntityGraph, LinkEntity } from '@vivafolio/block-core';
+export type { VivafolioBlockNotification, BlockResource, Entity, EntityGraph, LinkEntity } from '@vivafolio/block-core';
 
-export interface Entity {
-  entityId: string
-  properties: Record<string, unknown>
-}
-
-export interface EntityGraph {
-  entities: Entity[]
-  links: Array<Record<string, unknown>>
-}
-
-export interface BlockResource {
-  logicalName: string
-  physicalPath: string
-  cachingTag?: string
-}
-
-export interface VivafolioBlockNotification {
-  blockId: string
-  blockType: string
-  displayMode: 'multi-line' | 'inline'
-  sourceUri: string
-  range: {
-    start: { line: number; character: number }
-    end: { line: number; character: number }
-  }
-  entityId?: string
-  resources: BlockResource[]
-  entityGraph: EntityGraph
-}
+// Entity, EntityGraph, BlockResource, VivafolioBlockNotification now come from @vivafolio/block-core
 
 export interface BlockLoaderDiagnostics {
   bundleUrl: string
@@ -48,16 +22,13 @@ export interface BlockLoaderDiagnostics {
 }
 
 // Block identifier for cache operations
-export interface BlockIdentifier {
-  name: string
-  version?: string
-  registry?: string
-}
+// Reuse canonical cache types from block-resources-cache (local path to dist to avoid resolver issues)
+import type { BlockIdentifier } from '../../block-resources-cache/dist/types';
+import type { BlockResourcesCache as CanonicalBlockResourcesCache } from '../../block-resources-cache/dist/index';
 
-// Local interface for block resources cache (to avoid circular dependencies)
-export interface BlockResourcesCache {
-  fetchBlock(identifier: BlockIdentifier, options?: any): Promise<any>
-}
+// Alias for backwards compatibility within block-loader public API
+export type { BlockIdentifier } from '../../block-resources-cache/dist/types';
+export type BlockResourcesCache = CanonicalBlockResourcesCache;
 
 export interface BlockLoaderOptions {
   allowedDependencies?: Set<string>

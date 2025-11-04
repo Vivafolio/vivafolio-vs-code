@@ -1,6 +1,7 @@
 // renderHtmlBlock is no longer exported from @blockprotocol/core, implementing a simple replacement
 import { GraphEmbedderHandler } from '@blockprotocol/graph'
 import { VivafolioBlockLoader, BlockLoader, DEFAULT_ALLOWED_DEPENDENCIES, type VivafolioBlockNotification as LoaderBlockNotification } from '@vivafolio/block-loader'
+import type { Entity, EntityGraph, VivafolioBlockNotification } from '@vivafolio/block-loader'
 
 // For now, provide a minimal stdlib stub so published blocks can load
 const stdlib = {
@@ -123,40 +124,7 @@ function adaptBlockNotification(notification: VivafolioBlockNotification): Loade
   }
 }
 
-interface EntityMetadata {
-  recordId: {
-    entityId: string
-    editionId: string
-  }
-  entityTypeId: string
-}
-
-interface Entity {
-  entityId: string
-  properties: Record<string, unknown>
-  entityTypeId?: string
-  metadata?: EntityMetadata
-}
-
-interface EntityGraph {
-  entities: Entity[]
-  links: Array<Record<string, unknown>>
-}
-
-type VivafolioBlockNotification = {
-  blockId: string
-  blockType: string
-  entityId: string
-  displayMode: 'multi-line' | 'inline'
-  entityGraph: EntityGraph
-  resources?: Array<{
-    logicalName: string
-    physicalPath: string
-    cachingTag?: string
-  }>
-  supportsHotReload?: boolean
-  initialHeight?: number
-}
+// Using shared Entity, EntityGraph, VivafolioBlockNotification types from block-loader
 
 interface GraphUpdatePayload {
   blockId: string
@@ -178,7 +146,7 @@ const DEFAULT_ENTITY_EDITION_ID = 'initial'
 interface BlockEntitySubgraphVertex {
   kind: 'entity'
   inner: {
-    metadata: EntityMetadata
+  metadata: NonNullable<Entity['metadata']>
     properties: Record<string, unknown>
   }
 }
@@ -231,7 +199,7 @@ function normalizeEntity(entity: Entity): Entity {
 }
 
 function buildBlockEntitySubgraph(blockEntity: Entity, graph: BlockGraphState): BlockEntitySubgraph {
-  const normalizedRoot = normalizeEntity(blockEntity)
+  const normalizedRoot = normalizeEntity(blockEntity as Entity)
   const vertices: BlockEntitySubgraph['vertices'] = {}
   const collect = (candidate: Entity) => {
     const normalized = normalizeEntity(candidate)
@@ -248,7 +216,7 @@ function buildBlockEntitySubgraph(blockEntity: Entity, graph: BlockGraphState): 
   }
 
   collect(normalizedRoot)
-  for (const linked of graph.linkedEntities) {
+  for (const linked of graph.linkedEntities as Entity[]) {
     collect(linked)
   }
 
@@ -486,7 +454,7 @@ function renderKanbanBoard(notification: VivafolioBlockNotification): HTMLElemen
     entityMap.set(entity.entityId, entity)
   })
 
-  const board = entityMap.get(notification.entityId)
+  const board = notification.entityId ? entityMap.get(notification.entityId) : undefined
   const columns = (board?.properties?.columns as Array<Record<string, unknown>>) ?? []
 
   const article = createElement('article', 'kanban-board')
@@ -556,7 +524,7 @@ function renderTaskList(notification: VivafolioBlockNotification): HTMLElement {
   container.appendChild(header)
 
   const list = createElement('ul', 'task-list__items')
-  const tasks = notification.entityGraph.entities.filter(
+  const tasks = (notification.entityGraph.entities as Entity[]).filter(
     (entity) => entity.entityTypeId === 'https://vivafolio.dev/entity-types/task/v1'
   )
 

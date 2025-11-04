@@ -17,6 +17,7 @@ export type {
   BlockResource,
   Entity,
   EntityGraph,
+  LinkEntity,
   HtmlTemplateHandlers,
   HookData,
   HookResponse,
