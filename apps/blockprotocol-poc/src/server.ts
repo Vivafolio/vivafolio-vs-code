@@ -580,7 +580,7 @@ async function setupFrameworkWatchers(): Promise<FrameworkWatcher[]> {
   // Monitors source directories for changes and recompiles blocks automatically
   // Supports SolidJS, Vue, Svelte, Lit, and Angular frameworks
   const watchers: FrameworkWatcher[] = []
-  const frameworksDir = path.resolve(ROOT_DIR, 'libs/block-frameworks')
+  const frameworksDir = path.resolve(ROOT_DIR, '..', '..', 'packages', 'block-frameworks')
   const outputDir = path.resolve(ROOT_DIR, 'dist/frameworks')
 
   const frameworks = ['solidjs', 'vue', 'svelte', 'lit', 'angular']

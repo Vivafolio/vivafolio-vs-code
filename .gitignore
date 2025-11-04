@@ -5,6 +5,7 @@
 .env.production
 .env.development
 .env.test
+.obsidian
 
 # Build artifacts
 out/
@@ -159,3 +160,6 @@ apps/blockprotocol-poc/test-blocks/
 
 #Commands
 commands
+
+# LibreOffice/temporary lock file from blockprotocol POC data
+apps/blockprotocol-poc/data/.~lock.sdg_08_10_page_linear_2_0.csv\#

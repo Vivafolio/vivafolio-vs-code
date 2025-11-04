@@ -1,74 +1,15 @@
 import { Component, createSignal, JSX, onMount, onCleanup } from 'solid-js'
+import { render } from 'solid-js/web'
+// Reuse shared core types: import for local use and re-export for consumers
+import type { Entity, BlockGraph, GraphService, BlockProps } from '@vivafolio/block-core'
+export type { Entity, BlockGraph, GraphService, BlockProps } from '@vivafolio/block-core'
 
-// Block Protocol types
-export interface Entity {
-  entityId: string
-  entityTypeId: string
-  properties: Record<string, unknown>
-  metadata?: {
-    recordId: {
-      entityId: string
-      editionId: string
-    }
-    entityTypeId: string
-  }
-}
-
-export interface BlockGraph {
-  depth: number
-  linkedEntities: Entity[]
-  linkGroups: Array<Record<string, unknown>>
-}
-
-export interface GraphService {
-  blockEntity: Entity
-  blockGraph: BlockGraph
-  entityTypes: Array<Record<string, unknown>>
-  linkedAggregations: Array<Record<string, unknown>>
-  readonly: boolean
-}
-
-export interface BlockProps {
-  graph: GraphService
-}
-
-// Web Component wrapper type
-export type BlockComponent<T = {}> = Component<BlockProps & T>
-
-// SolidJS base class for Block Protocol components
-export class BlockElement {
-  graph!: GraphService
-
-  constructor(graph: GraphService) {
-    this.graph = graph
-  }
-
-  // Reactive entity data
-  get entity(): Entity {
-    return this.graph?.blockEntity || {} as Entity
-  }
-
-  get readonly(): boolean {
-    return this.graph?.readonly || false
-  }
-
-  // Helper method for updating entity properties
-  updateEntity(updates: Partial<Entity['properties']>) {
-    // In a real implementation, this would call the Block Protocol updateEntity method
-    console.log('Entity update requested:', updates)
-    // Dispatch custom event for the host to handle
-    const event = new CustomEvent('entity-update', {
-      detail: updates,
-      bubbles: true,
-      composed: true
-    })
-    ;(this as any).dispatchEvent?.(event)
-  }
-}
+// Web Component wrapper type (supports custom graph types)
+export type BlockComponent<TProps extends Record<string, any> = BlockProps> = Component<TProps>
 
 // Helper to create a Block Protocol compatible SolidJS component
-export function createBlock<T = {}>(
-  component: BlockComponent<T>,
+export function createSolidBlock<T extends Record<string, any> = {}>(
+  component: BlockComponent<BlockProps & T>,
   options: {
     name: string
     version?: string
@@ -85,8 +26,8 @@ export function createBlock<T = {}>(
   return wrappedComponent as any
 }
 
-// Hook for accessing entity data with reactivity
-export function useEntity(graph: GraphService) {
+// Hook for accessing entity data with reactivity (supports any GraphService type)
+export function useEntity<TGraph extends { blockEntity: Entity }>(graph: TGraph) {
   const [entity, setEntity] = createSignal(graph.blockEntity)
 
   // In a real implementation, this would listen to graph updates
@@ -95,7 +36,7 @@ export function useEntity(graph: GraphService) {
 }
 
 // Hook for updating entity properties
-export function useEntityUpdater(graph: GraphService) {
+export function useEntityUpdater<TGraph extends { blockEntity: Entity }>(graph: TGraph) {
   return (updates: Partial<Entity['properties']>) => {
     // In a real implementation, this would call the Block Protocol updateEntity method
     console.log('Entity update requested:', updates)
@@ -268,9 +209,9 @@ export const BlockButton: Component<{
   )
 }
 
-// Factory function that returns a custom element
-export function createBlockElement(
-  component: Component<BlockProps>,
+// Enhanced factory function that supports custom GraphService interfaces
+export function createBlockElement<TGraph extends Partial<GraphService> = GraphService>(
+  component: Component<BlockProps<TGraph>>,
   options: {
     name: string
     version?: string
@@ -280,109 +221,95 @@ export function createBlockElement(
   element: typeof HTMLElement
   init: (params: {
     element: HTMLElement
-    entity: Entity
-    readonly: boolean
-    updateEntity: (updates: Partial<Entity['properties']>) => void
-  }) => void
-  updateEntity: (params: {
+    graph: TGraph
+  }) => (() => void)
+  updateGraph: (params: {
     element: HTMLElement
-    entity: Entity
-    readonly: boolean
+    graph: TGraph
   }) => void
 } {
   class SolidBlockElement extends HTMLElement {
-    private graph!: GraphService
-    private dispose?: () => void
+    public graph?: TGraph
+    public _dispose?: () => void
 
     constructor() {
       super()
     }
 
     connectedCallback() {
-      // The element will be initialized by the init method
+      // Will be initialized by the init method
+      if (this.graph) {
+        // Auto-initialize if graph is already set
+        const cleanup = init({ element: this, graph: this.graph })
+        this._dispose = cleanup
+      }
     }
 
     disconnectedCallback() {
-      if (this.dispose) {
-        this.dispose()
+      if (this._dispose) {
+        this._dispose()
+        this._dispose = undefined
       }
     }
   }
 
   const init = (params: {
     element: HTMLElement
-    entity: Entity
-    readonly: boolean
-    updateEntity: (updates: Partial<Entity['properties']>) => void
-  }) => {
-    const { element, entity, readonly, updateEntity } = params
-    const graph: GraphService = {
-      blockEntity: entity,
-      blockGraph: { depth: 0, linkedEntities: [], linkGroups: [] },
-      entityTypes: [],
-      linkedAggregations: [],
-      readonly
-    }
+    graph: TGraph
+  }): (() => void) => {
+    const { element, graph } = params
 
-    // Create a SolidJS root and render the component
-    const solidRoot = document.createElement('div')
-    element.appendChild(solidRoot)
+    // Create container for SolidJS rendering
+    const container = document.createElement('div')
+    container.style.width = '100%'
+    container.style.height = '100%'
+    element.appendChild(container)
 
-    // Render the component (simplified - in real SolidJS this would use render())
-    const props: BlockProps = { graph }
-    // For now, we'll create a simple placeholder since we can't easily integrate SolidJS rendering
-    solidRoot.innerHTML = `
-      <div class="solidjs-task-block">
-        <h3>SolidJS Task Block</h3>
-        <div class="solidjs-block-body">
-          <label class="solidjs-block-field">
-            <span class="solidjs-block-field__label">Title:</span>
-            <input type="text" class="solidjs-block-input" placeholder="Enter task title..." />
-          </label>
-          <label class="solidjs-block-field">
-            <span class="solidjs-block-field__label">Description:</span>
-            <input type="text" class="solidjs-block-input" placeholder="Enter task description..." />
-          </label>
-          <label class="solidjs-block-field">
-            <span class="solidjs-block-field__label">Status:</span>
-            <select class="solidjs-block-select">
-              <option value="todo">To Do</option>
-              <option value="in-progress">In Progress</option>
-              <option value="done">Done</option>
-            </select>
-          </label>
-          <button class="solidjs-block-button">Update Task</button>
-        </div>
-        <div class="solidjs-block-footnote">
-          Entity ID: ${entity.entityId} | Framework: SolidJS
-        </div>
-      </div>
-    `
+    // Render the SolidJS component
+    const dispose = render(
+      () => component({ graph } as BlockProps<TGraph>),
+      container
+    )
 
-    // Inject styles
+    // Inject block styles if not already present
     if (!document.querySelector('#solidjs-block-styles')) {
       const style = document.createElement('style')
       style.id = 'solidjs-block-styles'
       style.textContent = blockStyles
       document.head.appendChild(style)
     }
+
+    // Return cleanup function
+    return () => {
+      dispose()
+      if (container.parentNode) {
+        container.parentNode.removeChild(container)
+      }
+    }
   }
 
-  const updateEntity = (params: {
+  const updateGraph = (params: {
     element: HTMLElement
-    entity: Entity
-    readonly: boolean
+    graph: TGraph
   }) => {
-    // Update the rendered component with new entity data
-    console.log('SolidJS block entity updated:', params.entity)
+    const blockElement = params.element as SolidBlockElement
+    blockElement.graph = params.graph
+    
+    // If already initialized, re-render
+    if (blockElement._dispose) {
+      blockElement._dispose()
+      blockElement._dispose = init(params)
+    }
   }
 
   return {
     element: SolidBlockElement,
     init,
-    updateEntity
+    updateGraph
   }
 }
+
+
 
 // Utility function to register a SolidJS component as a Web Component
 export function registerBlockElement(
