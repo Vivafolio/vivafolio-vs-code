@@ -32,11 +32,8 @@ interface HookMessage {
     entityId: string
   }
 }
+import type { Entity, EntityGraph, BlockResource, VivafolioBlockNotification } from '@vivafolio/block-core'
 import {
-  Entity,
-  EntityGraph,
-  BlockResource,
-  VivafolioBlockNotification,
   BlockLoaderDiagnostics,
   BlockLoaderOptions,
   HtmlTemplateHandlers,
@@ -165,7 +162,7 @@ export class VivafolioBlockLoader implements BlockLoader {
     } as Required<BlockLoaderOptions>
 
     // Initialize block state
-    this.resources = notification.resources
+  this.resources = notification.resources || []
     this.blockEntity = this.deriveBlockEntity(notification)
     this.blockGraph = this.deriveBlockGraph(notification)
     this.blockSubgraph = this.buildBlockEntitySubgraph(this.blockEntity, this.blockGraph)
@@ -292,7 +289,7 @@ export class VivafolioBlockLoader implements BlockLoader {
           blockType: this.deriveBlockTypeForEntity(options.entityTypeId),
           displayMode: 'inline',
           sourceUri: this.notification.sourceUri,
-          range: this.notification.range, // Use parent range for nested blocks
+          range: this.notification.range, // may be undefined when originating outside LSP
           entityId: options.entityId,
           resources: [], // Nested blocks get their resources from cache
           entityGraph: this.notification.entityGraph // Share the parent graph

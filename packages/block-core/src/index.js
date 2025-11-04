@@ -1,6 +1,6 @@
 // @vivafolio/block-core
 // Single entry for shared types, utils, and message shapes to avoid drift.
-// 4) Utils (kept tiny; framework-agnostic)
+// 5) Utils (kept tiny; framework-agnostic)
 export const getByPath = (obj, path) => path.split(".").reduce((cur, k) => (cur == null ? cur : cur[k]), obj);
 export const setByPath = (obj, path, value) => {
     const parts = path.split(".");

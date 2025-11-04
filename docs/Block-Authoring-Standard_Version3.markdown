@@ -331,4 +331,5 @@ export default function Toggle(props: ToggleProps) {
 
 ## 13. Vivafolio-Specific Optimizations
 
-- The Vivafolio Host uses a minimal block loader in VS Code WebViews to bootstrap blocks, injecting initial data (e.g., `blockEntitySubgraph`) as props for custom elements. This enables fast hydration without block-side changes. Blocks remain standard and reusable in other hosts—do not add Vivafolio-specific logic. Test reusability with tools like MockBlockDock.
+- The Vivafolio Host uses a minimal block loader in VS Code WebViews to bootstrap blocks, injecting initial data (e.g., `blockEntitySubgraph`) as props for custom elements. This enables fast hydration without block-side changes. Blocks remain standard and reusable in other hosts—do not add Vivafolio-specific logic. Test reusability with the /vivafolio-vs-code/apps/blockprotocol-poc application. 
+

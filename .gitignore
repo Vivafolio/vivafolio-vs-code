@@ -163,3 +163,6 @@ commands
 
 # LibreOffice/temporary lock file from blockprotocol POC data
 apps/blockprotocol-poc/data/.~lock.sdg_08_10_page_linear_2_0.csv\#
+
+#notes
+notes.md

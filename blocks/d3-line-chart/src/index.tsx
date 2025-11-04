@@ -1,11 +1,11 @@
 import { render } from 'solid-js/web';
 import { createSignal, createEffect } from 'solid-js';
-import { createBlock, type BlockProps } from '../../../packages/block-frameworks/solidjs/src/index';
+import { createSolidBlock, type BlockProps } from '../../../packages/block-frameworks/solidjs/src/index';
 import LineChart from './LineChart';
 import './styles.css';
 
 // Create the block component using the framework
-const D3LineChartBlock = createBlock(
+const D3LineChartBlock = createSolidBlock(
   (props: BlockProps) => {
     // Create signals from graph data for reactivity
     const [graph, setGraph] = createSignal(props.graph);

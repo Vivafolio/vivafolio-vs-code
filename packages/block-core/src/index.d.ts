@@ -1,8 +1,8 @@
 export type { Entity as BP_Entity, QueryEntitiesData as BP_QueryEntitiesData, QueryEntitiesResult as BP_QueryEntitiesResult, UpdateEntityData as BP_UpdateEntityData, DeleteEntityData as BP_DeleteEntityData, MultiFilter as BP_MultiFilter, MultiSort as BP_MultiSort, Sort as BP_Sort, } from "@blockprotocol/graph";
 export interface Entity {
     entityId: string;
-    entityTypeId: string;
     properties: Record<string, unknown>;
+    entityTypeId?: string;
     metadata?: {
         recordId: {
             entityId: string;
@@ -10,6 +10,14 @@ export interface Entity {
         };
         entityTypeId: string;
     };
+}
+export interface LinkEntity extends Entity {
+    sourceEntityId?: string;
+    destinationEntityId?: string;
+}
+export interface EntityGraph {
+    entities: Entity[];
+    links: LinkEntity[];
 }
 export interface BlockGraph {
     depth: number;
@@ -48,6 +56,33 @@ export type AggregateResult<T = any> = {
     itemsPerPage: number;
     pageCount: number;
     totalCount: number;
+};
+export type BlockResource = {
+    logicalName: string;
+    physicalPath: string;
+    cachingTag?: string;
+};
+export type Range = {
+    start: {
+        line: number;
+        character: number;
+    };
+    end: {
+        line: number;
+        character: number;
+    };
+};
+export type VivafolioBlockNotification = {
+    blockId: string;
+    blockType: string;
+    sourceUri?: string;
+    range?: Range;
+    entityId?: string;
+    displayMode: "multi-line" | "inline";
+    entityGraph: EntityGraph;
+    resources?: BlockResource[];
+    supportsHotReload?: boolean;
+    initialHeight?: number;
 };
 export declare const getByPath: (obj: any, path: string) => any;
 export declare const setByPath: (obj: any, path: string, value: unknown) => any;

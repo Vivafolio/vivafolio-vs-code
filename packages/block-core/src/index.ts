@@ -16,12 +16,24 @@ export type {
 // 2) Minimal internal core types for block frameworks
 export interface Entity {
   entityId: string;
-  entityTypeId: string;
   properties: Record<string, unknown>;
+  // Optional for lightweight entities used in client/loader payloads
+  entityTypeId?: string;
   metadata?: {
     recordId: { entityId: string; editionId: string };
     entityTypeId: string;
   };
+}
+
+// LinkEntity used by apps that model explicit edges between entities
+export interface LinkEntity extends Entity {
+  sourceEntityId?: string;
+  destinationEntityId?: string;
+}
+
+export interface EntityGraph {
+  entities: Entity[];
+  links: LinkEntity[];
 }
 
 export interface BlockGraph {
@@ -76,7 +88,36 @@ export type AggregateResult<T = any> = {
   totalCount: number;
 };
 
-// 4) Utils (kept tiny; framework-agnostic)
+// 4) Webview / Loader Notifications shared across server, client, loader
+export type BlockResource = {
+  logicalName: string;
+  physicalPath: string;
+  cachingTag?: string;
+};
+
+export type Range = {
+  start: { line: number; character: number };
+  end: { line: number; character: number };
+};
+
+export type VivafolioBlockNotification = {
+  blockId: string;
+  blockType: string;
+  // Optional, used when originating from a source file / LSP event
+  sourceUri?: string;
+  range?: Range;
+  // Data binding
+  entityId?: string;
+  displayMode: "multi-line" | "inline";
+  entityGraph: EntityGraph;
+  // Resources are optional (server often sends them; client may have cache)
+  resources?: BlockResource[];
+  // Runtime hints
+  supportsHotReload?: boolean;
+  initialHeight?: number;
+};
+
+// 5) Utils (kept tiny; framework-agnostic)
 export const getByPath = (obj: any, path: string): any =>
   path.split(".").reduce((cur, k) => (cur == null ? cur : cur[k]), obj);
 
