@@ -89,6 +89,7 @@ const statusEl = document.getElementById('status') as HTMLSpanElement
 const blockRegion = document.getElementById('block-region') as HTMLDivElement
 
 let liveSocket: WebSocket | undefined
+const pendingGraphUpdates: GraphUpdatePayload[] = []
 const latestPayloads = new Map<string, VivafolioBlockNotification>()
 const iframeControllers = new Map<string, { iframe: HTMLIFrameElement; ready: boolean }>()
 const publishedLoaders = new Map<string, BlockLoader>()
@@ -405,10 +406,10 @@ function createElement<K extends keyof HTMLElementTagNameMap>(
 }
 
 function sendGraphUpdateMessage(update: GraphUpdatePayload) {
+  // If socket not open yet, queue and return
   if (!liveSocket || liveSocket.readyState !== WebSocket.OPEN) {
-    try {
-      console.warn('[Client] sendGraphUpdateMessage: socket not open, dropping update', update)
-    } catch {}
+    pendingGraphUpdates.push(update)
+    try { console.warn('[Client] sendGraphUpdateMessage: socket not open, queued update', update) } catch {}
     return
   }
   // Record this update to dedupe any fallback window message carrying the same payload shortly after
@@ -1071,6 +1072,14 @@ function bootstrap() {
   socket.addEventListener('open', () => {
     console.log('[Client] WebSocket connected')
     setStatus('connected', 'connected')
+
+    // Flush any pending graph/update messages
+    if (pendingGraphUpdates.length) {
+      try { console.log('[Client] Flushing pending graph updates:', pendingGraphUpdates.length) } catch {}
+      for (const upd of pendingGraphUpdates.splice(0)) {
+        sendGraphUpdateMessage(upd)
+      }
+    }
   })
 
   socket.addEventListener('close', () => {
@@ -1140,6 +1149,17 @@ window.addEventListener('message', (event) => {
       if (!controller) return
       controller.ready = true
       requestFrameInit(blockId)
+      break
+    }
+    case 'updateEntity': {
+      // Spec-style update from a block via postMessage
+      // Accept both { data: { entityId, properties } } and flat payload shapes.
+      const payload = (data as any).data ?? data
+      const entityId = payload?.entityId
+      const properties = payload?.properties ?? {}
+      if (entityId) {
+        handleBlockUpdate({ blockId, entityId, properties })
+      }
       break
     }
   // case 'graph:update': intentionally disabled

@@ -32,13 +32,20 @@ export default function StatusPillFactory(_graphModule?: unknown) {
         // Bridge BlockLoader's property-only updater to our graph.updateEntity signature
         updateEntity: async ({ entityId, properties }) => {
           try { console.log('[StatusPillFactory] graph.updateEntity bridge called for', entityId, properties) } catch {}
+          // Primary path: notify loader/host via provided updateEntity bridge (properties-only)
           if (typeof updateEntity === 'function') {
-            // Notify loader/host; client will forward to server via onBlockUpdate
             updateEntity(properties)
           } else {
-            // No update path available; log and no-op
-            try { console.warn('[StatusPillFactory] updateEntity not provided by loader; dropping update', { entityId, properties }) } catch {}
+            try { console.warn('[StatusPillFactory] updateEntity not provided by loader; attempting window bridge', { entityId }) } catch {}
           }
+          // Narrow fallback: also post a spec-style window message so hosts that listen for
+          // updateEntity can handle it (used by the POC client for non-factory/iframe cases)
+          try {
+            const blockId = (element as HTMLElement)?.dataset?.blockId
+            if (blockId) {
+              window.postMessage({ type: 'updateEntity', blockId, data: { entityId, properties } }, '*')
+            }
+          } catch {}
         }
       }
 

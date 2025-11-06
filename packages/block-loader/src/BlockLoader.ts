@@ -148,6 +148,28 @@ export class VivafolioBlockLoader implements BlockLoader {
   // Mini-host for nested blocks
   private miniHost: MiniHost
   private mountedBlocks = new Map<string, HTMLElement>()
+  
+  // Spec-style update bridge (window.postMessage handler)
+  private _handleBlockProtocolMessage = (event: MessageEvent) => {
+    const data = (event && (event as any).data) || undefined
+    if (!data || typeof data !== 'object') return
+    if ((data as any).type !== 'updateEntity') return
+
+    const payload = (data as any).data ?? data
+    const entityId: string | undefined = payload?.entityId
+    const properties: Record<string, unknown> = payload?.properties ?? {}
+
+    // If the message carries a blockId, make sure it matches this loader instance
+    const msgBlockId: string | undefined = (data as any).blockId
+    const currentBlockId = this.notification?.blockId
+    if (msgBlockId && currentBlockId && msgBlockId !== currentBlockId) return
+
+    if (entityId && typeof this.options.onBlockUpdate === 'function') {
+      try {
+        this.options.onBlockUpdate({ entityId, properties })
+      } catch {}
+    }
+  }
 
   constructor(notification: VivafolioBlockNotification, options: BlockLoaderOptions = {}) {
     this.notification = notification
@@ -185,7 +207,10 @@ export class VivafolioBlockLoader implements BlockLoader {
       resourcesCache: this.resourcesCache
     } as Required<BlockLoaderOptions>
 
-    // Extract block state from notification
+  // Begin listening for spec-style messages from block runtime
+  try { window.addEventListener('message', this._handleBlockProtocolMessage) } catch {}
+
+  // Extract block state from notification
     this.blockEntity = this.deriveBlockEntity(notification)
     this.blockGraph = this.deriveBlockGraph(notification)
     this.blockSubgraph = this.buildBlockEntitySubgraph(this.blockEntity, this.blockGraph)
@@ -246,6 +271,9 @@ export class VivafolioBlockLoader implements BlockLoader {
     this.destroyLocalModules()
     this.embedder?.destroy()
     this.reactRoot?.unmount()
+
+  // Tear down spec bridge listener
+  try { window.removeEventListener('message', this._handleBlockProtocolMessage) } catch {}
 
     if (this.customElementInstance) {
       this.customElementInstance.remove()
