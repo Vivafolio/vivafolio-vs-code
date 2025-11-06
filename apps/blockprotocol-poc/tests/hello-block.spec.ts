@@ -333,37 +333,7 @@ test.describe('F1 – Custom Element Baseline', () => {
   })
 
   test.describe('Example Blocks from Coda/Notion Patterns', () => {
-    test('status pill example block renders with correct styling', async ({ page }) => {
-      console.log('Starting status pill test')
-
-      // Listen for console messages from the page
-      page.on('console', msg => {
-        console.log('PAGE LOG:', msg.text())
-      })
-
-      await page.goto('/?scenario=status-pill-example&useIndexingService=true')
-      console.log('Page loaded, waiting for container...')
-
-      // Wait for the block to load
-      const container = page.locator('.published-block-container')
-      await expect(container).toBeAttached({ timeout: 15000 })
-      console.log('Container attached, waiting for content...')
-
-      // Check for the status pill component
-      const statusPill = container.locator('.status-pill-block')
-      await expect(statusPill).toBeVisible()
-
-      // Should display status text
-      await expect(statusPill).toContainText('In Progress')
-
-      // Check the visual styling (should have background color)
-      const backgroundColor = await statusPill.evaluate((el) => window.getComputedStyle(el).backgroundColor)
-      expect(backgroundColor).not.toBe('rgba(0, 0, 0, 0)') // Should have a visible background
-
-      // Should be clickable (has cursor pointer)
-      const cursor = await statusPill.evaluate((el) => window.getComputedStyle(el).cursor)
-      expect(cursor).toBe('pointer')
-    })
+    // Status Pill now has a dedicated spec in status-pill.spec.ts
 
     test('person chip example block renders with assignee data', async ({ page }) => {
       await page.goto('/?scenario=person-chip-example&useIndexingService=true')
