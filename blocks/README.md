@@ -25,7 +25,7 @@ blocks/
 
 For the canonical guidance on how to write, package, and integrate blocks (metadata, folder structure, entry modes, messaging, security, testing, and build), see:
 
-- Block Authoring Standard v3: `blocks/Block-Authoring-Standard_Version3.markdown`
+- Block Authoring Standard v3: `docs/Block-Authoring-Standard_Version3.markdown`
 
 That document is the single source of truth; this README intentionally avoids duplicating it.
 
@@ -64,3 +64,6 @@ Tip: `mySolidBlock` shows a SolidJS (no React) example; see `blocks/mySolidBlock
 - Block Authoring Standard v3: `blocks/Block-Authoring-Standard_Version3.markdown`
 - Dev Server: `docs/BlockProtocol-DevServer.md`
 - Block resources cache: `packages/block-resources-cache/README.md`
+
+## Blocks
+blocks/myblock - This is the out of the box Block protocol block for reference. 

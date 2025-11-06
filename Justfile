@@ -353,6 +353,8 @@ test-blockprotocol-standalone-build:
 	  curl -s http://localhost:3020/healthz | jq .ok | grep -q true && \
 	  echo "✅ Standalone server build and startup test passed" || echo "❌ Test failed"
 
+# Test individual blocks
+
 # -----------------------------
 # LSP Server Testing
 # -----------------------------
@@ -527,7 +529,23 @@ vscode-with-server: install-mocklang-extension
 # Use this while iterating on block code or shared block libraries to catch
 # regressions before running heavier POC or integration suites.
 test-blocks:
-	cd blocks && npm test
+	just test-blockprotocol-core
+
+# Run a focused test for an individual block
+# Usage: just test status-pill
+test NAME:
+		@case "{{NAME}}" in \
+			status-pill) \
+				echo "Building status-pill block..."; \
+				(cd blocks/status-pill && npm run -s build) || exit 1; \
+			echo "Running Playwright status pill spec..."; \
+				(cd apps/blockprotocol-poc && PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH:-$(command -v chromium)}" npx playwright test tests/status-pill.spec.ts | cat); \
+				;; \
+			*) \
+				echo "Unknown test: {{NAME}}"; \
+				exit 2; \
+				;; \
+		esac
 
 # Run block-specific tests
 test-block-integration:
