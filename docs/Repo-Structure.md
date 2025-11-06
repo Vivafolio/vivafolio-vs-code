@@ -231,6 +231,6 @@ just dev-blockprotocol-poc-frameworks
 
 - Root overview and command index: `README.md`
 - Block Protocol E2E POC: `docs/BlockProtocol-E2E-POC.md`
-- Dev server blueprint: `docs/BlockProtocol-DevServer.md`
+- Dev server blueprint: `docs/BlockProtocol-in-Vivafolio-Architecture.md`
 - Runtime path testing: `docs/Vivafolio-E2E-Runtime-Path-Tests.md`
 - VS Code extension debugging notes: `docs/Vivafolio-VSCode-Extension-Debugging.md`
