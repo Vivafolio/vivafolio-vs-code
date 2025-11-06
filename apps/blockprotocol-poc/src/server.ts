@@ -2588,11 +2588,11 @@ let localBlockBuilder: any | undefined
       console.log(`[transport] Unregistered transport ${transportId}`)
     })
 
-    // All messages go through the IndexingService transport layer
-    // For scenarios with applyUpdate (for testing), also handle scenario updates
-    socket.on('message', (raw) => {
+  // All messages go through the IndexingService transport layer
+  // For historical scenarios, we still broadcast notifications, but updates delegate to IndexingService
+  socket.on('message', async (raw) => {
       try {
-        const payload = JSON.parse(String(raw))
+    const payload = JSON.parse(String(raw))
         console.log(`[transport] Message received: ${payload.type}`)
 
         // Handle cache invalidation from local block development
@@ -2602,39 +2602,59 @@ let localBlockBuilder: any | undefined
           return
         }
 
-        // Transport layer handles all Block Protocol operations
-        // For scenarios with applyUpdate, also apply updates for testing
-        if (payload?.type === 'graph/update' && scenario.applyUpdate) {
+        // Transport layer handles all Block Protocol operations via IndexingService
+        if (payload?.type === 'graph/update') {
           console.log('[transport] graph/update payload received:', JSON.stringify(payload.payload))
-          const connection = { scenario, state }
-          scenario.applyUpdate({
-            state: connection.state,
-            update: payload.payload as GraphUpdate,
-            socket,
-            broadcast: (notification) => {
-              socket.send(
-                JSON.stringify({
-                  type: 'vivafolioblock-notification',
-                  payload: notification
-                })
-              )
-            }
-          })
-          // Update the entityGraph for consistency
-          // Note: In production, all updates would go through IndexingService only
-          dispatchScenarioNotifications(socket, scenario, connection.state, request)
-
-          // Send a lightweight acknowledgment so clients/tests can wait deterministically
+          const upd = payload.payload as GraphUpdate
           try {
-            const upd = payload.payload as GraphUpdate
+            const ok = await indexingService.updateEntity(upd.entityId, upd.properties)
+
+            // Temporary demo-specific persistence for status-pill scenario:
+            // Our IndexingService CSV module expects headered, row-based CSVs and doesn't
+            // index the single-line file used by this scenario. Until a dedicated editing
+            // module is added, persist the chosen status directly to the CSV here.
+            if (
+              scenario.id === 'status-pill-example' &&
+              upd.entityId === 'status-pill-entity' &&
+              typeof (upd.properties as any)?.status === 'string'
+            ) {
+              try {
+                await writeStatusToCsv(String((upd.properties as any).status))
+              } catch (e) {
+                console.warn('[status-pill] CSV write fallback failed:', e)
+              }
+            }
+
+            // Reflect the update in the local scenario state for the purposes of demo notifications
+            const entity = state.graph.entities.find((e: any) => e.entityId === upd.entityId)
+            if (entity) {
+              entity.properties = { ...entity.properties, ...upd.properties }
+            }
+            dispatchScenarioNotifications(socket, scenario, state, request)
+
+            // Send ack
             socket.send(
               JSON.stringify({
                 type: 'graph/ack',
-                payload: { entityId: upd.entityId, properties: upd.properties }
+                payload: { entityId: upd.entityId, properties: upd.properties, ok }
               })
             )
-          } catch (err) {
-            console.warn('[blockprotocol-poc] failed to send graph/ack', err)
+
+            // Domain-specific persisted signal for status-pill demo if status changed
+            if (upd.properties && typeof (upd.properties as any).status === 'string') {
+              const next = String((upd.properties as any).status)
+              socket.send(
+                JSON.stringify({
+                  type: 'status/persisted',
+                  payload: { entityId: upd.entityId, status: next }
+                })
+              )
+            }
+          } catch (e) {
+            console.error('[transport] updateEntity failed:', e)
+            try {
+              socket.send(JSON.stringify({ type: 'graph/ack', payload: { entityId: upd.entityId, ok: false } }))
+            } catch {}
           }
         }
       } catch (error) {
