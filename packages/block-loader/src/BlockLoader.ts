@@ -11,6 +11,7 @@
 import { GraphEmbedderHandler } from '@blockprotocol/graph'
 import * as React from 'react'
 import * as ReactDOM from 'react-dom/client'
+import type { Entity, EntityGraph, BlockResource, VivafolioBlockNotification } from '@vivafolio/block-core'
 
 // Extend window interface for HTML template support
 declare global {
@@ -32,7 +33,6 @@ interface HookMessage {
     entityId: string
   }
 }
-import type { Entity, EntityGraph, BlockResource, VivafolioBlockNotification } from '@vivafolio/block-core'
 import {
   BlockLoaderDiagnostics,
   BlockLoaderOptions,
@@ -175,11 +175,13 @@ export class VivafolioBlockLoader implements BlockLoader {
     console.log('[BlockLoader] Loading block:', notification.blockId, notification.blockType)
 
     this.notification = notification
+    // Preserve options provided via constructor (especially onBlockUpdate),
+    // only fill in defaults for missing values.
     this.options = {
-      allowedDependencies: new Set(DEFAULT_ALLOWED_DEPENDENCIES),
-      enableIntegrityChecking: true,
-      enableDiagnostics: true,
-      onBlockUpdate: () => {}, // Will be set by caller
+      allowedDependencies: this.options.allowedDependencies || new Set(DEFAULT_ALLOWED_DEPENDENCIES),
+      enableIntegrityChecking: this.options.enableIntegrityChecking ?? true,
+      enableDiagnostics: this.options.enableDiagnostics ?? true,
+      onBlockUpdate: this.options.onBlockUpdate,
       resourcesCache: this.resourcesCache
     } as Required<BlockLoaderOptions>
 
@@ -532,16 +534,19 @@ export class VivafolioBlockLoader implements BlockLoader {
           container.appendChild(customElement)
 
           if (typeof (factoryResult as any).init === 'function') {
-            (factoryResult as any).init({
+            const __vf_updateEntity = (properties: Record<string, unknown>) => {
+              try { console.log('[BlockLoader] factory.init updateEntity called with properties', properties) } catch {}
+              this.options.onBlockUpdate({
+                entityId: this.blockEntity.entityId,
+                properties
+              })
+            }
+            try { console.log('[BlockLoader] Calling factory.init; updateEntity typeof =', typeof __vf_updateEntity) } catch {}
+            ;(factoryResult as any).init({
               element: customElement,
               entity: this.blockEntity,
               readonly: false,
-              updateEntity: (properties: Record<string, unknown>) => {
-                this.options.onBlockUpdate({
-                  entityId: this.blockEntity.entityId,
-                  properties
-                })
-              }
+              updateEntity: __vf_updateEntity
             })
           }
 

@@ -93,6 +93,21 @@ const latestPayloads = new Map<string, VivafolioBlockNotification>()
 const iframeControllers = new Map<string, { iframe: HTMLIFrameElement; ready: boolean }>()
 const publishedLoaders = new Map<string, BlockLoader>()
 
+// Deduplicate identical graph/update messages across multiple paths (loader callback vs window fallback)
+// Keyed by blockId|entityId|sortedProperties, with a short TTL to coalesce duplicates in quick succession
+const recentGraphUpdateKeys = new Map<string, number>()
+const GRAPH_UPDATE_DEDUP_TTL_MS = 1000
+
+function makeGraphUpdateKey(update: { blockId: string; entityId: string; properties: Record<string, unknown> }) {
+  // Stable stringify properties (shallow sort by key)
+  const props = update.properties || {}
+  const sorted = Object.keys(props)
+    .sort()
+    .map((k) => `${k}:${JSON.stringify((props as any)[k])}`)
+    .join('|')
+  return `${update.blockId}::${update.entityId}::${sorted}`
+}
+
 type HtmlTemplateHandlers = {
   setEntity: (entity: Entity) => void
   setReadonly: (readonly: boolean) => void
@@ -101,6 +116,13 @@ type HtmlTemplateHandlers = {
 function handleBlockUpdate(payload: { entityId: string; properties: Record<string, unknown>; blockId?: string }) {
   // Use a default blockId if not provided
   const blockId = payload.blockId || 'unknown-block'
+  try {
+    console.log('[Client] handleBlockUpdate: preparing graph/update', {
+      blockId,
+      entityId: payload.entityId,
+      properties: payload.properties
+    })
+  } catch {}
   sendGraphUpdateMessage({
     blockId,
     entityId: payload.entityId,
@@ -237,7 +259,7 @@ function buildBlockEntitySubgraph(blockEntity: Entity, graph: BlockGraphState): 
 
 function deriveBlockEntity(notification: VivafolioBlockNotification): Entity {
   const entity =
-    notification.entityGraph.entities.find((item) => item.entityId === notification.entityId) ??
+    notification.entityGraph.entities.find((item: Entity) => item.entityId === notification.entityId) ??
     notification.entityGraph.entities[0] ?? {
       entityId: notification.entityId,
       entityTypeId: DEFAULT_ENTITY_TYPE_ID,
@@ -250,7 +272,7 @@ function deriveBlockEntity(notification: VivafolioBlockNotification): Entity {
 function deriveBlockGraph(notification: VivafolioBlockNotification): BlockGraphState {
   return {
     depth: 1,
-    linkedEntities: notification.entityGraph.entities.map((entity) => normalizeEntity(entity)),
+    linkedEntities: notification.entityGraph.entities.map((entity: Entity) => normalizeEntity(entity)),
     linkGroups: []
   }
 }
@@ -349,7 +371,8 @@ type ServerEnvelope =
       scenario?: { id: string; title: string; description?: string }
     }
   | { type: 'vivafolioblock-notification'; payload: VivafolioBlockNotification }
-  | { type: 'graph/ack'; receivedAt: string }
+  | { type: 'graph/ack'; receivedAt: string; payload?: { entityId: string; properties: Record<string, unknown> } }
+  | { type: 'status/persisted'; payload: { entityId: string; status: string; label?: string } }
   | { type: 'cache:invalidate'; payload: { blockId: string } }
 
 const PLACEHOLDER_CLASS = 'block-region__placeholder'
@@ -382,7 +405,24 @@ function createElement<K extends keyof HTMLElementTagNameMap>(
 }
 
 function sendGraphUpdateMessage(update: GraphUpdatePayload) {
-  if (!liveSocket || liveSocket.readyState !== WebSocket.OPEN) return
+  if (!liveSocket || liveSocket.readyState !== WebSocket.OPEN) {
+    try {
+      console.warn('[Client] sendGraphUpdateMessage: socket not open, dropping update', update)
+    } catch {}
+    return
+  }
+  // Record this update to dedupe any fallback window message carrying the same payload shortly after
+  try {
+    const key = makeGraphUpdateKey({
+      blockId: update.blockId,
+      entityId: update.entityId,
+      properties: update.properties ?? {}
+    })
+    recentGraphUpdateKeys.set(key, Date.now())
+  } catch {}
+  try {
+    console.log('[Client] sendGraphUpdateMessage: sending graph/update', update)
+  } catch {}
   liveSocket.send(
     JSON.stringify({
       type: 'graph/update',
@@ -450,7 +490,7 @@ function renderHelloBlock(notification: VivafolioBlockNotification): HTMLElement
 
 function renderKanbanBoard(notification: VivafolioBlockNotification): HTMLElement {
   const entityMap = new Map<string, Entity>()
-  notification.entityGraph.entities.forEach((entity) => {
+  notification.entityGraph.entities.forEach((entity: Entity) => {
     entityMap.set(entity.entityId, entity)
   })
 
@@ -708,12 +748,20 @@ function renderFallback(notification: VivafolioBlockNotification): HTMLElement {
 
 function renderPublishedBlock(notification: VivafolioBlockNotification): HTMLElement {
   console.log('[POC] renderPublishedBlock called for:', notification.blockId, notification.blockType)
+  try {
+    const initStatus = (notification.entityGraph?.entities?.[0]?.properties as any)?.status
+    console.log('[POC] Initial entityGraph status for block', notification.blockId, ':', initStatus)
+  } catch (e) {
+    console.warn('[POC] Failed to log initial entity status', e)
+  }
 
   // Use the actual block loader to load and execute real block packages
   let loader = publishedLoaders.get(notification.blockId)
+  const adaptedNotification = adaptBlockNotification(notification)
+  const existing = document.querySelector<HTMLElement>(`[data-block-id="${notification.blockId}"]`)
+
   if (!loader) {
     console.log('[POC] Creating new VivafolioBlockLoader for:', notification.blockId)
-    const adaptedNotification = adaptBlockNotification(notification)
     console.log('[POC] Adapted notification:', JSON.stringify(adaptedNotification, null, 2))
     loader = new VivafolioBlockLoader(adaptedNotification, {
       allowedDependencies: DEFAULT_ALLOWED_DEPENDENCIES,
@@ -725,58 +773,61 @@ function renderPublishedBlock(notification: VivafolioBlockNotification): HTMLEle
       }
     })
     publishedLoaders.set(notification.blockId, loader)
-  } else {
-    console.log('[POC] Reusing existing loader for:', notification.blockId)
+
+    // First render: create container and load
+    const container = document.createElement('div')
+    container.className = 'published-block-container'
+    container.dataset.blockId = notification.blockId
+    console.log('[POC] Created container with ID:', notification.blockId)
+
+    console.log('[POC] Starting block loader for:', notification.blockId)
+    console.log('[POC] Adapted notification resources:', adaptedNotification.resources)
+    console.log('[POC] About to call loader.loadBlock...')
+    loader.loadBlock(adaptedNotification, container).then(() => {
+      console.log('[POC] Block loaded successfully:', notification.blockId)
+      console.log('[POC] Container HTML after load:', container.innerHTML.substring(0, 500))
+      console.log('[POC] Container children count:', container.children.length)
+      console.log('[POC] Container first child:', container.firstElementChild?.tagName, container.firstElementChild?.className)
+      console.log('[POC] Loader diagnostics:', JSON.stringify(loader!.getDiagnostics(), null, 2))
+      container.style.display = 'block'
+    }).catch(error => {
+      console.error('[POC] Block loader failed:', error.message)
+      console.error('[POC] Full error:', error)
+      console.error('[POC] Error stack:', error.stack)
+      container.innerHTML = `
+        <div class="block-error" style="
+          padding: 20px;
+          border: 2px solid #ef4444;
+          border-radius: 8px;
+          background-color: #fef2f2;
+          color: #dc2626;
+          font-family: monospace;
+        ">
+          <h3 style="margin: 0 0 10px 0;">Block Loading Failed</h3>
+          <p style="margin: 0 0 10px 0;">${notification.blockType}</p>
+          <pre style="margin: 0; white-space: pre-wrap; font-size: 12px;">${error.message}</pre>
+        </div>
+      `
+      container.style.display = 'block'
+    })
+    return container
   }
 
-  // Create container for the block loader
+  // Subsequent updates: reuse loader + existing container; avoid reloading/evaluating bundle again
+  console.log('[POC] Reusing existing loader for:', notification.blockId)
+  if (existing) {
+    loader.updateBlock(adaptedNotification)
+    return existing
+  }
+
+  // Fallback: if no existing container in DOM, create and load
   const container = document.createElement('div')
   container.className = 'published-block-container'
   container.dataset.blockId = notification.blockId
   console.log('[POC] Created container with ID:', notification.blockId)
-
-  // Actually use the block loader to load the real block
-  console.log('[POC] Starting block loader for:', notification.blockId)
-  const adaptedNotification = adaptBlockNotification(notification)
-  console.log('[POC] Adapted notification resources:', adaptedNotification.resources)
-
-  console.log('[POC] About to call loader.loadBlock...')
-  loader.loadBlock(adaptedNotification, container).then(() => {
-    console.log('[POC] Block loaded successfully:', notification.blockId)
-    console.log('[POC] Container HTML after load:', container.innerHTML.substring(0, 500))
-    console.log('[POC] Container children count:', container.children.length)
-    console.log('[POC] Container first child:', container.firstElementChild?.tagName, container.firstElementChild?.className)
-    console.log('[POC] Loader diagnostics:', JSON.stringify(loader.getDiagnostics(), null, 2))
-    // Check if the block root element exists
-    const blockRoot = container.querySelector('.d3-line-graph-block')
-    console.log('[POC] Block root element found:', !!blockRoot, blockRoot?.tagName)
-    if (blockRoot) {
-      console.log('[POC] Block root className:', blockRoot.className)
-      console.log('[POC] Block root innerHTML preview:', (blockRoot as HTMLElement).innerHTML.substring(0, 200))
-    }
-    container.style.display = 'block'
-  }).catch(error => {
-    console.error('[POC] Block loader failed:', error.message)
-    console.error('[POC] Full error:', error)
-    console.error('[POC] Error stack:', error.stack)
-    // Show proper error instead of fake content
-    container.innerHTML = `
-      <div class="block-error" style="
-        padding: 20px;
-        border: 2px solid #ef4444;
-        border-radius: 8px;
-        background-color: #fef2f2;
-        color: #dc2626;
-        font-family: monospace;
-      ">
-        <h3 style="margin: 0 0 10px 0;">Block Loading Failed</h3>
-        <p style="margin: 0 0 10px 0;">${notification.blockType}</p>
-        <pre style="margin: 0; white-space: pre-wrap; font-size: 12px;">${error.message}</pre>
-      </div>
-    `
-    container.style.display = 'block'
+  loader.loadBlock(adaptedNotification, container).catch(error => {
+    console.error('[POC] Block loader failed:', error)
   })
-
   return container
 }
 
@@ -958,7 +1009,15 @@ function handleEnvelope(data: ServerEnvelope) {
       break
     }
     case 'graph/ack':
+      try {
+        // Lightweight visibility for test debugging
+        console.log('[Client] graph/ack received:', JSON.stringify(data.payload))
+      } catch {}
       break
+    case 'status/persisted': {
+      console.log('[Client] Status persisted:', data.payload)
+      break
+    }
     default:
       console.warn('Unrecognized envelope', data)
   }
@@ -1068,6 +1127,7 @@ function bootstrap() {
 
 document.addEventListener('DOMContentLoaded', bootstrap)
 
+// Fallback route disabled: rely on loader onBlockUpdate only
 window.addEventListener('message', (event) => {
   const data = event.data
   if (!data || typeof data !== 'object') return
@@ -1082,27 +1142,7 @@ window.addEventListener('message', (event) => {
       requestFrameInit(blockId)
       break
     }
-    case 'graph:update': {
-      const update = data as {
-        blockId: string
-        entityId: string
-        properties: Record<string, unknown>
-        kind?: string
-      }
-      if (!liveSocket || liveSocket.readyState !== WebSocket.OPEN) return
-      liveSocket.send(
-        JSON.stringify({
-          type: 'graph/update',
-          payload: {
-            blockId: update.blockId,
-            entityId: update.entityId,
-            kind: update.kind ?? 'updateEntity',
-            properties: update.properties ?? {}
-          }
-        })
-      )
-      break
-    }
+  // case 'graph:update': intentionally disabled
     default:
       break
   }

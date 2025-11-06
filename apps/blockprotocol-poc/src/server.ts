@@ -301,6 +301,57 @@ const entityGraph: EntityGraph = {
   links: []
 }
 
+// --- Status Pill CSV integration helpers ------------------------------------
+// CSV file contains a single line with a human-readable status label, e.g. "In Progress"
+// We normalize to the internal enum keys used by the block (todo, in-progress, done, blocked, review)
+const STATUS_CSV_PATH = path.resolve(REPO_ROOT, 'apps', 'blockprotocol-poc', 'data', 'status-pill.csv')
+const StatusKeyMap: Record<string, 'todo' | 'in-progress' | 'done' | 'blocked' | 'review'> = {
+  'to do': 'todo',
+  'todo': 'todo',
+  'in progress': 'in-progress',
+  'in-progress': 'in-progress',
+  'done': 'done',
+  'blocked': 'blocked',
+  'review': 'review'
+}
+const StatusLabelMap: Record<'todo' | 'in-progress' | 'done' | 'blocked' | 'review', string> = {
+  'todo': 'To Do',
+  'in-progress': 'In Progress',
+  'done': 'Done',
+  'blocked': 'Blocked',
+  'review': 'Review'
+}
+
+function readStatusFromCsv(): 'todo' | 'in-progress' | 'done' | 'blocked' | 'review' {
+  try {
+    if (!existsSync(STATUS_CSV_PATH)) {
+      return 'in-progress'
+    }
+    const raw = readFileSync(STATUS_CSV_PATH, 'utf8')
+    const first = raw.split(/\r?\n/).map((l) => l.trim()).find((l) => l.length > 0) || ''
+    const norm = first.toLowerCase().replace(/_/g, ' ').replace(/-/g, ' ').replace(/\s+/g, ' ').trim()
+  const key = StatusKeyMap[norm] ?? 'in-progress'
+  console.log('[status-pill] CSV read -> raw:', JSON.stringify(first), 'norm:', JSON.stringify(norm), 'key:', key)
+  return key
+  } catch (e) {
+    console.warn('[status-pill] failed to read CSV, defaulting to in-progress:', e)
+    return 'in-progress'
+  }
+}
+
+async function writeStatusToCsv(next: string) {
+  try {
+    // Normalize to one of our keys if possible
+    const key = StatusKeyMap[next?.toLowerCase?.().replace(/_/g, ' ').replace(/-/g, ' ').replace(/\s+/g, ' ').trim?.() ?? ''] ?? (next as any)
+    const label = StatusLabelMap[key as keyof typeof StatusLabelMap] ?? 'In Progress'
+    await fs.mkdir(path.dirname(STATUS_CSV_PATH), { recursive: true })
+    await fs.writeFile(STATUS_CSV_PATH, label + '\n', 'utf8')
+    console.log('[status-pill] CSV updated:', STATUS_CSV_PATH, '->', label)
+  } catch (e) {
+    console.error('[status-pill] failed to write CSV:', e)
+  }
+}
+
 const liveSockets = new Set<WebSocket>()
 const socketStates = new Map<
   WebSocket,
@@ -330,10 +381,10 @@ function buildLineChartSubgraph(params: {
     properties: {
       title: 'Line Chart',
       mapping: { x: 'time_period', y: 'obs_value', series: 'geo' },
-  datasetEntityId: 'linechart-dataset',
-  // Provide inline data as a first-class source to maximize block compatibility
-  // The block prefers config.properties.rows when available
-  rows: params.rows,
+      datasetEntityId: 'linechart-dataset',
+      // Provide inline data as a first-class source to maximize block compatibility
+      // The block prefers config.properties.rows when available
+      rows: params.rows,
       xField: 'time_period',
       yField: 'obs_value',
       seriesField: 'geo',
@@ -870,16 +921,16 @@ const scenarios: Record<string, ScenarioDefinition> = {
       }
     ],
     applyUpdate: ({ state, update }) => {
-      const entity = state.graph.entities.find((item) => item.entityId === update.entityId)
+  const entity = state.graph.entities.find((item: Entity) => item.entityId === update.entityId)
       if (!entity) return
       entity.properties = { ...entity.properties, ...update.properties }
 
-  if ((entity as Entity).entityTypeId === 'https://vivafolio.dev/entity-types/task/v1') {
+      if ((entity as Entity).entityTypeId === 'https://vivafolio.dev/entity-types/task/v1') {
         const tasks = (state.graph.entities as Entity[]).filter(
           (item) => item.entityTypeId === 'https://vivafolio.dev/entity-types/task/v1'
         )
         const board = state.graph.entities.find(
-          (item) => item.entityId === 'kanban-board-1'
+          (item: Entity) => item.entityId === 'kanban-board-1'
         )
         if (board) {
           board.properties = {
@@ -924,16 +975,16 @@ const scenarios: Record<string, ScenarioDefinition> = {
       }
     ],
     applyUpdate: ({ state, update }) => {
-      const entity = state.graph.entities.find((item) => item.entityId === update.entityId)
+  const entity = state.graph.entities.find((item: Entity) => item.entityId === update.entityId)
       if (!entity) return
       entity.properties = { ...entity.properties, ...update.properties }
 
-  if ((entity as Entity).entityTypeId === 'https://vivafolio.dev/entity-types/task/v1') {
+      if ((entity as Entity).entityTypeId === 'https://vivafolio.dev/entity-types/task/v1') {
         const tasks = (state.graph.entities as Entity[]).filter(
           (item) => item.entityTypeId === 'https://vivafolio.dev/entity-types/task/v1'
         )
         const board = state.graph.entities.find(
-          (item) => item.entityId === 'kanban-board-1'
+          (item: Entity) => item.entityId === 'kanban-board-1'
         )
         if (board) {
           board.properties = {
@@ -987,15 +1038,15 @@ const scenarios: Record<string, ScenarioDefinition> = {
       }
     ],
     applyUpdate: ({ state, update }) => {
-      const entity = state.graph.entities.find((item) => item.entityId === update.entityId)
+  const entity = state.graph.entities.find((item: Entity) => item.entityId === update.entityId)
       if (!entity) return
       entity.properties = { ...entity.properties, ...update.properties }
 
-  if ((entity as Entity).entityTypeId === 'https://vivafolio.dev/entity-types/task/v1') {
+      if ((entity as Entity).entityTypeId === 'https://vivafolio.dev/entity-types/task/v1') {
         const tasks = (state.graph.entities as Entity[]).filter(
           (item) => item.entityTypeId === 'https://vivafolio.dev/entity-types/task/v1'
         )
-        const board = state.graph.entities.find((item) => item.entityId === 'kanban-board-1')
+  const board = state.graph.entities.find((item: Entity) => item.entityId === 'kanban-board-1')
         if (board) {
           board.properties = {
             ...board.properties,
@@ -1040,7 +1091,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
       }
     ],
     applyUpdate: ({ state, update }) => {
-      const entity = state.graph.entities.find((item) => item.entityId === update.entityId)
+  const entity = state.graph.entities.find((item: any) => (item as any).entityId === update.entityId)
       if (!entity) return
       entity.properties = { ...entity.properties, ...update.properties }
     }
@@ -1085,7 +1136,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
       }
     ],
     applyUpdate: ({ state, update }) => {
-      const entity = state.graph.entities.find((item) => item.entityId === update.entityId)
+  const entity = state.graph.entities.find((item: any) => (item as any).entityId === update.entityId)
       if (!entity) return
       entity.properties = { ...entity.properties, ...update.properties }
     }
@@ -1126,7 +1177,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
       }
     ],
     applyUpdate: ({ state, update }) => {
-      const entity = state.graph.entities.find((item) => item.entityId === update.entityId)
+  const entity = state.graph.entities.find((item: any) => (item as any).entityId === update.entityId)
       if (!entity) return
       entity.properties = { ...entity.properties, ...update.properties }
     }
@@ -1160,7 +1211,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
       }
     ],
     applyUpdate: ({ state, update }) => {
-      const entity = state.graph.entities.find((item) => item.entityId === update.entityId)
+      const entity = state.graph.entities.find((item: Entity) => item.entityId === update.entityId)
       if (!entity) return
       entity.properties = { ...entity.properties, ...update.properties }
       // Add timestamp for tracking updates
@@ -1191,7 +1242,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
       }
     ],
     applyUpdate: ({ state, update }) => {
-      const entity = state.graph.entities.find((item) => item.entityId === update.entityId)
+      const entity = state.graph.entities.find((item: Entity) => item.entityId === update.entityId)
       if (!entity) return
       entity.properties = { ...entity.properties, ...update.properties }
       // Add timestamp for tracking updates
@@ -1210,7 +1261,11 @@ const scenarios: Record<string, ScenarioDefinition> = {
           properties: {
             'https://blockprotocol.org/@blockprotocol/types/property-type/name/': 'Status Pill Example',
             'https://blockprotocol.org/@blockprotocol/types/property-type/name/v/1': 'Status Pill Example',
-            status: 'in-progress'
+            status: (() => {
+              const s = readStatusFromCsv()
+              console.log('[status-pill] scenario init: setting entity.properties.status =', s)
+              return s
+            })()
           }
         }],
         links: []
@@ -1233,7 +1288,12 @@ const scenarios: Record<string, ScenarioDefinition> = {
           },
           {
             logicalName: 'main.js',
-            physicalPath: '/blocks/status-pill/src/index.js',
+            physicalPath: '/blocks/status-pill/dist/main.cjs',
+            cachingTag: nextCachingTag()
+          },
+          {
+            logicalName: 'styles.css',
+            physicalPath: '/blocks/status-pill/dist/styles.css',
             cachingTag: nextCachingTag()
           },
           {
@@ -1244,10 +1304,38 @@ const scenarios: Record<string, ScenarioDefinition> = {
         ]
       }
     ],
-    applyUpdate: ({ state, update }) => {
-      const entity = state.graph.entities.find((item) => item.entityId === update.entityId)
+    applyUpdate: ({ state, update, socket }) => {
+      const entity = state.graph.entities.find((item: Entity) => item.entityId === update.entityId)
       if (!entity) return
+      console.log('[status-pill] applyUpdate: incoming properties =', JSON.stringify(update.properties))
       entity.properties = { ...entity.properties, ...update.properties }
+      // Persist status changes to CSV if provided
+      const nextStatus = (update.properties?.status as string | undefined)
+      if (typeof nextStatus === 'string' && nextStatus.trim().length > 0) {
+        console.log('[status-pill] applyUpdate: nextStatus =', nextStatus)
+        // Ensure in-memory state uses normalized key used by the block
+        const norm = nextStatus.toLowerCase().replace(/\s+/g, '-').replace(/_/g, '-') as any
+        entity.properties.status = norm
+        console.log('[status-pill] applyUpdate: normalized in-memory status =', norm)
+        // Persist asynchronously to CSV (human label)
+        // After persistence completes, emit a persistence confirmation so tests/clients can await deterministically
+        void writeStatusToCsv(nextStatus).then(() => {
+          try {
+            socket?.send(
+              JSON.stringify({
+                type: 'status/persisted',
+                payload: {
+                  entityId: update.entityId,
+                  status: norm,
+                  label: StatusLabelMap[(StatusKeyMap[norm] ?? norm) as keyof typeof StatusLabelMap] ?? nextStatus
+                }
+              })
+            )
+          } catch (e) {
+            console.warn('[status-pill] failed to send status/persisted message', e)
+          }
+        })
+      }
     }
   },
   'person-chip-example': {
@@ -1287,7 +1375,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
       }
     ],
     applyUpdate: ({ state, update }) => {
-      const entity = state.graph.entities.find((item) => item.entityId === update.entityId)
+      const entity = state.graph.entities.find((item: Entity) => item.entityId === update.entityId)
       if (!entity) return
       entity.properties = { ...entity.properties, ...update.properties }
     }
@@ -1365,7 +1453,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
       }
     ],
     applyUpdate: ({ state, update }) => {
-      const entity = state.graph.entities.find((item) => item.entityId === update.entityId)
+      const entity = state.graph.entities.find((item: Entity) => item.entityId === update.entityId)
       if (!entity) return
       entity.properties = { ...entity.properties, ...update.properties }
     }
@@ -1406,7 +1494,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
       }
     ],
     applyUpdate: ({ state, update }) => {
-      const entity = state.graph.entities.find((item) => item.entityId === update.entityId)
+      const entity = state.graph.entities.find((item: Entity) => item.entityId === update.entityId)
       if (!entity) return
       entity.properties = { ...entity.properties, ...update.properties }
     }
@@ -1447,7 +1535,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
       }
     ],
     applyUpdate: ({ state, update }) => {
-      const entity = state.graph.entities.find((item) => item.entityId === update.entityId)
+      const entity = state.graph.entities.find((item: Entity) => item.entityId === update.entityId)
       if (!entity) return
       entity.properties = { ...entity.properties, ...update.properties }
     }
@@ -1490,7 +1578,12 @@ const scenarios: Record<string, ScenarioDefinition> = {
           },
           {
             logicalName: 'main.js',
-            physicalPath: '/blocks/status-pill/src/index.js',
+            physicalPath: '/blocks/status-pill/dist/main.cjs',
+            cachingTag: nextCachingTag()
+          },
+          {
+            logicalName: 'styles.css',
+            physicalPath: '/blocks/status-pill/dist/styles.css',
             cachingTag: nextCachingTag()
           },
           {
@@ -1527,7 +1620,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
       return notifications
     },
     applyUpdate: ({ state, update }) => {
-      const entity = state.graph.entities.find((item) => item.entityId === update.entityId)
+      const entity = state.graph.entities.find((item: Entity) => item.entityId === update.entityId)
       if (!entity) return
       entity.properties = { ...entity.properties, ...update.properties }
     }
@@ -1640,7 +1733,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
       return notifications
     },
     applyUpdate: ({ state, update }) => {
-      const entity = state.graph.entities.find((item) => item.entityId === update.entityId)
+      const entity = state.graph.entities.find((item: Entity) => item.entityId === update.entityId)
       if (!entity) return
       entity.properties = { ...entity.properties, ...update.properties }
     }
@@ -1833,8 +1926,8 @@ export async function startServer(options: StartServerOptions = {}) {
     }))
   }
 
-// Framework watchers and bundles
-let frameworkWatchers: FrameworkWatcher[] = []
+  // Framework watchers and bundles
+  let frameworkWatchers: FrameworkWatcher[] = []
 
 // Local Block Development
 let localBlockDirs: string[] = []
@@ -1870,8 +1963,8 @@ let localBlockBuilder: any | undefined
       // Only scan for direct data files - CSV and Markdown files
       // vivafolio_data! constructs in .viv files are handled via LSP notifications
       path.join(ROOT_DIR, '..', '..', 'test', 'projects'),
-  // Also watch the demo datasets used by scenarios (CSV, etc.)
-  path.join(ROOT_DIR, 'data')
+      // Also watch the demo datasets used by scenarios (CSV, etc.)
+      path.join(ROOT_DIR, 'data')
     ],
     supportedExtensions: ['csv', 'md'], // Only direct data files, not source files
     excludePatterns: ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/vivafolio-data-examples/**'],
@@ -1954,163 +2047,163 @@ let localBlockBuilder: any | undefined
 
   await ensureHtmlTemplateAssets()
 
-// Set up file watcher for a local block directory
-function setupLocalBlockWatcher(dirPath: string): void {
-  try {
-    const resolvedPath = path.resolve(dirPath)
-    console.log(`[local-block-watcher] Setting up watcher for: ${resolvedPath}`)
-
-    // Ensure the directory exists
-    if (!existsSync(resolvedPath)) {
-      mkdirSync(resolvedPath, { recursive: true })
-      console.log(`[local-block-watcher] Created directory: ${resolvedPath}`)
-    }
-
-    // Use Node.js fs.watch for file monitoring
-    const watcher = watch(resolvedPath, { recursive: true }, (eventType, filename) => {
-      if (filename) {
-        const filePath = path.join(resolvedPath, filename)
-        console.log(`[local-block-watcher] ${eventType} detected: ${filePath}`)
-
-        // Only process relevant source files
-        const ext = path.extname(filePath)
-        const relevantExtensions = ['.ts', '.tsx', '.js', '.jsx', '.vue', '.svelte', '.html', '.css', '.json']
-
-        if (relevantExtensions.includes(ext)) {
-          handleLocalBlockFileChange(filePath, eventType as 'change' | 'rename')
-        }
-      }
-    })
-
-    localBlockWatchers.set(resolvedPath, {
-      watcher,
-      dispose: () => {
-        watcher.close()
-        console.log(`[local-block-watcher] Cleaned up watcher for ${resolvedPath}`)
-      }
-    })
-
-  } catch (error) {
-    console.error(`[local-block-watcher] Failed to set up watcher for ${dirPath}:`, error)
-  }
-}
-
-// Handle file changes in local block directories
-function handleLocalBlockFileChange(filePath: string, changeType: 'change' | 'rename'): void {
-  console.log(`[local-block-watcher] Processing ${changeType} for: ${filePath}`)
-
-  // The localBlockBuilder will handle the rebuild automatically due to watchMode: true
-  // The onBundleUpdate callback will broadcast the update
-}
-
-// Broadcast local block updates to connected clients
-function broadcastLocalBlockUpdate(blockId: string): void {
-  console.log(`[local-block-broadcast] Broadcasting update for block: ${blockId}`)
-
-  // Send cache invalidation to all connected WebSocket clients
-  for (const socket of liveSockets) {
+  // Set up file watcher for a local block directory
+  function setupLocalBlockWatcher(dirPath: string): void {
     try {
-      socket.send(JSON.stringify({
-        type: 'cache:invalidate',
-        payload: { blockId }
-      }))
-    } catch (error) {
-      console.error('[local-block-broadcast] Error broadcasting to socket:', error)
-    }
-  }
-}
+      const resolvedPath = path.resolve(dirPath)
+      console.log(`[local-block-watcher] Setting up watcher for: ${resolvedPath}`)
 
-// Helper function to check if a file exists
-async function fileExists(filePath: string): Promise<boolean> {
-  try {
-    await fs.access(filePath)
-    return true
-  } catch {
-    return false
-  }
-}
-
-// Helper function to get content type from file extension
-function getContentType(filePath: string): string {
-  const ext = path.extname(filePath).toLowerCase()
-  switch (ext) {
-    case '.js':
-    case '.mjs':
-      return 'application/javascript'
-    case '.css':
-      return 'text/css'
-    case '.html':
-      return 'text/html'
-    case '.json':
-      return 'application/json'
-    case '.png':
-      return 'image/png'
-    case '.jpg':
-    case '.jpeg':
-      return 'image/jpeg'
-    case '.svg':
-      return 'image/svg+xml'
-    case '.woff':
-      return 'font/woff'
-    case '.woff2':
-      return 'font/woff2'
-    default:
-      return 'text/plain'
-  }
-}
-
-// Robust CSV parser (handles quotes and escaped quotes) and entity builder
-function parseCsvLine(line: string): string[] {
-  const out: string[] = []
-  let cur = ''
-  let inQuotes = false
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i]
-    if (ch === '"') {
-      if (inQuotes && line[i + 1] === '"') { // escaped quote
-        cur += '"'
-        i++
-      } else {
-        inQuotes = !inQuotes
+      // Ensure the directory exists
+      if (!existsSync(resolvedPath)) {
+        mkdirSync(resolvedPath, { recursive: true })
+        console.log(`[local-block-watcher] Created directory: ${resolvedPath}`)
       }
-    } else if (ch === ',' && !inQuotes) {
-      out.push(cur)
-      cur = ''
-    } else {
-      cur += ch
-    }
-  }
-  out.push(cur)
-  return out.map((s) => s.trim())
-}
 
-async function parseCsvEntities(filePath: string) {
-  try {
-    const content = await fs.readFile(filePath, 'utf8')
-    const lines = content.split(/\r?\n/).filter(Boolean)
-    if (lines.length < 2) return []
-    const headers = parseCsvLine(lines[0]).map(h => h.replace(/^\"|\"$/g, ''))
-    const entities: any[] = []
-    for (let i = 1; i < lines.length; i++) {
-      const cells = parseCsvLine(lines[i])
-      const props: Record<string, unknown> = {}
-      headers.forEach((h, idx) => {
-        props[h] = cells[idx] ?? ''
+      // Use Node.js fs.watch for file monitoring
+      const watcher = watch(resolvedPath, { recursive: true }, (eventType, filename) => {
+        if (filename) {
+          const filePath = path.join(resolvedPath, filename)
+          console.log(`[local-block-watcher] ${eventType} detected: ${filePath}`)
+
+          // Only process relevant source files
+          const ext = path.extname(filePath)
+          const relevantExtensions = ['.ts', '.tsx', '.js', '.jsx', '.vue', '.svelte', '.html', '.css', '.json']
+
+          if (relevantExtensions.includes(ext)) {
+            handleLocalBlockFileChange(filePath, eventType as 'change' | 'rename')
+          }
+        }
       })
-      entities.push({
-        entityId: `${path.basename(filePath, '.csv')}-row-${i - 1}`,
-        entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
-        properties: props,
-        sourceType: 'csv',
-        sourcePath: filePath
+
+      localBlockWatchers.set(resolvedPath, {
+        watcher,
+        dispose: () => {
+          watcher.close()
+          console.log(`[local-block-watcher] Cleaned up watcher for ${resolvedPath}`)
+        }
       })
+
+    } catch (error) {
+      console.error(`[local-block-watcher] Failed to set up watcher for ${dirPath}:`, error)
     }
-    return entities
-  } catch (e) {
-    console.warn('[d3-line-graph] CSV fallback parse failed:', e)
-    return []
   }
-}
+
+  // Handle file changes in local block directories
+  function handleLocalBlockFileChange(filePath: string, changeType: 'change' | 'rename'): void {
+    console.log(`[local-block-watcher] Processing ${changeType} for: ${filePath}`)
+
+    // The localBlockBuilder will handle the rebuild automatically due to watchMode: true
+    // The onBundleUpdate callback will broadcast the update
+  }
+
+  // Broadcast local block updates to connected clients
+  function broadcastLocalBlockUpdate(blockId: string): void {
+    console.log(`[local-block-broadcast] Broadcasting update for block: ${blockId}`)
+
+    // Send cache invalidation to all connected WebSocket clients
+    for (const socket of liveSockets) {
+      try {
+        socket.send(JSON.stringify({
+          type: 'cache:invalidate',
+          payload: { blockId }
+        }))
+      } catch (error) {
+        console.error('[local-block-broadcast] Error broadcasting to socket:', error)
+      }
+    }
+  }
+
+  // Helper function to check if a file exists
+  async function fileExists(filePath: string): Promise<boolean> {
+    try {
+      await fs.access(filePath)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  // Helper function to get content type from file extension
+  function getContentType(filePath: string): string {
+    const ext = path.extname(filePath).toLowerCase()
+    switch (ext) {
+      case '.js':
+      case '.mjs':
+        return 'application/javascript'
+      case '.css':
+        return 'text/css'
+      case '.html':
+        return 'text/html'
+      case '.json':
+        return 'application/json'
+      case '.png':
+        return 'image/png'
+      case '.jpg':
+      case '.jpeg':
+        return 'image/jpeg'
+      case '.svg':
+        return 'image/svg+xml'
+      case '.woff':
+        return 'font/woff'
+      case '.woff2':
+        return 'font/woff2'
+      default:
+        return 'text/plain'
+    }
+  }
+
+  // Robust CSV parser (handles quotes and escaped quotes) and entity builder
+  function parseCsvLine(line: string): string[] {
+    const out: string[] = []
+    let cur = ''
+    let inQuotes = false
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i]
+      if (ch === '"') {
+        if (inQuotes && line[i + 1] === '"') { // escaped quote
+          cur += '"'
+          i++
+        } else {
+          inQuotes = !inQuotes
+        }
+      } else if (ch === ',' && !inQuotes) {
+        out.push(cur)
+        cur = ''
+      } else {
+        cur += ch
+      }
+    }
+    out.push(cur)
+    return out.map((s) => s.trim())
+  }
+
+  async function parseCsvEntities(filePath: string) {
+    try {
+      const content = await fs.readFile(filePath, 'utf8')
+      const lines = content.split(/\r?\n/).filter(Boolean)
+      if (lines.length < 2) return []
+      const headers = parseCsvLine(lines[0]).map(h => h.replace(/^\"|\"$/g, ''))
+      const entities: any[] = []
+      for (let i = 1; i < lines.length; i++) {
+        const cells = parseCsvLine(lines[i])
+        const props: Record<string, unknown> = {}
+        headers.forEach((h, idx) => {
+          props[h] = cells[idx] ?? ''
+        })
+        entities.push({
+          entityId: `${path.basename(filePath, '.csv')}-row-${i - 1}`,
+          entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
+          properties: props,
+          sourceType: 'csv',
+          sourcePath: filePath
+        })
+      }
+      return entities
+    } catch (e) {
+      console.warn('[d3-line-graph] CSV fallback parse failed:', e)
+      return []
+    }
+  }
 
   // Setup framework watchers if enabled
   if (enableFrameworkWatch) {
@@ -2375,9 +2468,9 @@ async function parseCsvEntities(filePath: string) {
     const scenario = scenarios[scenarioId] ?? scenarios['hello-world']
     const state = scenario.createState()
 
-  // Special handling for indexing-service and d3-line-graph scenarios
+    // Special handling for indexing-service and d3-line-graph scenarios
     let entityGraph = state.graph
-  if (scenarioId === 'indexing-service') {
+    if (scenarioId === 'indexing-service') {
       // Get entities from IndexingService for the indexing-service scenario
       const allEntities = indexingService.getAllEntities()
       const entities = allEntities.map((metadata: any) => ({
@@ -2388,23 +2481,23 @@ async function parseCsvEntities(filePath: string) {
         sourcePath: metadata.sourcePath
       }))
       entityGraph = { entities, links: [] }
-  } else if (scenarioId === 'd3-line-graph-example') {
+    } else if (scenarioId === 'd3-line-graph-example') {
       // Wait for initial index scan to yield CSV entities
-  for (let i = 0; i < 50; i++) {
+      for (let i = 0; i < 50; i++) {
         const hasCsv = indexingService.getAllEntities().some((m: any) => m.sourceType === 'csv')
         if (hasCsv) break
         await new Promise(r => setTimeout(r, 100))
       }
       // Prefer exact CSV basename match to avoid mixing datasets
       const targetName = 'sdg_08_10_page_linear_2_0.csv'
-  // Filter entities locally (helpers may not be present in built dist)
-  const allEntities = indexingService.getAllEntities()
-  const fromTargetCsv = allEntities.filter((m: any) => m.sourceType === 'csv' && path.basename(m.sourcePath) === targetName)
-  const allCsv = allEntities.filter((m: any) => m.sourceType === 'csv')
+      // Filter entities locally (helpers may not be present in built dist)
+      const allEntities = indexingService.getAllEntities()
+      const fromTargetCsv = allEntities.filter((m: any) => m.sourceType === 'csv' && path.basename(m.sourcePath) === targetName)
+      const allCsv = allEntities.filter((m: any) => m.sourceType === 'csv')
       console.log('[d3-line-graph] target matches:', fromTargetCsv.length, 'all csv:', allCsv.length)
 
       const selected = (fromTargetCsv.length ? fromTargetCsv : allCsv)
-  const materializedRows: Array<Record<string, unknown>> = selected.map((m: any) => m.properties).filter(Boolean)
+      const materializedRows: Array<Record<string, unknown>> = selected.map((m: any) => m.properties).filter(Boolean)
 
       // Debug: write an indexer snapshot to logs for investigation
       try {
@@ -2472,33 +2565,27 @@ async function parseCsvEntities(filePath: string) {
           }
         })
       )
-      } else if (scenarioId === 'd3-line-graph-example') {
-        // Send the D3 line graph notification with the populated entityGraph from IndexingService
-        const notifications = scenario.buildNotifications(state, request)
-        for (const base of notifications) {
-          const payload = { ...base, entityGraph, entityId: 'linechart-config' }
-          socket.send(
-            JSON.stringify({
-              type: 'vivafolioblock-notification',
-              payload
-            })
-          )
-        }
+    } else if (scenarioId === 'd3-line-graph-example') {
+      // Send the D3 line graph notification with the populated entityGraph from IndexingService
+      const notifications = scenario.buildNotifications(state, request)
+      for (const base of notifications) {
+        const payload = { ...base, entityGraph, entityId: 'linechart-config' }
+        socket.send(
+          JSON.stringify({
+            type: 'vivafolioblock-notification',
+            payload
+          })
+        )
+      }
     } else {
   dispatchScenarioNotifications(socket, scenario, state, customParams)
     }
 
-    socket.on('close', (code, reason) => {
+    socket.on('close', () => {
       liveSockets.delete(socket)
       socketStates.delete(socket)
       transportLayer.unregisterTransport(transportId)
-      const reasonStr = (() => {
-        try {
-          return reason ? reason.toString() : ''
-        } catch { return '' }
-      })()
-      // ws doesn't expose wasClean on server side; log code and reason
-      console.log(`[transport] Unregistered transport ${transportId} (code=${code}${reasonStr ? `, reason=${reasonStr}` : ''})`)
+      console.log(`[transport] Unregistered transport ${transportId}`)
     })
 
     // All messages go through the IndexingService transport layer
@@ -2518,6 +2605,7 @@ async function parseCsvEntities(filePath: string) {
         // Transport layer handles all Block Protocol operations
         // For scenarios with applyUpdate, also apply updates for testing
         if (payload?.type === 'graph/update' && scenario.applyUpdate) {
+          console.log('[transport] graph/update payload received:', JSON.stringify(payload.payload))
           const connection = { scenario, state }
           scenario.applyUpdate({
             state: connection.state,
@@ -2535,6 +2623,19 @@ async function parseCsvEntities(filePath: string) {
           // Update the entityGraph for consistency
           // Note: In production, all updates would go through IndexingService only
           dispatchScenarioNotifications(socket, scenario, connection.state, request)
+
+          // Send a lightweight acknowledgment so clients/tests can wait deterministically
+          try {
+            const upd = payload.payload as GraphUpdate
+            socket.send(
+              JSON.stringify({
+                type: 'graph/ack',
+                payload: { entityId: upd.entityId, properties: upd.properties }
+              })
+            )
+          } catch (err) {
+            console.warn('[blockprotocol-poc] failed to send graph/ack', err)
+          }
         }
       } catch (error) {
         console.error('[blockprotocol-poc] failed to process message', error)
