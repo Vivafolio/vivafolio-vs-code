@@ -32,7 +32,7 @@
             url = "https://code.visualstudio.com/sha/download?build=insider&os=${osParam}";
           in pkgs.fetchurl ({ inherit url name; } //
                (if pkgs.stdenv.hostPlatform.system == "x86_64-linux" then {
-                 sha256 = "sha256-DFmnjWH4DzpMBtBcC4XFrQwASKDj4m8FBA7LjFhcdvQ=";
+                 sha256 = "sha256-u+soSCBDENv0kVF3u7c1WUZXts6e1c66lFGICEDOo1A=";
                } else if pkgs.stdenv.hostPlatform.system == "aarch64-linux" then {
                  sha256 = "sha256-pryuJPBxDvxS+pkrDWioiFghs+QNqge+iQvcwCUB0dg=";
                } else {
