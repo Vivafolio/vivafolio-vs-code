@@ -62,7 +62,7 @@ This document tracks the proof-of-concept effort to validate the Block Protocol 
 - ✅ **Component Analysis Complete**: Documented current responsibilities and identified overlaps
 - ✅ **Clear Separation Defined**: Block building, entity management, demo serving, and production runtime are distinct
 - ✅ **Component Renaming**: `blocks/dev-server.js` becomes "Block Builder & Server", POC server becomes "Demo Application Server"
-- ✅ **Documentation Updated**: BlockProtocol-DevServer.md now shows the unified architecture
+- ✅ **Documentation Updated**: BlockProtocol-in-Vivafolio-Architecture.md now shows the unified architecture
 - ✅ **Basic Block Directory Structure**: Created `blocks/` directory with color-picker and color-square example blocks
 
 #### **G5.1.2 - Block Builder & Server as Reusable Library (Week 2)**
@@ -192,7 +192,7 @@ This document tracks the proof-of-concept effort to validate the Block Protocol 
 **Key Implementation Files for G5.1.5:**
 - `apps/blockprotocol-poc/tests/hello-block.spec.ts` - Ready for full E2E test implementation
 - `docs/BlockProtocol-E2E-POC.md` - Main status document (this file)
-- `docs/BlockProtocol-DevServer.md` - Architecture documentation
+- `docs/BlockProtocol-in-Vivafolio-Architecture.md` - Architecture documentation
 - `apps/blockprotocol-poc/src/server.ts` - POC server with complete local dev support
 
 ### 🎯 Phase G5.1 Completion Goals:
@@ -286,10 +286,10 @@ just test-block-loader-hooks      # Run block-loader hook tests specifically
 - **2025-09-18 (Midday)**
   - **HTML Template Inline Host (Resolved)**: Introduced a lightweight bridge that exposes `window.__vivafolioHtmlTemplateHost` so HTML entry blocks can register DOM mutators and send update callbacks without relying on the upstream Graph runtime (`apps/blockprotocol-poc/src/client/main.ts:610`, `apps/blockprotocol-poc/src/server.ts:125`, generated script in `external/html-template-block/src/app.js`). The inline scenario now consumes the same VivafolioBlock graph payload as other milestones, and `just test-blockprotocol-poc` passes the end-to-end assertions (`apps/blockprotocol-poc/tests/hello-block.spec.ts:203`).
 - **2025-09-18 (Afternoon)**
-  - **Dev Server Blueprint**: Documented CLI contract, programmatic API, and reusable requirements for the standalone dev server (`docs/BlockProtocol-DevServer.md`, `apps/blockprotocol-poc/src/server.ts:808`).
+   - **Dev Server Blueprint**: Documented CLI contract, programmatic API, and reusable requirements for the standalone dev server (`docs/BlockProtocol-in-Vivafolio-Architecture.md`, `apps/blockprotocol-poc/src/server.ts:808`).
   - **Testing**: Added a Node smoke test that starts the dev server on an ephemeral port and asserts `/healthz` (`npm run test:devserver`, `apps/blockprotocol-poc/tests-node/dev-server-smoke.test.ts`).
 - **2025-09-18 (Evening)**
-  - **Milestone F0 (Complete)**: Host Dev Server Blueprint implemented with CLI contract, programmatic API, and reusable requirements documented in `docs/BlockProtocol-DevServer.md`. Server can be launched programmatically and serves multiple block types concurrently (`apps/blockprotocol-poc/src/server.ts:808`, `apps/blockprotocol-poc/tests-node/dev-server-smoke.test.ts`).
+   - **Milestone F0 (Complete)**: Host Dev Server Blueprint implemented with CLI contract, programmatic API, and reusable requirements documented in `docs/BlockProtocol-in-Vivafolio-Architecture.md`. Server can be launched programmatically and serves multiple block types concurrently (`apps/blockprotocol-poc/src/server.ts:808`, `apps/blockprotocol-poc/tests-node/dev-server-smoke.test.ts`).
 - **2025-09-18 (Late Evening)**
   - **Milestone F1 (Complete)**: Custom Element Baseline implemented with vanilla WebComponent block demonstrating Graph service integration and entity updates (`apps/blockprotocol-poc/external/custom-element-block/`, `apps/blockprotocol-poc/src/server.ts:752`, `apps/blockprotocol-poc/src/client/main.ts:401`). Playwright coverage validates round-trip updates through the dev server.
   - **Milestone F2 (Prototype)**: Framework Starter Kits created for SolidJS, Vue.js, Svelte, Lit, and Angular with TypeScript helper libraries wrapping component lifecycles to produce Block Protocol custom elements (`packages/block-frameworks/solidjs/`, `packages/block-frameworks/vue/`, `packages/block-frameworks/svelte/`, `packages/block-frameworks/lit/`, `packages/block-frameworks/angular/`). Each framework includes basic examples but compilation is placeholder-only.
@@ -439,7 +439,7 @@ just test-block-loader-hooks      # Run block-loader hook tests specifically
 
 **✅ COMPLETED:**
 1. **Milestone F0 — Host Dev Server Blueprint (Complete)**
-   Implemented reusable development server with CLI contract, programmatic API, and comprehensive documentation (`docs/BlockProtocol-DevServer.md`). Server supports multiple block types concurrently with proper resource serving and WebSocket messaging (`apps/blockprotocol-poc/src/server.ts:808`, `apps/blockprotocol-poc/tests-node/dev-server-smoke.test.ts`).
+   Implemented reusable development server with CLI contract, programmatic API, and comprehensive documentation (`docs/BlockProtocol-in-Vivafolio-Architecture.md`). Server supports multiple block types concurrently with proper resource serving and WebSocket messaging (`apps/blockprotocol-poc/src/server.ts:808`, `apps/blockprotocol-poc/tests-node/dev-server-smoke.test.ts`).
 
 2. **Milestone F1 — Custom Element Baseline (Complete)**
    Implemented vanilla WebComponent block with full Block Protocol integration demonstrating Graph service round-trips and entity updates (`apps/blockprotocol-poc/external/custom-element-block/`). Includes helper utilities for block registration, asset loading, and Playwright test coverage (`apps/blockprotocol-poc/src/server.ts:752`, `apps/blockprotocol-poc/src/client/main.ts:401`).
@@ -463,7 +463,7 @@ just test-block-loader-hooks      # Run block-loader hook tests specifically
 ## 📋 Deliverables
 - `docs/BlockProtocol-E2E-POC.md` (this document) maintained alongside progress updates.
 - `docs/Coda-and-Notion-Blocks-POC.md` documenting cross-framework block examples (completed).
-- `docs/BlockProtocol-DevServer.md` documenting standalone dev server requirements (completed).
+- `docs/BlockProtocol-in-Vivafolio-Architecture.md` documenting standalone dev server requirements (completed).
 - `README-STANDALONE.md` - Standalone server documentation and usage guide.
 - `apps/blockprotocol-poc/` containing frontend, backend, and comprehensive test suite.
 - `apps/blockprotocol-poc/src/standalone-server.ts` - Standalone server library for external consumption.
