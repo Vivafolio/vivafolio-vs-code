@@ -21,7 +21,9 @@ export interface StatusPillProps extends BlockProps<StatusPillGraphService> {}
 const StatusPill: Component<StatusPillProps> = (props) => {
   const entity = () => props.graph.blockEntity as Entity
   const [open, setOpen] = createSignal(false)
-  const status = () => (entity().properties?.['status'] as StatusOption) || 'in-progress'
+  // Optimistic UI: prefer locally chosen status until next server notification arrives
+  const [pending, setPending] = createSignal<StatusOption | undefined>(undefined)
+  const status = () => (pending() ?? ((entity().properties?.['status'] as StatusOption) || 'in-progress'))
 
   const cfg = () => STATUS[status()] ?? STATUS['in-progress']
 
@@ -36,6 +38,8 @@ const StatusPill: Component<StatusPillProps> = (props) => {
   const commit = async (next: StatusOption) => {
     const id = entity().metadata?.recordId?.entityId ?? entity().entityId
   try { console.log('[StatusPill] commit called with', next, 'for entity', id) } catch {}
+  // Optimistic update first
+  setPending(next)
   await props.graph.updateEntity?.({ entityId: id, properties: { ...(entity().properties || {}), status: next } })
   try { console.log('[StatusPill] updateEntity invoked for', id, 'next status =', next) } catch {}
     setOpen(false)
