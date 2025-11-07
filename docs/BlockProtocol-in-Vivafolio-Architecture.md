@@ -245,7 +245,7 @@ await close()
 **Key Implementation Files for Current Work:**
 - `apps/blockprotocol-poc/tests/hello-block.spec.ts` - Test framework ready for full E2E implementation
 - `docs/BlockProtocol-E2E-POC.md` - Main status document with milestone tracking
-- `docs/BlockProtocol-DevServer.md` - Architecture documentation (this file)
+ - `docs/BlockProtocol-in-Vivafolio-Architecture.md` - Architecture documentation (this file)
 
 ## 6. Block Examples
 
@@ -259,3 +259,4 @@ When implementing the Block Builder & Server, refer to `docs/Coda-and-Notion-Blo
 * **Test Scenarios**: Currently embedded in POC server, will remain but delegate entity operations
 
 See `docs/BlockProtocol-E2E-POC.md` Phase G5.1 milestones for detailed implementation steps.
+

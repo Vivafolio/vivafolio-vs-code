@@ -11,6 +11,7 @@
 import { GraphEmbedderHandler } from '@blockprotocol/graph'
 import * as React from 'react'
 import * as ReactDOM from 'react-dom/client'
+import type { Entity, EntityGraph, BlockResource, VivafolioBlockNotification } from '@vivafolio/block-core'
 
 // Extend window interface for HTML template support
 declare global {
@@ -32,7 +33,6 @@ interface HookMessage {
     entityId: string
   }
 }
-import type { Entity, EntityGraph, BlockResource, VivafolioBlockNotification } from '@vivafolio/block-core'
 import {
   BlockLoaderDiagnostics,
   BlockLoaderOptions,
@@ -148,6 +148,28 @@ export class VivafolioBlockLoader implements BlockLoader {
   // Mini-host for nested blocks
   private miniHost: MiniHost
   private mountedBlocks = new Map<string, HTMLElement>()
+  
+  // Spec-style update bridge (window.postMessage handler)
+  private _handleBlockProtocolMessage = (event: MessageEvent) => {
+    const data = (event && (event as any).data) || undefined
+    if (!data || typeof data !== 'object') return
+    if ((data as any).type !== 'updateEntity') return
+
+    const payload = (data as any).data ?? data
+    const entityId: string | undefined = payload?.entityId
+    const properties: Record<string, unknown> = payload?.properties ?? {}
+
+    // If the message carries a blockId, make sure it matches this loader instance
+    const msgBlockId: string | undefined = (data as any).blockId
+    const currentBlockId = this.notification?.blockId
+    if (msgBlockId && currentBlockId && msgBlockId !== currentBlockId) return
+
+    if (entityId && typeof this.options.onBlockUpdate === 'function') {
+      try {
+        this.options.onBlockUpdate({ entityId, properties })
+      } catch {}
+    }
+  }
 
   constructor(notification: VivafolioBlockNotification, options: BlockLoaderOptions = {}) {
     this.notification = notification
@@ -175,15 +197,20 @@ export class VivafolioBlockLoader implements BlockLoader {
     console.log('[BlockLoader] Loading block:', notification.blockId, notification.blockType)
 
     this.notification = notification
+    // Preserve options provided via constructor (especially onBlockUpdate),
+    // only fill in defaults for missing values.
     this.options = {
-      allowedDependencies: new Set(DEFAULT_ALLOWED_DEPENDENCIES),
-      enableIntegrityChecking: true,
-      enableDiagnostics: true,
-      onBlockUpdate: () => {}, // Will be set by caller
+      allowedDependencies: this.options.allowedDependencies || new Set(DEFAULT_ALLOWED_DEPENDENCIES),
+      enableIntegrityChecking: this.options.enableIntegrityChecking ?? true,
+      enableDiagnostics: this.options.enableDiagnostics ?? true,
+      onBlockUpdate: this.options.onBlockUpdate,
       resourcesCache: this.resourcesCache
     } as Required<BlockLoaderOptions>
 
-    // Extract block state from notification
+  // Begin listening for spec-style messages from block runtime
+  try { window.addEventListener('message', this._handleBlockProtocolMessage) } catch {}
+
+  // Extract block state from notification
     this.blockEntity = this.deriveBlockEntity(notification)
     this.blockGraph = this.deriveBlockGraph(notification)
     this.blockSubgraph = this.buildBlockEntitySubgraph(this.blockEntity, this.blockGraph)
@@ -244,6 +271,9 @@ export class VivafolioBlockLoader implements BlockLoader {
     this.destroyLocalModules()
     this.embedder?.destroy()
     this.reactRoot?.unmount()
+
+  // Tear down spec bridge listener
+  try { window.removeEventListener('message', this._handleBlockProtocolMessage) } catch {}
 
     if (this.customElementInstance) {
       this.customElementInstance.remove()
@@ -384,7 +414,8 @@ export class VivafolioBlockLoader implements BlockLoader {
   // Private implementation methods
 
   private detectBlockMode(): 'bundle' | 'html' {
-    const mainResource = this.findResource('main.js')
+    // Prefer standard main.js; fall back to legacy app.js used by some blocks
+    const mainResource = this.findResource('main.js') || this.findResource('app.js')
     const htmlResource = this.findResource('app.html')
     return mainResource ? 'bundle' : 'html'
   }
@@ -400,14 +431,16 @@ export class VivafolioBlockLoader implements BlockLoader {
     this.reactModule = reactModule.default || reactModule
     this.reactDomModule = reactDomModule.default || reactDomModule
 
-    const bundleUrl = this.resolveResourceUrl('main.js')
+    // Support legacy logicalName 'app.js' as bundle entry
+    const entryName = this.findResource('main.js') ? 'main.js' : 'app.js'
+    const bundleUrl = this.resolveResourceUrl(entryName)
     if (!bundleUrl) {
-      throw new Error('Bundle resource missing (main.js)')
+      throw new Error('Bundle resource missing (main.js/app.js)')
     }
 
     console.log('[BlockLoader] Bundle URL:', bundleUrl)
 
-    await this.prefetchLocalResources('main.js')
+  await this.prefetchLocalResources(entryName)
 
     console.log('[BlockLoader] Fetching bundle from:', bundleUrl)
     const bundleResponse = await this.fetchResource(bundleUrl, { cache: 'no-store' as RequestCache })
@@ -523,16 +556,19 @@ export class VivafolioBlockLoader implements BlockLoader {
           container.appendChild(customElement)
 
           if (typeof (factoryResult as any).init === 'function') {
-            (factoryResult as any).init({
+            const __vf_updateEntity = (properties: Record<string, unknown>) => {
+              try { console.log('[BlockLoader] factory.init updateEntity called with properties', properties) } catch {}
+              this.options.onBlockUpdate({
+                entityId: this.blockEntity.entityId,
+                properties
+              })
+            }
+            try { console.log('[BlockLoader] Calling factory.init; updateEntity typeof =', typeof __vf_updateEntity) } catch {}
+            ;(factoryResult as any).init({
               element: customElement,
               entity: this.blockEntity,
               readonly: false,
-              updateEntity: (properties: Record<string, unknown>) => {
-                this.options.onBlockUpdate({
-                  entityId: this.blockEntity.entityId,
-                  properties
-                })
-              }
+              updateEntity: __vf_updateEntity
             })
           }
 

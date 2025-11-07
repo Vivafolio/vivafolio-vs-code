@@ -257,7 +257,7 @@ export function createBlockElement<TGraph extends Partial<GraphService> = GraphS
     element: HTMLElement
     graph: TGraph
   }): (() => void) => {
-    const { element, graph } = params
+  const { element, graph } = params
 
     // Create container for SolidJS rendering
     const container = document.createElement('div')
@@ -271,6 +271,21 @@ export function createBlockElement<TGraph extends Partial<GraphService> = GraphS
       container
     )
 
+    // Persist references on the custom element for lifecycle management
+    const blockElement = element as SolidBlockElement
+    blockElement.graph = graph
+
+    // Cleanup function that unmounts Solid and removes the container
+    const cleanup = () => {
+      dispose()
+      if (container.parentNode) {
+        container.parentNode.removeChild(container)
+      }
+    }
+
+    // Store cleanup on the element so disconnectedCallback and updates can dispose correctly
+    blockElement._dispose = cleanup
+
     // Inject block styles if not already present
     if (!document.querySelector('#solidjs-block-styles')) {
       const style = document.createElement('style')
@@ -280,12 +295,7 @@ export function createBlockElement<TGraph extends Partial<GraphService> = GraphS
     }
 
     // Return cleanup function
-    return () => {
-      dispose()
-      if (container.parentNode) {
-        container.parentNode.removeChild(container)
-      }
-    }
+    return cleanup
   }
 
   const updateGraph = (params: {
@@ -294,12 +304,16 @@ export function createBlockElement<TGraph extends Partial<GraphService> = GraphS
   }) => {
     const blockElement = params.element as SolidBlockElement
     blockElement.graph = params.graph
-    
-    // If already initialized, re-render
-    if (blockElement._dispose) {
-      blockElement._dispose()
+
+    // If not yet initialized (e.g. first update after external init), initialize now
+    if (!blockElement._dispose) {
       blockElement._dispose = init(params)
+      return
     }
+
+    // If already initialized, re-render cleanly
+    blockElement._dispose()
+    blockElement._dispose = init(params)
   }
 
   return {
