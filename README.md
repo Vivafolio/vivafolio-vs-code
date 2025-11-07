@@ -14,9 +14,8 @@ Standalone VS Code extension providing inline webview insets driven by Hint diag
 
 ## Quick Start
 
-- Dev shell: `direnv allow` then run project tasks via `just <target>` (recipes automatically enter the flake dev shell).
-- Build: `npm install && npm run compile`
-- Package: `npx vsce package` (or `npm run package:vsix`)
+- Dev shell: `direnv allow`
+- To set up everything: `just build-all`. This command not only builds all packages, it also installs all npm dependencies
 
 ## Runtime Path Demo
 

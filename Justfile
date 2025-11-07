@@ -1,6 +1,152 @@
 # Use our nix-env wrapper so all recipes run inside the vivafolio flake's dev shell
 set shell := ["./scripts/nix-env.sh", "-c"]
 
+# -----------------------------
+# Setup commands
+# -----------------------------
+
+# Install all dependencies, build Vivafolio TypeScript extension and all framework packages
+build-all:
+	@echo "Initializing git submodules..."
+	git submodule update --init --recursive
+
+	just install-all
+
+	@echo "Building indexing service package..."
+	-cd packages/indexing-service && npm run build && echo "✅ Indexing service built successfully" || echo "❌ Indexing service build failed"
+	@echo "Building block resources cache package..."
+	-cd packages/block-resources-cache && npm run build && echo "✅ Block resources cache built successfully" || echo "❌ Block resources cache build failed"
+	@echo "Building block core package..."
+	-cd packages/block-core && npm run build && echo "✅ Block core built successfully" || echo "❌ Block core build failed"
+	@echo "Building block loader package..."
+	-cd packages/block-loader && npm run build && echo "✅ Block loader built successfully" || echo "❌ Block loader build failed"
+
+	@echo "Building SolidJS framework package..."
+	-cd packages/block-frameworks/solidjs && npm run build && echo "✅ SolidJS built successfully" || echo "❌ SolidJS build failed"
+	@echo "Building Vue framework package..."
+	-cd packages/block-frameworks/vue && npm run build && echo "✅ Vue built successfully" || echo "❌ Vue build failed"
+	@echo "Building Svelte framework package..."
+	-cd packages/block-frameworks/svelte && npm run build && echo "✅ Svelte built successfully" || echo "❌ Svelte build failed"
+	@echo "Building Lit framework package..."
+	-cd packages/block-frameworks/lit && npm run build && echo "✅ Lit built successfully" || echo "❌ Lit build failed"
+	@echo "Building Angular framework package..."
+	-cd packages/block-frameworks/angular && npm run build && echo "✅ Angular built successfully" || echo "❌ Angular build failed"
+
+	@echo "Building blocks package..."
+	just build-blocks
+
+	@echo "Building main Vivafolio extension..."
+	npm run -s compile | cat
+
+	@echo "Build process completed (check individual results above)"
+
+
+# -----------------------------
+# Install commands (They are meant to be used internally and not by the user directly)
+# -----------------------------
+
+# Install dependencies in all relevant directories
+install-all:
+	@echo "Installing dependencies in root directory..."
+	npm install
+	@echo "Installing dependencies in Block Protocol POC..."
+	cd apps/blockprotocol-poc && npm install
+	@echo "Installing dependencies in block-loader package..."
+	cd packages/block-loader && npm install
+	@echo "Installing dependencies in block-resources-cache package..."
+	cd packages/block-resources-cache && npm install
+	@echo "Installing dependencies in indexing-service package..."
+	cd packages/indexing-service && npm install
+	@echo "Installing dependencies in mock language extension..."
+	cd mocklang-extension && npm install
+	@echo "Installing dependencies in blocks package..."
+	cd blocks && npm install
+	@echo "Checking framework packages..."
+	@echo "Checking Angular framework..."
+	@if [ ! -d "packages/block-frameworks/angular/node_modules" ]; then \
+		echo "Installing Angular framework dependencies..."; \
+		cd packages/block-frameworks/angular && npm install; \
+	else \
+		echo "Angular framework dependencies already installed"; \
+	fi
+	@echo "Checking Lit framework..."
+	@if [ ! -d "packages/block-frameworks/lit/node_modules" ]; then \
+		echo "Installing Lit framework dependencies..."; \
+		cd packages/block-frameworks/lit && npm install; \
+	else \
+		echo "Lit framework dependencies already installed"; \
+	fi
+	@echo "Checking SolidJS framework..."
+	@if [ ! -d "packages/block-frameworks/solidjs/node_modules" ]; then \
+		echo "Installing SolidJS framework dependencies..."; \
+		cd packages/block-frameworks/solidjs && npm install; \
+	else \
+		echo "SolidJS framework dependencies already installed"; \
+	fi
+	@echo "Checking Svelte framework..."
+	@if [ ! -d "packages/block-frameworks/svelte/node_modules" ]; then \
+		echo "Installing Svelte framework dependencies..."; \
+		cd packages/block-frameworks/svelte && npm install; \
+	else \
+		echo "Svelte framework dependencies already installed"; \
+	fi
+	@echo "Checking Vue framework..."
+	@if [ ! -d "packages/block-frameworks/vue/node_modules" ]; then \
+		echo "Installing Vue framework dependencies..."; \
+		cd packages/block-frameworks/vue && npm install; \
+	else \
+		echo "Vue framework dependencies already installed"; \
+	fi
+	@echo "All dependencies installed and packages built successfully"
+
+# -----------------------------
+# Build commands
+# -----------------------------
+
+# Build the Vivafolio TypeScript extension
+build:
+	npm run -s compile | cat
+
+# Watch-build the Vivafolio TypeScript extension (incremental)
+watch:
+	npm run -s watch | cat
+
+# Package the Vivafolio extension as a .vsix file
+package:
+	npm run -s package:vsix | cat
+
+
+# -----------------------------
+# Test commands (continued)
+# -----------------------------
+
+# Run all test suites
+test-all:
+	VIVAFOLIO_DEBUG=1 VIVAFOLIO_CAPTURE_WEBVIEW_LOGS=1 node test/run-all-tests.js
+
+# Run block-resources-cache package tests
+test-block-resources-cache:
+	cd packages/block-resources-cache && npm test | cat
+
+# Run block-resources-cache package tests in watch mode
+test-block-resources-cache-watch:
+	cd packages/block-resources-cache && npm run test:watch
+
+# Run block-loader package tests
+test-block-loader:
+	cd packages/block-loader && npm test | cat
+
+# Run block-loader package tests with hooks coverage
+test-block-loader-hooks:
+	cd packages/block-loader && npm test -- --testPathPattern="hooks.test.ts" | cat
+
+# Run indexing-service package tests
+test-indexing-service:
+	cd packages/indexing-service && npm test | cat
+
+# Run all package tests
+test-packages: test-block-resources-cache test-block-loader test-block-loader-hooks test-indexing-service
+
 # Add recipes below, for example:
 # test:  # Run E2E connectivity tests
 # 	node test/e2e-connectivity.js
@@ -453,133 +599,6 @@ start-blockprotocol-poc:
 start-blockprotocol-poc-standalone:
 	cd apps/blockprotocol-poc && \
 	  npm run start:standalone
-
-# -----------------------------
-# Install commands
-# -----------------------------
-
-# Install dependencies in all relevant directories
-install-all:
-	@echo "Installing dependencies in root directory..."
-	npm install
-	@echo "Installing dependencies in Block Protocol POC..."
-	cd apps/blockprotocol-poc && npm install
-	@echo "Installing dependencies in block-loader package..."
-	cd packages/block-loader && npm install && npm run build
-	@echo "Installing dependencies in block-resources-cache package..."
-	cd packages/block-resources-cache && npm install && npm run build
-	@echo "Installing dependencies in indexing-service package..."
-	cd packages/indexing-service && npm install && npm run build
-	@echo "Installing dependencies in mock language extension..."
-	cd mocklang-extension && npm install
-	@echo "Checking framework packages..."
-	@echo "Checking Angular framework..."
-	@if [ ! -d "packages/block-frameworks/angular/node_modules" ]; then \
-		echo "Installing Angular framework dependencies..."; \
-		cd packages/block-frameworks/angular && npm install; \
-	else \
-		echo "Angular framework dependencies already installed"; \
-	fi
-	@echo "Checking Lit framework..."
-	@if [ ! -d "packages/block-frameworks/lit/node_modules" ]; then \
-		echo "Installing Lit framework dependencies..."; \
-		cd packages/block-frameworks/lit && npm install; \
-	else \
-		echo "Lit framework dependencies already installed"; \
-	fi
-	@echo "Checking SolidJS framework..."
-	@if [ ! -d "packages/block-frameworks/solidjs/node_modules" ]; then \
-		echo "Installing SolidJS framework dependencies..."; \
-		cd packages/block-frameworks/solidjs && npm install; \
-	else \
-		echo "SolidJS framework dependencies already installed"; \
-	fi
-	@echo "Checking Svelte framework..."
-	@if [ ! -d "packages/block-frameworks/svelte/node_modules" ]; then \
-		echo "Installing Svelte framework dependencies..."; \
-		cd packages/block-frameworks/svelte && npm install; \
-	else \
-		echo "Svelte framework dependencies already installed"; \
-	fi
-	@echo "Checking Vue framework..."
-	@if [ ! -d "packages/block-frameworks/vue/node_modules" ]; then \
-		echo "Installing Vue framework dependencies..."; \
-		cd packages/block-frameworks/vue && npm install; \
-	else \
-		echo "Vue framework dependencies already installed"; \
-	fi
-	@echo "All dependencies installed and packages built successfully"
-
-# -----------------------------
-# Build commands
-# -----------------------------
-
-# Build the Vivafolio TypeScript extension
-build:
-	npm run -s compile | cat
-
-# Watch-build the Vivafolio TypeScript extension (incremental)
-watch:
-	npm run -s watch | cat
-
-# Package the Vivafolio extension as a .vsix file
-package:
-	npm run -s package:vsix | cat
-
-# Build extension and all framework packages
-build-all:
-	@echo "Building blocks package..."
-	just build-blocks
-	@echo "Building main Vivafolio extension..."
-	npm run -s compile | cat
-	@echo "Building indexing service package..."
-	-cd packages/indexing-service && npm run build && echo "✅ Indexing service built successfully" || echo "❌ Indexing service build failed"
-	@echo "Building block loader package..."
-	-cd packages/block-loader && npm run build && echo "✅ Block loader built successfully" || echo "❌ Block loader build failed"
-	@echo "Building block resources cache package..."
-	-cd packages/block-resources-cache && npm run build && echo "✅ Block resources cache built successfully" || echo "❌ Block resources cache build failed"
-	@echo "Building SolidJS framework package..."
-	-cd packages/block-frameworks/solidjs && npm run build && echo "✅ SolidJS built successfully" || echo "❌ SolidJS build failed"
-	@echo "Building Vue framework package..."
-	-cd packages/block-frameworks/vue && npm run build && echo "✅ Vue built successfully" || echo "❌ Vue build failed"
-	@echo "Building Svelte framework package..."
-	-cd packages/block-frameworks/svelte && npm run build && echo "✅ Svelte built successfully" || echo "❌ Svelte build failed"
-	@echo "Building Lit framework package..."
-	-cd packages/block-frameworks/lit && npm run build && echo "✅ Lit built successfully" || echo "❌ Lit build failed"
-	@echo "Building Angular framework package..."
-	-cd packages/block-frameworks/angular && npm run build && echo "✅ Angular built successfully" || echo "❌ Angular build failed"
-	@echo "Build process completed (check individual results above)"
-
-# -----------------------------
-# Test commands (continued)
-# -----------------------------
-
-# Run all test suites
-test-all:
-	VIVAFOLIO_DEBUG=1 VIVAFOLIO_CAPTURE_WEBVIEW_LOGS=1 node test/run-all-tests.js
-
-# Run block-resources-cache package tests
-test-block-resources-cache:
-	cd packages/block-resources-cache && npm test | cat
-
-# Run block-resources-cache package tests in watch mode
-test-block-resources-cache-watch:
-	cd packages/block-resources-cache && npm run test:watch
-
-# Run block-loader package tests
-test-block-loader:
-	cd packages/block-loader && npm test | cat
-
-# Run block-loader package tests with hooks coverage
-test-block-loader-hooks:
-	cd packages/block-loader && npm test -- --testPathPattern="hooks.test.ts" | cat
-
-# Run indexing-service package tests
-test-indexing-service:
-	cd packages/indexing-service && npm test | cat
-
-# Run all package tests
-test-packages: test-block-resources-cache test-block-loader test-block-loader-hooks test-indexing-service
 
 # -----------------------------
 # Vendored language servers
