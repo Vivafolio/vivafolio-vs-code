@@ -37,6 +37,47 @@ This section documents the concrete integration of the Status Pill block across 
    - Owns entity metadata, file watching, and editing modules (CSV/Markdown/DSL). In this demo, it cannot update the single-line CSV and returns `false`; the server’s narrow fallback persists the value.
    - Emits events (`file-changed`, `entity-updated`, etc.) consumed by the sidecar LSP and broadcaster.
 
+### Message flow diagram
+
+```mermaid
+%%{init: {
+   "config": { "sequence": { "useMaxWidth": false } },
+   "themeCSS": ".mermaid, .mermaid svg{max-width:none!important;} .mermaid svg{transform:scale(1.5); transform-origin: top left;} .mermaid .actor > text,.mermaid .messageText,.mermaid .noteText,.mermaid .sectionTitle,.mermaid .loopText,.mermaid .sequenceNumber{font-size:22px;}"
+}}%%
+sequenceDiagram
+   autonumber
+   participant U as User
+   participant B as Block (Status Pill)
+   participant L as Block Loader
+   participant H as Client Host (POC UI)
+   participant WS as WebSocket
+   participant S as POC App Server
+   participant I as IndexingService
+   participant CSV as CSV Fallback (demo)
+
+   U->>B: Select new status
+   B->>L: graph.updateEntity({ entityId, properties })
+   alt Loader bridge available
+      L->>H: onBlockUpdate({ entityId, properties })
+   else Iframe/spec path
+      B-->>H: window.postMessage('updateEntity', { entityId, properties })
+   end
+   H->>WS: { type: 'graph/update', payload: { blockId, entityId, kind: 'updateEntity', properties } }
+   WS->>S: forward
+   S->>I: updateEntity(entityId, properties)
+   Note over I: returns false for single-line CSV in demo
+   S->>CSV: write status-pill.csv (demo fallback)
+   S-->>H: graph/ack { ok: true, entityId }
+   S-->>H: vivafolioblock-notification (updated entityGraph)
+   S-->>H: status/persisted { entityId, status }
+   H->>L: updateBlock(entityGraph)
+   L->>B: set props → render new status
+```
+
+Notes:
+- The CSV write is demo-only until a proper single-value CSV editing module exists in IndexingService.
+- Either the Loader bridge or the iframe `postMessage` path is used; both converge on the same WS payload.
+
 ### End-to-end flow (status change)
 
 1) User selects a new status in the block UI.
