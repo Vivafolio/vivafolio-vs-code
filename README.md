@@ -92,7 +92,7 @@ This repository contains several interconnected components that work together to
 - **Documentation** (`docs/`) - Comprehensive documentation covering architecture, testing, and development
   - `docs/Repo-Structure.md` - Repo structure and new developer onboarding guide
   - `docs/BlockProtocol-E2E-POC.md` - Block Protocol integration proof-of-concept
-  - `docs/BlockProtocol-in-Vivafolio-Architecture.md` - Development server blueprint
+  - `docs/BlockProtocol-DevServer.md` - Development server blueprint
   - `docs/Vivafolio-E2E-Runtime-Path-Tests.md` - Runtime path testing guide
   - `docs/Vivafolio-E2E-Test-Status.md` - Test status and coverage
   - `docs/Vivafolio-Overview.md` - High-level architecture overview

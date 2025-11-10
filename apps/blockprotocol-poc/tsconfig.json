@@ -11,7 +11,9 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "moduleDetection": "force",
-    "noEmit": true
+    "noEmit": true,
+    "sourceMap":true,
+
   },
   "include": ["src"],
   "exclude": ["dist", "node_modules"]
