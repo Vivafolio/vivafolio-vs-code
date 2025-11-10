@@ -8,7 +8,9 @@
     "types": ["vite/client"],
     "strict": true,
     "skipLibCheck": true,
-    "baseUrl": "."
+    "baseUrl": ".",
+    "sourceMap":true,
+
   },
   "include": ["src"]
 }

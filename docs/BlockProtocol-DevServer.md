@@ -245,7 +245,7 @@ await close()
 **Key Implementation Files for Current Work:**
 - `apps/blockprotocol-poc/tests/hello-block.spec.ts` - Test framework ready for full E2E implementation
 - `docs/BlockProtocol-E2E-POC.md` - Main status document with milestone tracking
- - `docs/BlockProtocol-in-Vivafolio-Architecture.md` - Architecture documentation (this file)
+ - `docs/BlockProtocol-DevServer.md` - Architecture documentation (this file)
 
 ## 6. Block Examples
 

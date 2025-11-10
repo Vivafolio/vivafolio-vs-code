@@ -97,7 +97,6 @@ const publishedLoaders = new Map<string, BlockLoader>()
 // Deduplicate identical graph/update messages across multiple paths (loader callback vs window fallback)
 // Keyed by blockId|entityId|sortedProperties, with a short TTL to coalesce duplicates in quick succession
 const recentGraphUpdateKeys = new Map<string, number>()
-const GRAPH_UPDATE_DEDUP_TTL_MS = 1000
 
 function makeGraphUpdateKey(update: { blockId: string; entityId: string; properties: Record<string, unknown> }) {
   // Stable stringify properties (shallow sort by key)
