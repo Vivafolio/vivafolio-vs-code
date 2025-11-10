@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   root: '.',
   publicDir: false,
   build: {
@@ -14,7 +14,9 @@ export default defineConfig({
         // Handle CommonJS imports
         interop: 'auto'
       }
-    }
+    },
+    sourcemap: mode === 'development' ? 'inline' : false,
+
   },
   plugins: [
     vue(),
@@ -27,4 +29,4 @@ export default defineConfig({
   optimizeDeps: {
     include: ['solid-js', 'vue', 'svelte', 'lit', '@angular/core', '@vivafolio/block-loader']
   }
-})
+}))
