@@ -15,7 +15,7 @@ if (!customElements.get('vivafolio-status-pill')) {
 // Adapter factory for VivafolioBlockLoader (custom-element mode)
 // It expects a default export function returning { element, init, updateEntity }
 export default function StatusPillFactory(_graphModule?: unknown) {
-  return {
+  const factoryResult = {
     element: StatusPillElement,
   init: ({ element, entity, readonly, updateEntity }: {
       element: HTMLElement
@@ -64,6 +64,8 @@ export default function StatusPillFactory(_graphModule?: unknown) {
       fn?.(entity, readonly)
     }
   }
+  try { console.log('[StatusPillFactory] returning', factoryResult) } catch {}
+  return factoryResult
 }
 
 export { init, updateGraph, StatusPillElement }

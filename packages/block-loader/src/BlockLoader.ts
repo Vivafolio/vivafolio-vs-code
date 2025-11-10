@@ -12,7 +12,6 @@ import { GraphEmbedderHandler } from '@blockprotocol/graph'
 import * as React from 'react'
 import * as ReactDOM from 'react-dom/client'
 import type { Entity, EntityGraph, BlockResource, VivafolioBlockNotification } from '@vivafolio/block-core'
-
 // Extend window interface for HTML template support
 declare global {
   interface Window {
@@ -422,7 +421,7 @@ export class VivafolioBlockLoader implements BlockLoader {
   return 'html'
   }
 
-  private async initializeBundleBlock(container: HTMLElement): Promise<void> {
+  private async  initializeBundleBlock(container: HTMLElement): Promise<void> {
     const [reactModule, reactDomModule, graphModule] = await Promise.all([
       import('react'),
       import('react-dom/client'),
@@ -499,7 +498,13 @@ export class VivafolioBlockLoader implements BlockLoader {
     const exportsShim = moduleShim.exports as Record<string, unknown>
     let blockModule: unknown
     try {
-      const evaluator = new Function('require', 'module', 'exports', `${bundleSource}\nreturn module.exports;`)
+      // Provide a virtual filename for debuggers; helps breakpoint mapping when using eval
+      const evaluator = new Function(
+        'require',
+        'module',
+        'exports',
+        `${bundleSource}\n//# sourceURL=${bundleUrl}\nreturn module.exports;`
+      )
       blockModule = evaluator(requireShim, moduleShim, exportsShim) ?? moduleShim.exports
       console.log('[BlockLoader] Bundle evaluation result:', blockModule)
       console.log('[BlockLoader] Block module type:', typeof blockModule)
@@ -1090,7 +1095,12 @@ export class VivafolioBlockLoader implements BlockLoader {
     // Execute JavaScript module
     if (!entry.executed) {
       const moduleShim: { exports: unknown } = { exports: {} }
-      const evaluator = new Function('require', 'module', 'exports', entry.source)
+      const evaluator = new Function(
+        'require',
+        'module',
+        'exports',
+        `${entry.source}\n//# sourceURL=${entry.url}`
+      )
       evaluator(this.loadLocalModule.bind(this), moduleShim, moduleShim.exports)
       entry.exports = moduleShim.exports
       entry.executed = true

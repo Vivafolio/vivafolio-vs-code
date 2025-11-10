@@ -17,6 +17,8 @@ export default defineConfig({
   fileName: 'main',
   formats: ['cjs']
     },
+  // Embed sourcemaps so dynamic eval in loader can map back to TS for breakpoints
+  sourcemap: 'inline',
     rollupOptions: {
   // Do not externalize SolidJS so the bundle is self-contained for the loader's CJS evaluator
   external: [],
