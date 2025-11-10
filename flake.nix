@@ -24,20 +24,30 @@
       else
         (pkgs.vscode.override { isInsiders = true; }).overrideAttrs (old: rec {
           version = "latest";
-          # Linux only: choose arm64/x64 and pin hash for x86_64-linux.
-          src = let
-            isAarch64 = pkgs.stdenv.hostPlatform.isAarch64 or (pkgs.system == "aarch64-linux");
-            osParam = if isAarch64 then "linux-arm64" else "linux-x64";
-            name = "vscode-insiders-${osParam}.tar.gz";
-            url = "https://code.visualstudio.com/sha/download?build=insider&os=${osParam}";
-          in pkgs.fetchurl ({ inherit url name; } //
-               (if pkgs.stdenv.hostPlatform.system == "x86_64-linux" then {
-                 sha256 = "sha256-u+soSCBDENv0kVF3u7c1WUZXts6e1c66lFGICEDOo1A=";
-               } else if pkgs.stdenv.hostPlatform.system == "aarch64-linux" then {
-                 sha256 = "sha256-pryuJPBxDvxS+pkrDWioiFghs+QNqge+iQvcwCUB0dg=";
-               } else {
-                 sha256 = lib.fakeSha256;
-               }));
+          # Linux only: pin x86_64 to a specific dbazure snapshot, fall back to upstream endpoint if needed.
+          src =
+            if pkgs.stdenv.hostPlatform.system == "x86_64-linux" then
+              pkgs.fetchurl {
+                urls = [
+                  "https://vscode.download.prss.microsoft.com/dbazure/download/insider/828519ca2437c1d96a6ad4923754ac666377ac99/code-insider-x64-1762508289.tar.gz"
+                  "https://code.visualstudio.com/sha/download?build=insider&os=linux-x64"
+                ];
+                name = "vscode-insiders-linux-x64.tar.gz";
+                sha256 = "sha256-a98/l2AKSaZNQ1Bu/Kh+Woxa/3NbgORGc+LhooM0Suw=";
+              }
+            else (
+              let
+                isAarch64 = pkgs.stdenv.hostPlatform.isAarch64 or (pkgs.system == "aarch64-linux");
+                osParam = if isAarch64 then "linux-arm64" else "linux-x64";
+                name = "vscode-insiders-${osParam}.tar.gz";
+                url = "https://code.visualstudio.com/sha/download?build=insider&os=${osParam}";
+              in pkgs.fetchurl ({ inherit url name; } //
+                   (if pkgs.stdenv.hostPlatform.system == "aarch64-linux" then {
+                     sha256 = "sha256-pryuJPBxDvxS+pkrDWioiFghs+QNqge+iQvcwCUB0dg=";
+                   } else {
+                     sha256 = lib.fakeSha256;
+                   }))
+            );
           pname = "vscode-insiders";
           name = "${pname}-${version}";
         });
