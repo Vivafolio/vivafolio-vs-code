@@ -362,6 +362,8 @@ test-lsp-standalone: test-lsp-direct test-lsp-protocol test-lsp-syntax-errors
 
 test-wdio-all: test-wdio test-wdio-single-block test-wdio-two-blocks test-wdio-synchronization
 
+#FAILS. Commit on 11.11.2025 tried to fix it. Current status is documented in docs/Vivafolio-E2E-Test-Status.md (### NixOS-specific: Chromedriver v138 fails to execute (stub-ld) 🐧)
+
 test-wdio:
 	npm run test:wdio
 

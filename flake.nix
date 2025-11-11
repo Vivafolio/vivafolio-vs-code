@@ -18,6 +18,28 @@
         overlays = [ nix-nim-dev.overlays.default ];
         };
       lib = pkgs.lib;
+      # NixOS-compatible Chromedriver matching VS Code's embedded Chromium v138
+      chromedriverV138 = if pkgs.stdenv.isLinux then pkgs.stdenv.mkDerivation {
+        pname = "chromedriver";
+        version = "138.0.7204.183";
+        src = pkgs.fetchurl {
+          url = "https://storage.googleapis.com/chrome-for-testing-public/138.0.7204.183/linux64/chromedriver-linux64.zip";
+          sha256 = "0bd66gw1ij98vsv9ydx72wsv457rx5jx83da6y9b8gq66pjhjpkv";
+        };
+        nativeBuildInputs = [ pkgs.unzip pkgs.autoPatchelfHook ];
+        buildInputs = with pkgs; [
+          nspr nss xorg.libX11 libxcb xorg.libXcomposite xorg.libXdamage xorg.libXext xorg.libXfixes xorg.libXrandr libxkbcommon dbus gtk3 at-spi2-atk at-spi2-core mesa alsa-lib
+        ];
+        phases = [ "unpackPhase" "installPhase" ];
+        unpackPhase = ''
+          unzip -q $src
+        '';
+        installPhase = ''
+          mkdir -p $out/bin
+          cp chromedriver-linux64/chromedriver $out/bin/chromedriver
+          chmod +x $out/bin/chromedriver
+        '';
+      } else null;
       # Explicit Insiders derivation on Linux; keep upstream override on macOS where it works.
       vscodeInsiders = if pkgs.stdenv.isDarwin then
         pkgs.vscode.override { isInsiders = true; }
@@ -128,7 +150,10 @@
             # @vscode/test-electron downloads VS Code for the automated tests.
             vscodeInsiders
             yarn
-          ]) ++ playwrightLibs;
+          ]
+          # Add pinned Chromedriver v138 only on Linux
+          ++ (lib.optionals pkgs.stdenv.isLinux [ chromedriverV138 ])
+          ) ++ playwrightLibs;
           shellHook = ''
             echo "Vivafolio dev shell: Node $(node -v)"
             # Agents note: This shell is intentionally minimal and self-contained for Vivafolio tests.
@@ -137,6 +162,12 @@
             export LD_LIBRARY_PATH=${pkgs.lib.makeLibraryPath playwrightLibs}:$LD_LIBRARY_PATH
             export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=${pkgs.chromium}/bin/chromium
             export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+            # Prefer the NixOS-compatible Chromedriver that matches VS Code's Chromium (v138) if available
+            ${lib.optionalString pkgs.stdenv.isLinux ''
+              if [ -x "${chromedriverV138}/bin/chromedriver" ]; then
+                export CHROMEDRIVER_OVERRIDE="${chromedriverV138}/bin/chromedriver"
+              fi
+            ''}
           '';
       };
     });

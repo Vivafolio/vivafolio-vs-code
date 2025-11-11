@@ -711,6 +711,47 @@ just vscode-e2e
 
 ## 📋 **WebdriverIO Test Setup Issues - DETAILED ANALYSIS**
 
+### NixOS-specific: Chromedriver v138 fails to execute (stub-ld) 🐧
+11.11.2025
+
+This issue is specific to running WDIO on NixOS and ties directly to how `wdio-vscode-service` manages the Chromedriver used to talk to VS Code’s embedded Chromium/Electron.
+
+• Symptoms
+  - WDIO can launch VS Code but all specs fail at session creation with ECONNREFUSED after “Starting Chromedriver v138…”.
+  - Logs show the service using a cached Chromedriver: `/tmp/wdio-vscode/chromedriver/linux-138.*`.
+  - Running that cached binary (or a freshly downloaded upstream v138) prints: “Could not start dynamically linked executable … NixOS cannot run dynamically linked executables … stub-ld”.
+  - The system Chromedriver from Nix (v140) runs, but mismatches VS Code’s Electron 138, so it isn’t used by the service by default.
+
+• Root cause
+  - On NixOS, generic dynamically linked binaries (like upstream Chromedriver zips) are not runnable unless patched with the correct interpreter and RPATH.
+  - `wdio-vscode-service` downloads and uses the generic Chromedriver that matches VS Code’s Electron version (here v138). That cached binary is unpatched and fails to run on NixOS.
+
+• Impact
+  - All WDIO specs fail to create WebDriver sessions; the test run ends with connection errors to Chromedriver.
+
+• Fixes (actionable)
+  1) Provide a NixOS-patched Chromedriver v138 via the flake (autoPatchelf):
+     - Create a `chromedriverV138` derivation that fetches `chromedriver-linux64` 138.0.7204.183 and enables `autoPatchelfHook` with required runtime libs (glibc, nspr/nss, xcb/x11, gtk3, mesa, dbus, alsa, etc.).
+     - Ensure the fixup phase runs (don’t omit `fixupPhase`), so the binary becomes runnable on NixOS.
+     - Export `CHROMEDRIVER_OVERRIDE` to the patched binary path in the dev shell.
+  2) Make WDIO prefer the override and avoid the cached unpatched one:
+     - In `wdio.conf.ts`, prefer `process.env.CHROMEDRIVER_OVERRIDE` when configuring `wdio-chromedriver-service`.
+     - On prepare, remove the cached v138 dir under `/tmp/wdio-vscode/chromedriver/linux-138.*` so the service won’t pick it instead of the override.
+  3) Alternatives (if needed):
+     - Align versions (use VS Code with Chromium 140 + Chromedriver 140), or
+     - Run tests in an FHS/compat environment where upstream binaries run without patchelf.
+
+• Implementation references
+  - `flake.nix`: `chromedriverV138` derivation with `autoPatchelfHook`; shellHook exporting `CHROMEDRIVER_OVERRIDE`.
+  - `vivafolio/wdio.conf.ts`: prefer `CHROMEDRIVER_OVERRIDE`, pre-create service cache dir, and configure chromedriver service accordingly.
+
+• Verification checklist
+  - `$CHROMEDRIVER_OVERRIDE --version` prints v138 successfully (no stub-ld error).
+  - WDIO logs show it’s using the override path (not `/tmp/wdio-vscode/...`).
+  - Specs proceed past session creation (no ECONNREFUSED on POST /session).
+
+Status: In progress on Linux; macOS baseline unaffected.
+
 Based on actual test execution, here are the **specific technical issues** with the WebdriverIO E2E test setup:
 
 ### 🚨 **CRITICAL: User Data Directory Conflicts**
