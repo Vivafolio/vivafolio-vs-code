@@ -218,12 +218,21 @@ test-runtime-vivafolioblock:
 #
 # -----------------------------
 
-# Run all Block Protocol POC tests (via npm test)
+# Run all Block Protocol POC tests - all tests in apps/blockprotocol-poc/tests (via npm test)
 test-blockprotocol-poc:
+	# Ensure latest block-loader is built so POC uses correct HTML template handling
+	cd packages/block-loader && npm run -s build | cat
+	# Clear any stale Vite optimized deps to avoid using outdated loader bundle
+	rm -rf apps/blockprotocol-poc/node_modules/.vite || true
+	# Run POC frameworks build and tests
 	cd apps/blockprotocol-poc && \
 	  npm run build:frameworks && \
 	  PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH:-$(command -v chromium)}" \
 	  npm test | cat
+
+# Run all Block Protocol POC test suites individually
+#11.11.2025 - PASS
+test-blockprotocol-all: test-blockprotocol-core test-blockprotocol-frameworks test-blockprotocol-scaffold test-blockprotocol-standalone test-blockprotocol-assets test-blockprotocol-devserver test-blockprotocol-hooks test-blockprotocol-standalone-build
 
 test-blockprotocol-local:
 	cd apps/blockprotocol-poc && \
@@ -233,18 +242,22 @@ test-blockprotocol-local:
 	  TEST_LOCAL_BLOCKS=1 npm test -- --grep="local block development workflow" | cat
 
 # Run core Block Protocol integration tests (hello-block scenarios)
+# Test fixed and passes on 11.11.2025. Set in production mode to avoid Vite/HMR reloads during tests.
 test-blockprotocol-core:
 	cd apps/blockprotocol-poc && \
+	  TEST_E2E_PROD=1 \
 	  PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH:-$(command -v chromium)}" \
 	  npx playwright test tests/hello-block.spec.ts | cat
 
 # Run framework compilation tests (hot-reload, bundling, cross-framework scenarios)
+# PASS ON 11.11.2025
 test-blockprotocol-frameworks:
-	cd apps/blockprotocol-poc && \
-	  PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH:-$(command -v chromium)}" \
-	  npx playwright test tests/framework-compilation.spec.ts | cat
+		cd apps/blockprotocol-poc && \
+			PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH:-$(command -v chromium)}" \
+			npx playwright test tests/framework-compilation.spec.ts | cat
 
 # Run block scaffolding tests (block generation, naming conventions, error handling)
+# PASS ON 11.11.2025
 test-blockprotocol-scaffold:
 	cd apps/blockprotocol-poc && \
 	  PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH:-$(command -v chromium)}" \
@@ -263,15 +276,19 @@ test-blockprotocol-assets:
 	  npx playwright test tests/static-assets.spec.ts | cat
 
 # Run dev server smoke tests (programmatic server launch validation)
+#10.11.2025 - PASS
 test-blockprotocol-devserver:
 	cd apps/blockprotocol-poc && \
 	  npm run test:devserver | cat
 
 # Run hook mechanism tests (mini-host, React hooks, nested blocks)
+#11.11.2025 - PASS
+# Triggers warning though, that makes me think something is not fully right:
+#  console.warn
+#    useGraphContext: No graph context available. Make sure this component is rendered within a block.
+
 test-blockprotocol-hooks: test-block-loader-hooks
 
-# Run all Block Protocol POC test suites individually
-test-blockprotocol-all: test-blockprotocol-core test-blockprotocol-frameworks test-blockprotocol-scaffold test-blockprotocol-standalone test-blockprotocol-assets test-blockprotocol-devserver test-blockprotocol-hooks test-blockprotocol-standalone-build
 
 # Run Block Protocol tests in headed mode (for debugging)
 test-blockprotocol-headed:
