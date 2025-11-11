@@ -654,6 +654,7 @@ function renderIframeBlock(
     iframe = controller.iframe
     if (resourcePath) {
       const nextSrc = buildFrameSrc(resourcePath, notification.blockId, resource?.cachingTag)
+  //console.log('[Client] (iframe reuse) setting src for', notification.blockId, 'to', nextSrc)
       if (iframe.src !== window.location.origin + nextSrc) {
         iframe.src = nextSrc
         controller.ready = false
@@ -666,6 +667,7 @@ function renderIframeBlock(
     iframeControllers.set(notification.blockId, { iframe, ready: false })
     if (resourcePath) {
       iframe.src = buildFrameSrc(resourcePath, notification.blockId, resource?.cachingTag)
+  //console.log('[Client] (iframe create) initial src for', notification.blockId, 'is', iframe.src)
     }
   }
 
@@ -683,6 +685,13 @@ function buildFrameSrc(resourcePath: string, blockId: string, cachingTag?: strin
   if (cachingTag) {
     url.searchParams.set('cache', cachingTag)
   }
+  const finalSrc = url.pathname + url.search
+  console.log('[Client] buildFrameSrc()', {
+    resourcePath,
+    blockId,
+    cachingTag,
+    finalSrc
+  })
   return url.pathname + url.search
 }
 

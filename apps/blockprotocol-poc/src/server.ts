@@ -23,13 +23,16 @@ import express from 'express'
 import compression from 'compression'
 import { createServer as createHttpServer } from 'http'
 import { WebSocketServer, type WebSocket } from 'ws'
-import { IndexingService } from '../../../packages/indexing-service/dist/IndexingService.js'
+// Local runtime transport and sidecar pieces stay as static imports
 import { IndexingServiceTransportLayer, WebSocketTransport } from './TransportLayer.js'
-import { BlockBuilder } from '../../../blocks/dist/builder.js'
 import { SidecarLspClient, MockLspServerImpl } from './SidecarLspClient.js'
-import { BlockResourcesCache } from '../../../packages/block-resources-cache/dist/index.js'
+// Monorepo-internal packages are loaded via dynamic import at runtime to work in both dev (tsx) and prod (dist)
+// Types can be imported if needed, but runtime binding happens inside startServer()
+// import type { IndexingService as IndexingServiceType } from '../../../packages/indexing-service/dist/IndexingService.js'
+// import type { BlockBuilder as BlockBuilderType } from '../../../blocks/dist/builder.js'
+// import type { BlockResourcesCache as BlockResourcesCacheType } from '../../../packages/block-resources-cache/dist/index.js'
 import path from 'path'
-import { fileURLToPath } from 'url'
+import { fileURLToPath, pathToFileURL } from 'url'
 import fs from 'fs/promises'
 import { readFileSync, existsSync, watch, statSync, mkdirSync } from 'fs'
 import crypto from 'crypto'
@@ -78,10 +81,28 @@ const DEFAULT_PORT = (() => {
   const n = Number.parseInt(raw, 10)
   return Number.isNaN(n) ? 4173 : n
 })()
-const ROOT_DIR = path.resolve(__dirname, '..')
-const DIST_CLIENT_DIR = path.resolve(ROOT_DIR, 'dist/client')
-const INDEX_HTML = path.resolve(ROOT_DIR, 'index.html')
-const TEMPLATES_DIR = path.resolve(ROOT_DIR, 'templates')
+// App directory resolution
+// In development (tsx), __dirname resolves to .../apps/blockprotocol-poc/src
+// In production (node),   __dirname resolves to .../apps/blockprotocol-poc/dist/server
+// We normalize both the project root (source) and the build root (dist) for reliable pathing.
+const APP_DIR = path.resolve(__dirname, '..')
+const IS_PROD = process.env.NODE_ENV === 'production'
+// When built, APP_DIR === <project>/dist/server; project root sits two levels up
+// Source layout: <project>/src; Build layout: <project>/dist/server
+const PROJECT_ROOT = IS_PROD ? path.resolve(APP_DIR, '..') : APP_DIR
+// Preserve legacy naming for existing code paths
+const ROOT_DIR = PROJECT_ROOT
+// Build root is <project>/dist
+const BUILD_ROOT = IS_PROD ? path.resolve(PROJECT_ROOT, 'dist') : path.resolve(PROJECT_ROOT, 'dist')
+
+// Client/dist directories and key files
+// Vite builds client assets into <project>/dist/client per vite.config.ts
+const DIST_CLIENT_DIR = path.resolve(BUILD_ROOT, 'client')
+// In production we serve the built index from dist/client; in development (Vite middleware)
+// we should read the source index.html from the project root for proper transformation.
+const DIST_INDEX_HTML = path.resolve(DIST_CLIENT_DIR, 'index.html')
+const SOURCE_INDEX_HTML = path.resolve(PROJECT_ROOT, 'index.html')
+const TEMPLATES_DIR = path.resolve(PROJECT_ROOT, 'templates')
 
 // Production-optimized static asset serving configuration
 function createOptimizedStaticOptions(maxAge: number = 31536000) { // 1 year default
@@ -116,9 +137,9 @@ function createOptimizedStaticOptions(maxAge: number = 31536000) { // 1 year def
           res.setHeader('Cache-Control', `public, max-age=${maxAge / 10}`) // 1 month
         }
 
-        // Add security headers
-        res.setHeader('X-Content-Type-Options', 'nosniff')
-        res.setHeader('X-Frame-Options', 'DENY')
+  // Add security headers: allow same-origin iframes (needed for iframe-based blocks)
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN')
       }
     }
   }
@@ -1818,7 +1839,30 @@ let frameworkWatchers: FrameworkWatcher[] = []
 // Local Block Development
 let localBlockDirs: string[] = []
 let localBlockWatchers: Map<string, { watcher: any, dispose: () => void }> = new Map()
-let localBlockBuilder: BlockBuilder | undefined
+let localBlockBuilder: any | undefined
+
+  // Dynamically load internal monorepo packages so paths are correct in both dev (tsx) and prod (dist)
+  const loadModule = async (...candidates: string[]) => {
+    for (const rel of candidates) {
+      const abs = path.resolve(REPO_ROOT, rel)
+      if (existsSync(abs)) {
+        return import(pathToFileURL(abs).href)
+      }
+    }
+    throw new Error(`Failed to resolve module. Tried: ${candidates.join(', ')}`)
+  }
+
+  const { IndexingService } = await loadModule(
+    'packages/indexing-service/dist/IndexingService.js',
+    'packages/indexing-service/src/IndexingService.ts'
+  ) as any
+  const { BlockResourcesCache } = await loadModule(
+    'packages/block-resources-cache/dist/index.js',
+    'packages/block-resources-cache/src/index.ts'
+  ) as any
+  const { BlockBuilder } = await loadModule(
+    'blocks/dist/builder.js'
+  ) as any
 
   // Initialize indexing service
   const indexingService = new IndexingService({
@@ -1877,7 +1921,7 @@ let localBlockBuilder: BlockBuilder | undefined
     frameworks: ['solidjs', 'vue', 'svelte', 'lit', 'angular'],
     outputDir: path.join(process.cwd(), 'dist', 'blocks'),
     watchMode: false, // We'll handle hot reload through the existing framework watchers
-    onBundleUpdate: (framework, bundle) => {
+    onBundleUpdate: (framework: string, bundle: any) => {
       console.log(`[block-builder] Bundle updated: ${framework}/${bundle.id}`)
     }
   })
@@ -1893,7 +1937,7 @@ let localBlockBuilder: BlockBuilder | undefined
       frameworks: ['solidjs', 'vue', 'svelte', 'lit', 'angular'],
       outputDir: path.join(process.cwd(), 'dist', 'local-blocks'),
       watchMode: true,
-      onBundleUpdate: (framework, bundle) => {
+      onBundleUpdate: (framework: string, bundle: any) => {
         console.log(`[local-block-builder] Bundle updated: ${framework}/${bundle.id}`)
         // Broadcast cache invalidation to connected clients
         broadcastLocalBlockUpdate(bundle.id)
@@ -2298,13 +2342,14 @@ async function parseCsvEntities(filePath: string) {
     try {
       if (viteServer) {
         const url = req.originalUrl
-        let html = await fs.readFile(INDEX_HTML, 'utf8')
+        // Read the source index in dev so Vite can transform it correctly.
+        let html = await fs.readFile(SOURCE_INDEX_HTML, 'utf8')
         html = await viteServer.transformIndexHtml(url, html)
         res.status(200).set({ 'Content-Type': 'text/html' }).end(html)
         return
       }
 
-      const html = await fs.readFile(path.join(DIST_CLIENT_DIR, 'index.html'), 'utf8')
+      const html = await fs.readFile(DIST_INDEX_HTML, 'utf8')
       res.status(200).set({ 'Content-Type': 'text/html' }).end(html)
     } catch (error) {
       next(error)
@@ -2440,14 +2485,20 @@ async function parseCsvEntities(filePath: string) {
           )
         }
     } else {
-      dispatchScenarioNotifications(socket, scenario, state, customParams)
+  dispatchScenarioNotifications(socket, scenario, state, customParams)
     }
 
-    socket.on('close', () => {
+    socket.on('close', (code, reason) => {
       liveSockets.delete(socket)
       socketStates.delete(socket)
       transportLayer.unregisterTransport(transportId)
-      console.log(`[transport] Unregistered transport ${transportId}`)
+      const reasonStr = (() => {
+        try {
+          return reason ? reason.toString() : ''
+        } catch { return '' }
+      })()
+      // ws doesn't expose wasClean on server side; log code and reason
+      console.log(`[transport] Unregistered transport ${transportId} (code=${code}${reasonStr ? `, reason=${reasonStr}` : ''})`)
     })
 
     // All messages go through the IndexingService transport layer

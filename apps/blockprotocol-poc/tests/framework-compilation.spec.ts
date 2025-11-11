@@ -1,3 +1,21 @@
+/**
+ * Framework Compilation E2E tests
+ *
+ * Verifies that the POC server:
+ * - Exposes framework bundle metadata via HTTP APIs:
+ *   - GET /api/frameworks/bundles (all frameworks)
+ *   - GET /api/frameworks/:framework/bundles (single framework)
+ * - Serves compiled framework assets under /frameworks (used by scenarios).
+ * - Renders the "framework-compilation-demo" and "cross-framework-nesting" scenarios
+ *   and allows basic block interaction.
+ *
+ * Preconditions:
+ * - Dev mode: start with framework watchers enabled (ENABLE_FRAMEWORK_WATCH=true), so
+ *   in-memory bundles are populated for the API responses.
+ * - Prod mode (TEST_E2E_PROD=1): ensure frameworks are built (e.g., npm run build:frameworks)
+ *   so assets exist under dist/frameworks and scenarios can load them.
+ */
+
 import { test, expect } from '@playwright/test'
 
 test.describe('Framework Compilation', () => {

@@ -384,9 +384,12 @@ export class VivafolioBlockLoader implements BlockLoader {
   // Private implementation methods
 
   private detectBlockMode(): 'bundle' | 'html' {
-    const mainResource = this.findResource('main.js')
-    const htmlResource = this.findResource('app.html')
-    return mainResource ? 'bundle' : 'html'
+  // Prefer explicit HTML template blocks
+  const htmlResource = this.findResource('app.html')
+  if (htmlResource) return 'html'
+  // Fall back to bundle if we have a main.js or (legacy) app.js without HTML
+  if (this.findResource('main.js') || this.findResource('app.js')) return 'bundle'
+  return 'html'
   }
 
   private async initializeBundleBlock(container: HTMLElement): Promise<void> {
@@ -400,14 +403,20 @@ export class VivafolioBlockLoader implements BlockLoader {
     this.reactModule = reactModule.default || reactModule
     this.reactDomModule = reactDomModule.default || reactDomModule
 
-    const bundleUrl = this.resolveResourceUrl('main.js')
+    // Support legacy/fallback naming (app.js used by HTML template blocks when loaded as bundle)
+    const bundleLogicalName = this.findResource('main.js')
+      ? 'main.js'
+      : this.findResource('app.js')
+        ? 'app.js'
+        : null
+    const bundleUrl = bundleLogicalName ? this.resolveResourceUrl(bundleLogicalName) : null
     if (!bundleUrl) {
-      throw new Error('Bundle resource missing (main.js)')
+      throw new Error('Bundle resource missing (main.js/app.js)')
     }
 
     console.log('[BlockLoader] Bundle URL:', bundleUrl)
 
-    await this.prefetchLocalResources('main.js')
+  await this.prefetchLocalResources(bundleLogicalName!)
 
     console.log('[BlockLoader] Fetching bundle from:', bundleUrl)
     const bundleResponse = await this.fetchResource(bundleUrl, { cache: 'no-store' as RequestCache })
