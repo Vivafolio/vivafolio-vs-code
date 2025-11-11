@@ -264,6 +264,7 @@ test-blockprotocol-scaffold:
 	  npx playwright test tests/scaffold.spec.ts | cat
 
 # Run standalone server tests (server startup, framework bundles, CLI, isolation)
+#11.11.2025 - PASS
 test-blockprotocol-standalone:
 	cd apps/blockprotocol-poc && \
 	  PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH:-$(command -v chromium)}" \
@@ -337,6 +338,7 @@ test-blockprotocol-standalone-build:
 # -----------------------------
 
 # Test mock LSP server functions directly (no LSP protocol)
+#11.11.2025 - PASS
 test-lsp-direct:
 	node test/direct-test.js
 
@@ -349,6 +351,7 @@ test-lsp-syntax-errors:
 	npm run test:e2e:lsp-syntax-error
 
 # Run all standalone LSP server tests
+#11.11.2025 - PASS
 test-lsp-standalone: test-lsp-direct test-lsp-protocol test-lsp-syntax-errors
 
 # -----------------------------
@@ -356,6 +359,9 @@ test-lsp-standalone: test-lsp-direct test-lsp-protocol test-lsp-syntax-errors
 # -----------------------------
 
 # Run WDIO tests for VS Code integration
+
+test-wdio-all: test-wdio test-wdio-single-block test-wdio-two-blocks test-wdio-synchronization
+
 test-wdio:
 	npm run test:wdio
 

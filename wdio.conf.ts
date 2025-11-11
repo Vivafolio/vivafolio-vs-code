@@ -51,7 +51,21 @@ try {
   process.env.TEMP = shortTmpDir
   process.env.TMP = shortTmpDir
 } catch {}
+// Ensure wdio-vscode-service cache directory exists to prevent ENOENT when writing versions.txt
+const wdioCacheDir = path.join(process.cwd(), '.wdio-vscode-service')
+try {
+  if (!fs.existsSync(wdioCacheDir)) fs.mkdirSync(wdioCacheDir, { recursive: true })
+} catch (e) {
+  console.warn('Could not create wdio cache directory:', e)
+}
 import type { Options } from '@wdio/types'
+
+// Try to detect a system chromedriver (useful on Nix) and only enable the service when available
+let systemChromedriverPath: string | undefined
+try {
+  const which = execSync('command -v chromedriver', { encoding: 'utf8' }).trim()
+  if (which && fs.existsSync(which)) systemChromedriverPath = which
+} catch {}
 
 export const config: Options.Testrunner = {
   // ====================
@@ -113,10 +127,15 @@ export const config: Options.Testrunner = {
   connectionRetryCount: 3,
 
   // Test runner services
-  services: [ 'vscode' ],
+  // Use vscode service; add chromedriver service only if a system driver is present
+  services: [
+    'vscode',
+    ...(systemChromedriverPath ? ([['chromedriver', { chromedriverCustomPath: systemChromedriverPath, logFileName: 'wdio-chromedriver.log' }]] as any) : [])
+  ],
 
   // Framework you want to run your specs with.
   framework: 'mocha',
+  // Run a single worker to avoid starting multiple chromedrivers and hitting port issues
   maxInstances: 1,
 
   // The number of times to retry the entire specfile when it fails as a whole
