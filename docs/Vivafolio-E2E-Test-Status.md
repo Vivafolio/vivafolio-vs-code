@@ -912,3 +912,4 @@ just vscode-e2e
 - ✅ Insets appear/disappear based on block presence
 - ✅ No duplicate insets for same blockId
 - ✅ Clean state when no blocks present
+
