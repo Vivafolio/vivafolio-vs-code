@@ -39,7 +39,9 @@
     "color-square",
     "d3-line-chart",
     "table-view-tanstack",
-    "libs/d3"
+    "libs/d3",
+    "myblock",
+    "mySolidBlock"
   ],
   "dependencies": {
     "solid-js": "^1.9.2",
