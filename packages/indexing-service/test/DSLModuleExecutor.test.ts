@@ -79,7 +79,7 @@ Bob,25,London
         sourcePath: testFilePath
       };
 
-      const result = await executor.updateEntity('test_table-row-0', { Name: 'Alice Updated', Age: '31' }, metadata);
+      const result = await executor.updateEntity('test_table-row-0', { name: 'Alice Updated', age: '31' }, metadata);
 
       expect(result).toBe(true);
       expect(mockedFs.readFile).toHaveBeenCalledWith(testFilePath, 'utf-8');
@@ -98,7 +98,7 @@ Bob,25,London
         sourcePath: testFilePath
       };
 
-      const result = await executor.updateEntity('invalid-entity-id', { Name: 'Test' }, metadata);
+      const result = await executor.updateEntity('invalid-entity-id', { name: 'Test' }, metadata);
 
       expect(result).toBe(false);
       expect(mockedFs.writeFile).not.toHaveBeenCalled();
@@ -112,7 +112,7 @@ Bob,25,London
         sourcePath: testFilePath
       };
 
-      const result = await executor.updateEntity('test_table-row-0', { Name: 'Test' }, metadata);
+      const result = await executor.updateEntity('test_table-row-0', { name: 'Test' }, metadata);
 
       expect(result).toBe(false);
     });
@@ -125,7 +125,7 @@ Bob,25,London
         sourcePath: testFilePath
       };
 
-      const newProperties = { Name: 'Charlie', Age: '28', City: 'Boston' };
+      const newProperties = { name: 'Charlie', age: '28', city: 'Boston' };
       const result = await executor.createEntity('test_table-row-2', newProperties, metadata);
 
       expect(result).toBe(true);

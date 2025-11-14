@@ -128,9 +128,10 @@ export class DSLModuleExecutor implements EditingModule {
       const cells = currentRow.split(',').map(c => c.trim().replace(/"/g, ''));
 
       // Update the row with new properties, preserving existing values
-      const updatedRow = headers.map(header => {
-        const value = properties[header];
-        return value !== undefined ? `"${value}"` : `"${cells[headers.indexOf(header)] || ''}"`;
+      const updatedRow = headers.map((header, idx) => {
+        const fallback = cells[idx] || '';
+        const value = this.resolvePropertyValue(header, properties, fallback);
+        return `"${value}"`;
       }).join(', ');
 
     lines[dataRowIndex] = updatedRow;
@@ -162,8 +163,8 @@ export class DSLModuleExecutor implements EditingModule {
 
     // Create new row from properties
     const newRow = headers.map(header => {
-      const value = properties[header];
-      return value !== undefined ? `"${value}"` : '""';
+      const value = this.resolvePropertyValue(header, properties, '');
+      return `"${value}"`;
     }).join(', ');
 
     lines.push(newRow);
@@ -212,5 +213,16 @@ export class DSLModuleExecutor implements EditingModule {
     const updatedContent = content.replace(match[0], `vivafolio_data!("${dslModule.entityId}", r#"\n${updatedTableText}\n"#)`);
 
     return updatedContent;
+  }
+
+  private resolvePropertyValue(header: string, properties: Record<string, any>, fallback: string): string {
+    if (Object.prototype.hasOwnProperty.call(properties, header)) {
+      return properties[header];
+    }
+    const normalized = header.trim().toLowerCase().replace(/\s+/g, '_');
+    if (Object.prototype.hasOwnProperty.call(properties, normalized)) {
+      return properties[normalized];
+    }
+    return fallback;
   }
 }

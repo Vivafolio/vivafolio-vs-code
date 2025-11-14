@@ -14,7 +14,8 @@
     "dev": "block-scripts dev",
     "format": "prettier --write --ignore-unknown .",
     "lint:tsc": "tsc --noEmit",
-    "serve": "block-scripts serve"
+    "serve": "block-scripts serve",
+    "clean": "rimraf dist"
   },
   "prettier": {
     "printWidth": 80,
@@ -24,6 +25,7 @@
     "@blockprotocol/graph": "0.3.4"
   },
   "devDependencies": {
+    "rimraf": "^5.0.5",
     "@types/react-dom": "18.0.9",
     "@types/react-is": "18.2.0",
     "block-scripts": "0.3.5",

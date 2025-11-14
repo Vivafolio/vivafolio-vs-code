@@ -61,7 +61,7 @@ Bob,25,London`;
       const entities = service.getAllEntities();
       expect(entities).toHaveLength(2);
       expect(entities[0].entityId).toBe('data-row-0');
-      expect(entities[0].properties).toEqual({ Name: 'Alice', Age: '30', City: 'New York' });
+      expect(entities[0].properties).toEqual({ name: 'Alice', age: '30', city: 'New York' });
     });
 
     it('should process Markdown files with frontmatter', async () => {
@@ -120,9 +120,9 @@ This is a test document.`;
       expect(entities).toHaveLength(2);
       expect(entities[0].entityId).toBe('tasks-row-0');
       expect(entities[0].properties).toEqual({
-        Task: 'Write code',
-        Assignee: 'Alice',
-        Status: 'Done'
+        task: 'Write code',
+        assignee: 'Alice',
+        status: 'Done'
       });
       expect(entities[0].dslModule).toBeDefined();
     });
@@ -142,7 +142,7 @@ Alice,30,New York`;
     });
 
     it('should update entity properties', async () => {
-      const result = await service.updateEntity('data-row-0', { Name: 'Alice Updated', Age: '31' });
+      const result = await service.updateEntity('data-row-0', { name: 'Alice Updated', age: '31' });
 
       expect(result).toBe(true);
       expect(mockedFs.writeFile).toHaveBeenCalled();
@@ -159,7 +159,7 @@ Alice,30,New York`;
         sourcePath: '/test/data.csv'
       };
 
-      const result = await service.createEntity('data-row-1', { Name: 'Charlie', Age: '28', City: 'Boston' }, metadata);
+      const result = await service.createEntity('data-row-1', { name: 'Charlie', age: '28', city: 'Boston' }, metadata);
 
       expect(result).toBe(true);
       expect(mockedFs.writeFile).toHaveBeenCalled();
@@ -179,7 +179,7 @@ Alice,30,New York`;
     });
 
     it('should return false for non-existent entity', async () => {
-      const result = await service.updateEntity('non-existent-entity', { Name: 'Test' });
+      const result = await service.updateEntity('non-existent-entity', { name: 'Test' });
       expect(result).toBe(false);
     });
   });
@@ -198,12 +198,12 @@ Alice,30,New York`;
       const entityUpdatedHandler = jest.fn();
       service.on('entity-updated', entityUpdatedHandler);
 
-      await service.updateEntity('data-row-0', { Name: 'Alice Updated' });
+      await service.updateEntity('data-row-0', { name: 'Alice Updated' });
 
       expect(entityUpdatedHandler).toHaveBeenCalledWith(
         expect.objectContaining({
           entityId: 'data-row-0',
-          properties: expect.objectContaining({ Name: 'Alice Updated' }),
+          properties: expect.objectContaining({ name: 'Alice Updated' }),
           timestamp: expect.any(Date),
           sourcePath: '/test/data.csv',
           sourceType: 'csv',
@@ -229,9 +229,9 @@ Bob,25,London`;
       });
 
       // Update first entity (should trigger)
-      await service.updateEntity('data-row-0', { Name: 'Alice Updated' });
+      await service.updateEntity('data-row-0', { name: 'Alice Updated' });
       // Update second entity (should be filtered out)
-      await service.updateEntity('data-row-1', { Name: 'Bob Updated' });
+      await service.updateEntity('data-row-1', { name: 'Bob Updated' });
 
       expect(entityUpdatedHandler).toHaveBeenCalledTimes(1);
       expect(entityUpdatedHandler).toHaveBeenCalledWith(
@@ -256,7 +256,7 @@ Alice,30,New York`;
       service.on('entity-updated', highPriorityHandler as any, { priority: 10 });
       service.on('entity-updated', lowPriorityHandler as any, { priority: 0 });
 
-      await service.updateEntity('data-row-0', { Name: 'Alice Updated' });
+      await service.updateEntity('data-row-0', { name: 'Alice Updated' });
 
       expect(calls).toEqual(['high', 'low']);
     });
@@ -299,7 +299,7 @@ Alice,30,New York`;
 
       // Trigger the event after a short delay
       setTimeout(async () => {
-        await service.updateEntity('data-row-0', { Name: 'Alice Updated' });
+        await service.updateEntity('data-row-0', { name: 'Alice Updated' });
       }, 10);
 
       const result = await waitPromise;
@@ -307,7 +307,7 @@ Alice,30,New York`;
       expect(result).toEqual(
         expect.objectContaining({
           entityId: 'data-row-0',
-          properties: expect.objectContaining({ Name: 'Alice Updated' }),
+          properties: expect.objectContaining({ name: 'Alice Updated' }),
           operationType: 'update'
         })
       );
@@ -333,12 +333,12 @@ Bob,25,London`;
         {
           type: 'update' as const,
           entityId: 'data1-row-0',
-          properties: { Name: 'Alice Updated' }
+          properties: { name: 'Alice Updated' }
         },
         {
           type: 'update' as const,
           entityId: 'data2-row-0',
-          properties: { Name: 'Bob Updated' }
+          properties: { name: 'Bob Updated' }
         }
       ];
 

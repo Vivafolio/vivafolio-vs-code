@@ -99,10 +99,10 @@ Charlie Brown,25,Engineering,Junior Developer
         entityId: 'user_profiles-row-0',
         sourceType: 'vivafolio_data_construct',
         properties: {
-          Name: 'Alice Johnson',
-          Age: '28',
-          Department: 'Engineering',
-          Role: 'Senior Developer'
+          name: 'Alice Johnson',
+          age: '28',
+          department: 'Engineering',
+          role: 'Senior Developer'
         }
       });
 
@@ -110,8 +110,8 @@ Charlie Brown,25,Engineering,Junior Developer
 
       // Test updating an entity
       const updateResult = await service.updateEntity('user_profiles-row-0', {
-        Name: 'Alice Johnson (Updated)',
-        Age: '29'
+        name: 'Alice Johnson (Updated)',
+        age: '29'
       });
 
       expect(updateResult).toBe(true);
@@ -128,10 +128,10 @@ Charlie Brown,25,Engineering,Junior Developer
 
       // Test creating a new entity
       const createResult = await service.createEntity('user_profiles-row-3', {
-        Name: 'Diana Wilson',
-        Age: '30',
-        Department: 'Marketing',
-        Role: 'Marketing Manager'
+        name: 'Diana Wilson',
+        age: '30',
+        department: 'Marketing',
+        role: 'Marketing Manager'
       }, {
         sourceType: 'vivafolio_data_construct',
         dslModule: entities[0].dslModule,
@@ -148,10 +148,10 @@ Charlie Brown,25,Engineering,Junior Developer
       expect(newEntity).toMatchObject({
         entityId: 'user_profiles-row-3',
         properties: {
-          Name: 'Diana Wilson',
-          Age: '30',
-          Department: 'Marketing',
-          Role: 'Marketing Manager'
+          name: 'Diana Wilson',
+          age: '30',
+          department: 'Marketing',
+          role: 'Marketing Manager'
         }
       });
     });
@@ -179,17 +179,17 @@ Keyboard,79.99,30,Accessories`;
         entityId: 'products-row-0',
         sourceType: 'csv',
         properties: {
-          Product: 'Laptop',
-          Price: '999.99',
-          Stock: '15',
-          Category: 'Electronics'
+          product: 'Laptop',
+          price: '999.99',
+          stock: '15',
+          category: 'Electronics'
         }
       });
 
       // Test updating CSV entity
       const updateResult = await service.updateEntity('products-row-0', {
-        Price: '899.99',
-        Stock: '12'
+        price: '899.99',
+        stock: '12'
       });
 
       expect(updateResult).toBe(true);
@@ -314,18 +314,18 @@ Test,123
       await service.handleVivafolioBlockNotification(notification);
 
       // Update entity
-      await service.updateEntity('test_data-row-0', { Name: 'Updated Test' });
+      await service.updateEntity('test_data-row-0', { name: 'Updated Test' });
 
       expect(entityUpdatedHandler).toHaveBeenCalledWith(expect.objectContaining({
         entityId: 'test_data-row-0',
         properties: expect.objectContaining({
-          Name: 'Updated Test'
+          name: 'Updated Test'
         }),
         operationType: 'update'
       }));
 
       // Create entity
-      await service.createEntity('test_data-row-1', { Name: 'New Item', Value: '456' }, {
+      await service.createEntity('test_data-row-1', { name: 'New Item', value: '456' }, {
         sourceType: 'vivafolio_data_construct',
         dslModule: service.getAllEntities()[0].dslModule,
         sourcePath: notification.sourcePath
@@ -334,8 +334,8 @@ Test,123
       expect(entityCreatedHandler).toHaveBeenCalledWith(expect.objectContaining({
         entityId: 'test_data-row-1',
         properties: expect.objectContaining({
-          Name: 'New Item',
-          Value: '456'
+          name: 'New Item',
+          value: '456'
         }),
         operationType: 'create'
       }));
