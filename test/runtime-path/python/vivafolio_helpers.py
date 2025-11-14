@@ -55,7 +55,7 @@ def emit_vivafolioblock_notification(block_id, block_type, entity_id, entity_gra
         "blockType": f"https://blockprotocol.org/@blockprotocol/types/block-type/{block_type}/",
         "displayMode": "multi-line",
         "entityId": entity_id,
-        "entityGraph": initial_graph,
+        "entityGraph": entity_graph,
         "supportsHotReload": False,
         "initialHeight": 200
     }

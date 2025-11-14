@@ -97,7 +97,6 @@ install-all:
 	else \
 		echo "Vue framework dependencies already installed"; \
 	fi
-	@echo "All dependencies installed and packages built successfully"
 
 # -----------------------------
 # Build commands
@@ -178,6 +177,7 @@ test-e2e-blockprotocol-integration:
 
 # Runtime Path Testing
 test-runtime-python:
+	python3 -m unittest discover -s test/runtime-path/python -p "test_*.py"
 	python3 test/runtime-path/python/two_blocks.py
 
 test-runtime-ruby:
@@ -418,9 +418,9 @@ vscode-clean: install-mocklang-extension
 vscode-dev-full: install-mocklang-extension
 	@echo "Starting full development environment..."
 	@echo "1. Starting extension file watcher..."
-	@npm run watch > /dev/null 2>&1 &
+	@node scripts/start-background.mjs --name extension-watch -- npm run watch
 	@echo "2. Starting block file watcher..."
-	@just watch-blocks > /dev/null 2>&1 &
+	@node scripts/start-background.mjs --name blocks-dev-server --cwd blocks -- npm run dev-server
 	@sleep 2
 	@echo "3. Launching VS Code..."
 	@VIVAFOLIO_DEBUG=1 VIVAFOLIO_CAPTURE_WEBVIEW_LOGS=1 code-insiders \
@@ -484,7 +484,7 @@ block-dev-server:
 # Launch VS Code with block dev server
 vscode-with-server: install-mocklang-extension
 	@echo "Starting block dev server and VS Code..."
-	@just block-dev-server &
+	@node scripts/start-background.mjs --name blocks-dev-server --cwd blocks -- npm run dev-server
 	@sleep 3
 	@VIVAFOLIO_DEBUG=1 BLOCK_DEV_SERVER_PORT=3001 code-insiders \
 		--extensionDevelopmentPath="${PWD}/mocklang-extension" \
@@ -508,10 +508,15 @@ validate-blocks:
 	@for dir in blocks/*/; do \
 		if [ -d "$dir" ] && [ -f "$dir/package.json" ]; then \
 			block_name=$(basename "$dir"); \
-			if [ -f "$dir/dist/index.html" ]; then \
-				echo "✅ $block_name: Build valid"; \
+			dist_dir="$dir/dist"; \
+			if [ ! -d "$dist_dir" ]; then \
+				echo "❌ $block_name: Missing dist/ directory"; \
+			elif compgen -G "$dist_dir/*.html" > /dev/null; then \
+				echo "✅ $block_name: HTML artifact found"; \
+			elif compgen -G "$dist_dir/*.js" > /dev/null; then \
+				echo "✅ $block_name: JS artifact found"; \
 			else \
-				echo "❌ $block_name: Missing dist/index.html"; \
+				echo "❌ $block_name: Missing dist entry point (expected HTML or JS)"; \
 			fi; \
 		fi; \
 	done
@@ -527,11 +532,8 @@ dev-status:
 
 # Kill all development processes
 kill-dev:
-	@echo "Killing development processes..."
-	@pkill -f "npm run watch" || true
-	@pkill -f "watch-blocks" || true
-	@pkill -f "code-insiders" || true
-	@pkill -f "block-dev-server" || true
+	@echo "Killing tracked development processes..."
+	@node scripts/kill-dev-processes.mjs
 	@echo "All development processes killed"
 
 # Reset development environment

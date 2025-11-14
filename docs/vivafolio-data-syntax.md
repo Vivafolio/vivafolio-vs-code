@@ -52,6 +52,14 @@ Implement authentication,Alice,In Progress,High,2025-09-20
 Design database schema,Bob,Completed,Medium,2025-09-15
 Write API documentation,Charlie,Not Started,Low,2025-09-25
 "#);
+
+> **Header normalization**
+>
+> When Vivafolio ingests `vivafolio_data!()` constructs (or CSV files), header names are
+> normalized before indexing or editing: they are trimmed, lowercased, and whitespace is
+> converted to underscores (for example, `Task Name` becomes `task_name`). Editing modules
+> accept both the original and normalized forms, but new integrations should rely on the
+> normalized keys to avoid casing mismatches.
 ```
 
 ### Inventory Management (Python)

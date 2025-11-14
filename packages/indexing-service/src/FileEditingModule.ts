@@ -46,8 +46,9 @@ export class CSVEditingModule implements EditingModule {
 
       // Update the row, preserving existing values
       const updatedRow = headers.map((header, index) => {
-        const value = properties[header];
-        return value !== undefined ? `"${value}"` : `"${currentCells[index] || ''}"`;
+        const fallback = currentCells[index] || '';
+        const value = this.resolvePropertyValue(header, properties, fallback);
+        return `"${value}"`;
       }).join(',');
 
       lines[dataRowIndex] = updatedRow;
@@ -82,8 +83,8 @@ export class CSVEditingModule implements EditingModule {
 
       // Create new row
       const newRow = headers.map(header => {
-        const value = properties[header];
-        return value !== undefined ? `"${value}"` : '""';
+        const value = this.resolvePropertyValue(header, properties, '');
+        return `"${value}"`;
       }).join(',');
 
       lines.push(newRow);
@@ -140,6 +141,17 @@ export class CSVEditingModule implements EditingModule {
       console.error(`CSVEditingModule: Failed to delete entity ${entityId}:`, error);
       return false;
     }
+  }
+
+  private resolvePropertyValue(header: string, properties: Record<string, any>, fallback: string): string {
+    if (Object.prototype.hasOwnProperty.call(properties, header)) {
+      return properties[header];
+    }
+    const normalized = header.trim().toLowerCase().replace(/\s+/g, '_');
+    if (Object.prototype.hasOwnProperty.call(properties, normalized)) {
+      return properties[normalized];
+    }
+    return fallback;
   }
 }
 

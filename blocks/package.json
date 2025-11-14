@@ -32,6 +32,7 @@
     "server": "node dist/cli.js",
     "clean": "for dir in */; do if [ -d \"$dir\" ] && [ -f \"$dir/package.json\" ] && [ \"$dir\" != \"node_modules/\" ]; then echo \"Cleaning $dir\" && (cd \"$dir\" && npm run clean); fi; done && rm -rf dist",
     "install:all": "for dir in */; do if [ -d \"$dir\" ] && [ -f \"$dir/package.json\" ] && [ \"$dir\" != \"node_modules/\" ]; then echo \"Installing $dir\" && (cd \"$dir\" && npm install); fi; done",
+    "test": "npm run type-check",
     "type-check": "tsc --noEmit"
   },
   "workspaces": [

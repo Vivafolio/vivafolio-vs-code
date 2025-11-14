@@ -575,6 +575,11 @@ export class IndexingService {
       return;
     }
 
+    const sanitizeHeader = (raw: string, idx: number) => {
+      const base = raw.trim().toLowerCase().replace(/\s+/g, '_');
+      return base || `col${idx + 1}`;
+    };
+
     // Create entities for each row in the table data
     for (let i = 0; i < tableData.rows.length; i++) {
       const row = tableData.rows[i];
@@ -582,7 +587,8 @@ export class IndexingService {
 
       const properties: Record<string, any> = {};
       tableData.headers.forEach((header: string, idx: number) => {
-        properties[header] = row[idx] || '';
+        const key = sanitizeHeader(header, idx);
+        properties[key] = row[idx] || '';
       });
 
       const metadata: EntityMetadata = {
