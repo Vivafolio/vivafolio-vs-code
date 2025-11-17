@@ -24,30 +24,21 @@
       else
         (pkgs.vscode.override { isInsiders = true; }).overrideAttrs (old: rec {
           version = "latest";
-          # Linux only: pin x86_64 to a specific dbazure snapshot, fall back to upstream endpoint if needed.
+          # Linux only: pin specific Insiders builds per-arch; fall back to upstream endpoint elsewhere.
           src =
             if pkgs.stdenv.hostPlatform.system == "x86_64-linux" then
               pkgs.fetchurl {
-                urls = [
-                  "https://vscode.download.prss.microsoft.com/dbazure/download/insider/828519ca2437c1d96a6ad4923754ac666377ac99/code-insider-x64-1762508289.tar.gz"
-                  "https://code.visualstudio.com/sha/download?build=insider&os=linux-x64"
-                ];
+                url = "https://update.code.visualstudio.com/commit:f220831ea2d946c0dcb0f3eaa480eb435a2c1260/linux-x64/insider";
                 name = "vscode-insiders-linux-x64.tar.gz";
-                sha256 = "sha256-a98/l2AKSaZNQ1Bu/Kh+Woxa/3NbgORGc+LhooM0Suw=";
+                sha256 = "14i07ccd76dgi87ds2fp0x5i64n07hig779bsgn5d77qnbvy01hy";
               }
-            else (
-              let
-                isAarch64 = pkgs.stdenv.hostPlatform.isAarch64 or (pkgs.system == "aarch64-linux");
-                osParam = if isAarch64 then "linux-arm64" else "linux-x64";
-                name = "vscode-insiders-${osParam}.tar.gz";
-                url = "https://code.visualstudio.com/sha/download?build=insider&os=${osParam}";
-              in pkgs.fetchurl ({ inherit url name; } //
-                   (if pkgs.stdenv.hostPlatform.system == "aarch64-linux" then {
-                     sha256 = "sha256-pryuJPBxDvxS+pkrDWioiFghs+QNqge+iQvcwCUB0dg=";
-                   } else {
-                     sha256 = lib.fakeSha256;
-                   }))
-            );
+            else if pkgs.stdenv.hostPlatform.system == "aarch64-linux" then
+              pkgs.fetchurl {
+                url = "https://update.code.visualstudio.com/commit:d226a2a497b928d78aa654f74c8af5317d3becfb/linux-arm64/insider";
+                name = "vscode-insiders-linux-arm64.deb";
+                sha256 = "1c8lv3z13wc1rrcj5v9bgng0vvw4dl040jxbz030w8p0l92a6bij";
+              }
+            else old.src;
           pname = "vscode-insiders";
           name = "${pname}-${version}";
         });
