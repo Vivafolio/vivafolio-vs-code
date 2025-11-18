@@ -2625,11 +2625,37 @@ let localBlockBuilder: any | undefined
               }
             }
 
-            // Reflect the update in the local scenario state for the purposes of demo notifications
-            const entity = state.graph.entities.find((e: any) => e.entityId === upd.entityId)
-            if (entity) {
-              entity.properties = { ...entity.properties, ...upd.properties }
+            // Maintain scenario-specific derived state if applyUpdate is provided; otherwise shallow merge
+            // This should be removed after all scenarios are migrated to IndexingService-driven updates 
+              if (typeof scenario.applyUpdate === 'function') {
+              try {
+                scenario.applyUpdate({
+                  state,
+                  update: upd,
+                  socket,
+                  broadcast: (notification) => {
+                    try {
+                      socket.send(JSON.stringify({ type: 'vivafolioblock-notification', payload: notification }))
+                    } catch (e) {
+                      console.warn('[transport] broadcast failed:', e)
+                    }
+                  }
+                })
+              } catch (e) {
+                console.warn('[transport] scenario.applyUpdate failed, falling back to direct merge:', e)
+                const entity = state.graph.entities.find((e: any) => e.entityId === upd.entityId)
+                if (entity) {
+                  entity.properties = { ...entity.properties, ...upd.properties }
+                }
+              }
+            } else {
+              // Reflect the update in the local scenario state as a basic fallback
+              const entity = state.graph.entities.find((e: any) => e.entityId === upd.entityId)
+              if (entity) {
+                entity.properties = { ...entity.properties, ...upd.properties }
+              }
             }
+            // Push refreshed notifications to the client after state has been updated
             dispatchScenarioNotifications(socket, scenario, state, request)
 
             // Send ack
