@@ -1161,7 +1161,28 @@ window.addEventListener('message', (event) => {
       }
       break
     }
-  // case 'graph:update': intentionally disabled
+    case 'graph:update': {
+      // Forward iframe-driven graph updates to the dev server (used by iframe-webviews scenario)
+      const update = data as {
+        blockId: string
+        entityId: string
+        properties: Record<string, unknown>
+        kind?: string
+      }
+      if (!liveSocket || liveSocket.readyState !== WebSocket.OPEN) return
+      liveSocket.send(
+        JSON.stringify({
+          type: 'graph/update',
+          payload: {
+            blockId: update.blockId,
+            entityId: update.entityId,
+            kind: update.kind ?? 'updateEntity',
+            properties: update.properties ?? {}
+          }
+        })
+      )
+      break
+    }
     default:
       break
   }
