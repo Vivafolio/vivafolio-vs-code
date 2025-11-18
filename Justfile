@@ -5,7 +5,11 @@ set shell := ["./scripts/nix-env.sh", "-c"]
 # Setup commands
 # -----------------------------
 
-# Install all dependencies, build Vivafolio TypeScript extension and all framework packages
+# One-shot setup/build for local dev and CI: updates git submodules,
+# installs all workspace dependencies, builds core packages + framework
+# adapters + blocks, then compiles the main Vivafolio VS Code extension.
+# Run this after cloning or pulling when you want everything in the repo
+# to be built and ready for tests.
 build-all:
 	@echo "Initializing git submodules..."
 	git submodule update --init --recursive
@@ -176,24 +180,38 @@ test-e2e-blockprotocol-integration:
 	node test/e2e-blockprotocol-integration.js | cat
 
 # Runtime Path Testing
+# Python runtime-path guard: runs helper unit tests + the two_blocks.py program.
+# Use this while iterating on Python helpers or JSON emission logic – it catches
+# regressions like wrong field names (e.g., initial_graph vs entity_graph) before
+# you run the cross-language validator below.
 test-runtime-python:
 	python3 -m unittest discover -s test/runtime-path/python -p "test_*.py"
 	python3 test/runtime-path/python/two_blocks.py
 
+# Ruby runtime-path smoke test (exercise two_blocks.rb end-to-end)
 test-runtime-ruby:
 	ruby test/runtime-path/ruby/two_blocks.rb
 
+# Julia runtime-path smoke test (exercise two_blocks.jl end-to-end)
 test-runtime-julia:
 	julia test/runtime-path/julia/two_blocks.jl
 
+# R runtime-path smoke test (exercise two_blocks.R end-to-end)
 test-runtime-r:
 	cd test/runtime-path/r && Rscript two_blocks.R
 
+# JavaScript runtime-path smoke test (exercise two_blocks.js end-to-end)
 test-runtime-javascript:
 	node test/runtime-path/javascript/two_blocks.js
 
+# Aggregate runtime-path smoke tests across all supported languages
 test-runtime-all: test-runtime-python test-runtime-ruby test-runtime-julia test-runtime-r test-runtime-javascript
 
+# Cross-language VivafolioBlock validator: runs test/validate-runtime-vivafolioblock.js
+# against the JSON Lines emitted by all runtime programs. Use this as the “pre-merge”
+# gate for runtime-path work: it asserts that every language emits structurally
+# correct VivafolioBlock payloads (required fields, shapes, entity graph wiring),
+# not just that the programs execute without crashing.
 test-runtime-vivafolioblock:
 	npm run -s test:runtime:vivafolioblock | cat
 
@@ -459,16 +477,22 @@ vscode-dev-trace: install-mocklang-extension
 # Block Development Commands
 # -----------------------------
 
-# Build all blocks
+# Build all blocks (aggregates per-block build scripts into a single pass).
+# Run this after changing shared block libs or individual blocks, or before
+# running Block Protocol POC tests/dev servers that rely on fresh dist/ outputs.
 build-blocks:
 	cd blocks && npm run build
 
-# Watch blocks and rebuild automatically (uses block dev-server with hot reload)
+# Watch blocks and rebuild automatically (uses block dev-server with hot reload).
+# Use this while actively developing blocks to get live-reload behavior without
+# manually re-running build-blocks.
 watch-blocks:
 	@echo "Starting block development server with file watching and hot reload..."
 	@cd blocks && npm run dev-server
 
-# Clean all block builds
+# Clean all block builds by delegating to the blocks workspace clean script.
+# Use this when block builds or POC tests behave strangely and you want to
+# force a full rebuild of all block artifacts.
 clean-blocks:
 	cd blocks && npm run clean
 
@@ -481,7 +505,9 @@ block-dev-server:
 	@echo "Starting block development server with hot reload..."
 	@cd blocks && npm run dev-server
 
-# Launch VS Code with block dev server
+# Launch VS Code with block dev server. Starts the block dev server in the
+# background via scripts/start-background.mjs, then opens VS Code pointing
+# at the vivafolio-data-examples workspace with both extensions loaded.
 vscode-with-server: install-mocklang-extension
 	@echo "Starting block dev server and VS Code..."
 	@node scripts/start-background.mjs --name blocks-dev-server --cwd blocks -- npm run dev-server
@@ -494,7 +520,9 @@ vscode-with-server: install-mocklang-extension
 		--new-window \
 		"${PWD}/test/projects/vivafolio-data-examples"
 
-# Test blocks
+# Run the blocks workspace test suite (TypeScript/type-level + any block tests).
+# Use this while iterating on block code or shared block libraries to catch
+# regressions before running heavier POC or integration suites.
 test-blocks:
 	cd blocks && npm test
 
@@ -502,7 +530,9 @@ test-blocks:
 test-block-integration:
 	node test/e2e-blockprotocol-integration-complete.js
 
-# Validate block builds
+# Validate block builds across all block directories. After running block
+# builds, use this to ensure each block has a dist/ directory with either an
+# HTML or JS entrypoint (relaxed from the previous HTML-only requirement).
 validate-blocks:
 	@echo "Validating block builds..."
 	@for dir in blocks/*/; do \
@@ -530,13 +560,17 @@ dev-status:
 	@echo "VS Code instances: $(pgrep -f "code-insiders" | wc -l) processes"
 	@echo "Block dev server: $(pgrep -f "block-dev-server" | wc -l) processes"
 
-# Kill all development processes
+# Kill all tracked development processes (watchers, dev servers, VS Code dev
+# instances) using PID files via scripts/kill-dev-processes.mjs. Safe to run
+# when your dev environment gets noisy or stuck, without resorting to pkill.
 kill-dev:
 	@echo "Killing tracked development processes..."
 	@node scripts/kill-dev-processes.mjs
 	@echo "All development processes killed"
 
-# Reset development environment
+# Reset block-related development state: stop dev processes, clean all block
+# builds, and rebuild them from scratch. Use this when block builds or dev
+# servers feel out-of-sync with the current source.
 reset-dev:
 	@echo "Resetting development environment..."
 	@just kill-dev
@@ -544,7 +578,9 @@ reset-dev:
 	@just build-blocks
 	@echo "Development environment reset"
 
-# Clean everything (extension, blocks, caches)
+# Clean everything (extension, blocks, caches, and app/package dist outputs).
+# Use this before a full rebuild when incremental builds appear corrupted or
+# when you want a CI-like clean slate locally.
 clean-all:
 	@echo "Cleaning all build artifacts and caches..."
 	@npm run clean
