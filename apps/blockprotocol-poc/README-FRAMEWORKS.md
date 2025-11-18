@@ -344,6 +344,6 @@ When adding new frameworks:
 ## 🔗 Related Documentation
 
 - [Block Protocol Specification](../docs/spec/BlockProtocol-in-Vivafolio.md)
-- [Dev Server API](./docs/BlockProtocol-DevServer.md)
+- [Dev Server API](../../docs/BlockProtocol-DevServer.md)
 - [Framework Types](./libs/block-frameworks/types/index.ts)
 - [Test Guidelines](../test/AGENTS.md)

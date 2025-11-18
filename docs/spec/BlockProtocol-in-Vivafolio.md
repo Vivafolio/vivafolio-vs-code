@@ -399,51 +399,57 @@ Communication between the Host and the WebView adheres to the official Block Pro
 
 #### **Initial Discovery and Rendering**
 
-sequenceDiagram  
-    participant LSP  
-    participant HostExtension as Vivafolio Host  
-    participant BlockWebView as Block WebView
+```mermaid
+sequenceDiagram
+  participant LSP
+  participant HostExtension as "Vivafolio Host"
+  participant BlockWebView as "Block WebView"
 
-    LSP-\>\>HostExtension: vivafolio/blockDiscovery  
-    HostExtension-\>\>HostExtension: Generate entityId if needed  
-    HostExtension-\>\>HostExtension: Look up entity in Workspace Index  
-    HostExtension-\>\>HostExtension: Generate HTML with embedded blockEntitySubgraph  
-    HostExtension-\>\>BlockWebView: Create WebView with initial HTML  
-    BlockWebView-\>\>BlockWebView: Script loads, parses embedded data  
-    BlockWebView-\>\>BlockWebView: Renders UI instantly (No round-trip)
+  LSP->>HostExtension: vivafolio/blockDiscovery
+  HostExtension->>HostExtension: Generate entityId if needed
+  HostExtension->>HostExtension: Look up entity in Workspace Index
+  HostExtension->>HostExtension: Generate HTML with embedded blockEntitySubgraph
+  HostExtension->>BlockWebView: Create WebView with initial HTML
+  BlockWebView->>BlockWebView: Script loads, parses embedded data
+  BlockWebView->>BlockWebView: Renders UI instantly (No round-trip)
+```
 
 #### **User Interaction and Data Persistence**
 
-sequenceDiagram  
-    participant User  
-    participant BlockWebView as Block WebView  
-    participant HostExtension as Vivafolio Host  
-    participant FileSystem as Workspace Files
+```mermaid
+sequenceDiagram
+  participant User
+  participant BlockWebView as "Block WebView"
+  participant HostExtension as "Vivafolio Host"
+  participant FileSystem as "Workspace Files"
 
-    User-\>\>BlockWebView: Edits data (e.g., changes task status)  
-    BlockWebView-\>\>HostExtension: postMessage (updateEntity)  
-    HostExtension-\>\>HostExtension: Update in-memory graph  
-    HostExtension-\>\>HostExtension: Look up sourceUri for entityId  
-    HostExtension-\>\>FileSystem: Read file  
-    HostExtension-\>\>FileSystem: Modify file content (e.g., YAML frontmatter)  
-    HostExtension-\>\>FileSystem: Write file
+  User->>BlockWebView: Edits data (e.g., changes task status)
+  BlockWebView->>HostExtension: postMessage (updateEntity)
+  HostExtension->>HostExtension: Update in-memory graph
+  HostExtension->>HostExtension: Look up sourceUri for entityId
+  HostExtension->>FileSystem: Read file
+  HostExtension->>FileSystem: Modify file content (e.g., YAML frontmatter)
+  HostExtension->>FileSystem: Write file
+```
 
 #### **Nested Block Rendering (Client-Side)**
 
-sequenceDiagram  
-    participant ParentBlock as Parent Block (in WebView)  
-    participant MiniHost as Mini-Host (in WebView)  
-    participant HostExtension as Vivafolio Host
+```mermaid
+sequenceDiagram
+  participant ParentBlock as "Parent Block (in WebView)"
+  participant MiniHost as "Mini-Host (in WebView)"
+  participant HostExtension as "Vivafolio Host"
 
-    ParentBlock-\>\>ParentBlock: Renders placeholder div for child  
-    ParentBlock-\>\>MiniHost: Sends 'hook' message (e.g., for 'assignee' entity)  
-    MiniHost-\>\>MiniHost: Intercepts message  
-    MiniHost-\>\>MiniHost: Resolve block component for assignee's entity type  
-    alt Component not loaded  
-        MiniHost-\>\>HostExtension: postMessage (fetch-block-code)  
-        HostExtension--\>\>MiniHost: postMessage (block-code-response)  
-    end  
-    MiniHost-\>\>ParentBlock: Renders Child Block into placeholder div (Live Mount)
+  ParentBlock->>ParentBlock: Renders placeholder div for child
+  ParentBlock->>MiniHost: Sends 'hook' message (e.g., for 'assignee' entity)
+  MiniHost->>MiniHost: Intercepts message
+  MiniHost->>MiniHost: Resolve block component for assignee's entity type
+  alt Component not loaded
+    MiniHost->>HostExtension: postMessage (fetch-block-code)
+    HostExtension-->>MiniHost: postMessage (block-code-response)
+  end
+  MiniHost->>ParentBlock: Renders Child Block into placeholder div (Live Mount)
+```
 
 ### **5.4. Published Bundle Execution Requirements**
 

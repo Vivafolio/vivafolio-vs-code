@@ -11,7 +11,7 @@
 import { GraphEmbedderHandler } from '@blockprotocol/graph'
 import * as React from 'react'
 import * as ReactDOM from 'react-dom/client'
-
+import type { Entity, EntityGraph, BlockResource, VivafolioBlockNotification } from '@vivafolio/block-core'
 // Extend window interface for HTML template support
 declare global {
   interface Window {
@@ -32,7 +32,6 @@ interface HookMessage {
     entityId: string
   }
 }
-import type { Entity, EntityGraph, BlockResource, VivafolioBlockNotification } from '@vivafolio/block-core'
 import {
   BlockLoaderDiagnostics,
   BlockLoaderOptions,
@@ -148,6 +147,28 @@ export class VivafolioBlockLoader implements BlockLoader {
   // Mini-host for nested blocks
   private miniHost: MiniHost
   private mountedBlocks = new Map<string, HTMLElement>()
+  
+  // Spec-style update bridge (window.postMessage handler)
+  private _handleBlockProtocolMessage = (event: MessageEvent) => {
+    const data = (event && (event as any).data) || undefined
+    if (!data || typeof data !== 'object') return
+    if ((data as any).type !== 'updateEntity') return
+
+    const payload = (data as any).data ?? data
+    const entityId: string | undefined = payload?.entityId
+    const properties: Record<string, unknown> = payload?.properties ?? {}
+
+    // If the message carries a blockId, make sure it matches this loader instance
+    const msgBlockId: string | undefined = (data as any).blockId
+    const currentBlockId = this.notification?.blockId
+    if (msgBlockId && currentBlockId && msgBlockId !== currentBlockId) return
+
+    if (entityId && typeof this.options.onBlockUpdate === 'function') {
+      try {
+        this.options.onBlockUpdate({ entityId, properties })
+      } catch {}
+    }
+  }
 
   constructor(notification: VivafolioBlockNotification, options: BlockLoaderOptions = {}) {
     this.notification = notification
@@ -175,15 +196,20 @@ export class VivafolioBlockLoader implements BlockLoader {
     console.log('[BlockLoader] Loading block:', notification.blockId, notification.blockType)
 
     this.notification = notification
+    // Preserve options provided via constructor (especially onBlockUpdate),
+    // only fill in defaults for missing values.
     this.options = {
-      allowedDependencies: new Set(DEFAULT_ALLOWED_DEPENDENCIES),
-      enableIntegrityChecking: true,
-      enableDiagnostics: true,
-      onBlockUpdate: () => {}, // Will be set by caller
+      allowedDependencies: this.options.allowedDependencies || new Set(DEFAULT_ALLOWED_DEPENDENCIES),
+      enableIntegrityChecking: this.options.enableIntegrityChecking ?? true,
+      enableDiagnostics: this.options.enableDiagnostics ?? true,
+      onBlockUpdate: this.options.onBlockUpdate,
       resourcesCache: this.resourcesCache
     } as Required<BlockLoaderOptions>
 
-    // Extract block state from notification
+  // Begin listening for spec-style messages from block runtime
+  try { window.addEventListener('message', this._handleBlockProtocolMessage) } catch {}
+
+  // Extract block state from notification
     this.blockEntity = this.deriveBlockEntity(notification)
     this.blockGraph = this.deriveBlockGraph(notification)
     this.blockSubgraph = this.buildBlockEntitySubgraph(this.blockEntity, this.blockGraph)
@@ -244,6 +270,9 @@ export class VivafolioBlockLoader implements BlockLoader {
     this.destroyLocalModules()
     this.embedder?.destroy()
     this.reactRoot?.unmount()
+
+  // Tear down spec bridge listener
+  try { window.removeEventListener('message', this._handleBlockProtocolMessage) } catch {}
 
     if (this.customElementInstance) {
       this.customElementInstance.remove()
@@ -392,7 +421,7 @@ export class VivafolioBlockLoader implements BlockLoader {
   return 'html'
   }
 
-  private async initializeBundleBlock(container: HTMLElement): Promise<void> {
+  private async  initializeBundleBlock(container: HTMLElement): Promise<void> {
     const [reactModule, reactDomModule, graphModule] = await Promise.all([
       import('react'),
       import('react-dom/client'),
@@ -469,7 +498,13 @@ export class VivafolioBlockLoader implements BlockLoader {
     const exportsShim = moduleShim.exports as Record<string, unknown>
     let blockModule: unknown
     try {
-      const evaluator = new Function('require', 'module', 'exports', `${bundleSource}\nreturn module.exports;`)
+      // Provide a virtual filename for debuggers; helps breakpoint mapping when using eval
+      const evaluator = new Function(
+        'require',
+        'module',
+        'exports',
+        `${bundleSource}\n//# sourceURL=${bundleUrl}\nreturn module.exports;`
+      )
       blockModule = evaluator(requireShim, moduleShim, exportsShim) ?? moduleShim.exports
       console.log('[BlockLoader] Bundle evaluation result:', blockModule)
       console.log('[BlockLoader] Block module type:', typeof blockModule)
@@ -532,16 +567,19 @@ export class VivafolioBlockLoader implements BlockLoader {
           container.appendChild(customElement)
 
           if (typeof (factoryResult as any).init === 'function') {
-            (factoryResult as any).init({
+            const __vf_updateEntity = (properties: Record<string, unknown>) => {
+              try { console.log('[BlockLoader] factory.init updateEntity called with properties', properties) } catch {}
+              this.options.onBlockUpdate({
+                entityId: this.blockEntity.entityId,
+                properties
+              })
+            }
+            try { console.log('[BlockLoader] Calling factory.init; updateEntity typeof =', typeof __vf_updateEntity) } catch {}
+            ;(factoryResult as any).init({
               element: customElement,
               entity: this.blockEntity,
               readonly: false,
-              updateEntity: (properties: Record<string, unknown>) => {
-                this.options.onBlockUpdate({
-                  entityId: this.blockEntity.entityId,
-                  properties
-                })
-              }
+              updateEntity: __vf_updateEntity
             })
           }
 
@@ -1057,7 +1095,12 @@ export class VivafolioBlockLoader implements BlockLoader {
     // Execute JavaScript module
     if (!entry.executed) {
       const moduleShim: { exports: unknown } = { exports: {} }
-      const evaluator = new Function('require', 'module', 'exports', entry.source)
+      const evaluator = new Function(
+        'require',
+        'module',
+        'exports',
+        `${entry.source}\n//# sourceURL=${entry.url}`
+      )
       evaluator(this.loadLocalModule.bind(this), moduleShim, moduleShim.exports)
       entry.exports = moduleShim.exports
       entry.executed = true
