@@ -1,8 +1,38 @@
 # Vivafolio E2E Test Status
 
-This document tracks the progress of implementing a comprehensive end-to-end testing strategy for the Vivafolio VS Code extension.
+## Testing Strategy Overview
 
-## 🎉 MAJOR ACHIEVEMENTS: Complete Implementation ✅
+**Current Approach (November 2025):**
+
+Vivafolio uses two complementary E2E testing frameworks, each optimized for its specific domain:
+
+### VS Code Extension Testing: WebdriverIO
+- **Framework**: WebdriverIO with `wdio-vscode-service`
+- **Purpose**: Test the VS Code extension, webview rendering, and inset management
+- **Run via**: `just test-wdio` or `npm run test:wdio`
+- **Test location**: `test/wdio/specs/`
+- **Why**: Provides proper VS Code extension host automation with excellent support for webview context switching and VS Code-specific interactions
+
+### Block Protocol POC Testing: Playwright
+- **Framework**: Playwright
+- **Purpose**: Test the standalone Block Protocol proof-of-concept web application
+- **Run via**: `just test-blockprotocol-poc` or `just test-blockprotocol-core`
+- **Test location**: `apps/blockprotocol-poc/tests/`
+- **Why**: Excellent for web application testing with comprehensive browser automation capabilities
+
+**Historical Context:**
+
+Prior to November 2025, Playwright was used for both VS Code extension testing and Block Protocol POC testing. The extension testing was migrated to WebdriverIO because:
+- Better integration with VS Code's extension host
+- More reliable webview context switching
+- Improved handling of VS Code-specific UI elements
+- Active maintenance of `wdio-vscode-service` for extension testing use cases
+
+Playwright continues to be used for Block Protocol POC testing where it excels at standard web application testing.
+
+---
+
+## 🎉 **MAJOR ACHIEVEMENTS: WEBDRIVERIO INTEGRATION COMPLETE** ✅
 
 ### ✅ WebdriverIO Integration Complete
 **Status**: IMPLEMENTED AND OPERATIONAL
@@ -533,10 +563,6 @@ npm run test:wdio                    # Run all WebdriverIO tests
 npm run test:wdio:single-block       # Test single block inset creation
 npm run test:wdio:two-blocks         # Test two-blocks interaction
 
-# Playwright E2E Tests (legacy - infrastructure kept for reference)
-cd vivafolio
-just test-e2e-vivafolioblock               # Legacy Playwright tests (not functional)
-just test-e2e-vivafolioblock-headed        # Legacy Playwright tests (not functional)
 
 # Manual inspection in VS Code Insiders (fresh profile by default)
 cd vivafolio
@@ -568,12 +594,8 @@ just vscode-e2e
     - `basic-vscode-test.e2e.ts` - Basic VS Code accessibility tests
     - `minimal-vscode-test.e2e.ts` - Minimal VS Code functionality tests
   - `README.md` - WebdriverIO test documentation
-- `vivafolio/test/e2e-vivafolioblock.js` - Legacy Playwright E2E test suite (kept for reference)
 - `vivafolio/test/e2e-mock-lsp-client.js` - LSP client test suite for mock server validation
 - `vivafolio/src/test/suite/vscode-inset-management.test.js` - VS Code extension inset management tests
-- `vivafolio/test/playwright.config.js` - Legacy Playwright configuration
-- `vivafolio/test/playwright-setup.js` - Legacy Playwright global setup
-- `vivafolio/test/playwright-teardown.js` - Legacy Playwright global teardown
 - `vivafolio/test/projects/vivafolioblock-test/` - Test project with sample code
 - `vivafolio/test/resources/` - HTML/CSS/JS resources for test webview
  - `vivafolio/mock-language-extension/` - Stand-alone mock language VS Code extension
@@ -604,7 +626,6 @@ just vscode-e2e
   - Test Specs: `vivafolio/test/wdio/specs/`
   - Documentation: `vivafolio/test/wdio/README.md`
 - VS Code Extension Inset Management Tests: `vivafolio/src/test/suite/vscode-inset-management.test.js`
-- Legacy Playwright E2E Tests (reference only): `vivafolio/test/e2e-vivafolioblock.js`
 - VS Code test harness and suite: `vivafolio/test/run-vscode-tests.js`, `vivafolio/test/suite/vscode-diagnostics.test.js`
 
 ## Two-Blocks Synchronization Implementation Plan
