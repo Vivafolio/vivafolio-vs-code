@@ -167,12 +167,6 @@ test-scenario-basic-comms:
 test-scenario-callsite-diagnostics:
 	node test/scenarios/callsite-diagnostics.js | cat
 
-test-e2e-vivafolioblock:
-	VIVAFOLIO_DEBUG=1 VIVAFOLIO_CAPTURE_WEBVIEW_LOGS=1 npm run -s test:e2e:vivafolioblock | cat
-
-test-e2e-vivafolioblock-headed:
-	VIVAFOLIO_DEBUG=1 VIVAFOLIO_CAPTURE_WEBVIEW_LOGS=1 npm run -s test:e2e:vivafolioblock:headed | cat
-
 test-e2e-blockprotocol-integration:
 	node test/e2e-blockprotocol-integration.js | cat
 
