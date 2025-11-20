@@ -523,7 +523,7 @@ async function renderBlockProtocolBlock(notification: any, line: number, contain
     // Load block HTML content
     let blockContent = '<div>Block loading...</div>'
     if (notification.resources) {
-      const htmlResource = notification.resources.find((r: any) => r.logicalName === 'app.html')
+      const htmlResource = notification.resources.find((r: any) => r.logicalName === 'app.html' || r.logicalName === 'index.html')
       if (htmlResource && htmlResource.physicalPath) {
         try {
           const fs = require('fs')
@@ -554,7 +554,10 @@ async function renderBlockProtocolBlock(notification: any, line: number, contain
       usedInset = true
       lastInsetLine = line
 
-      const inset = createInset(editor, line, initialHeight, { enableScripts: true, localResourceRoots: [] })
+      // Allow loading resources from the workspace root (includes test/resources, blocks/, etc.)
+      const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri
+      const resourceRoots = workspaceRoot ? [workspaceRoot] : []
+      const inset = createInset(editor, line, initialHeight, { enableScripts: true, localResourceRoots: resourceRoots })
 
       // Set the complete HTML with block content
       inset.webview.html = finalHtml
