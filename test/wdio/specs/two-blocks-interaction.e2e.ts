@@ -20,12 +20,12 @@ describe('Vivafolio Two Blocks Interaction E2E', () => {
 
   beforeEach(async () => {
     // Prepare an isolated temporary copy of the two-blocks test file to avoid mutating the original
-    const srcFile = path.join(process.cwd(), 'test', 'projects', 'vivafolioblock-test', 'two_blocks.viv')
+    const srcFile = path.join(process.cwd(), 'test', 'projects', 'vivafolioblock-test', 'two_blocks.mocklang')
     const tmpDir = path.join(process.cwd(), 'test', 'projects', 'vivafolioblock-test', '.tmp')
-    try { fs.mkdirSync(tmpDir, { recursive: true }) } catch {}
-    const tmpName = `two_blocks.${Date.now()}-${Math.random().toString(36).slice(2)}.viv`
+    try { fs.mkdirSync(tmpDir, { recursive: true }) } catch { }
+    const tmpName = `two_blocks.${Date.now()}-${Math.random().toString(36).slice(2)}.mocklang`
     testFile = path.join(tmpDir, tmpName)
-    try { fs.copyFileSync(srcFile, testFile) } catch {}
+    try { fs.copyFileSync(srcFile, testFile) } catch { }
 
     // Ensure the file has the expected content
     const expectedContent = `// Vivafolio two blocks interaction demo
@@ -56,7 +56,7 @@ fn main() {
     await browser.waitUntil(async () => {
       const insets = await browser.executeWorkbench((vscode, tf) => vscode.commands.executeCommand('vivafolio.findInsetsForDocument', vscode.Uri.file(tf)), testFile)
       return Array.isArray(insets) && insets.length >= 2
-    }, { timeout: 15000, timeoutMsg: 'Expected two insets for two_blocks.viv' })
+    }, { timeout: 15000, timeoutMsg: 'Expected two insets for two_blocks.mocklang' })
 
     // Get the webviews and identify the picker and square by their inner content
     let pickerWebview: any | undefined
@@ -73,7 +73,7 @@ fn main() {
           if (sawPicker && !pickerWebview) pickerWebview = wv
           if (sawSquare && !squareWebview) squareWebview = wv
         } catch {
-          try { await (wv as any).close() } catch {}
+          try { await (wv as any).close() } catch { }
         }
       }
       if (!pickerWebview || !squareWebview) await browser.pause(1000)
@@ -266,6 +266,6 @@ fn main() {
     await workbench.executeCommand('workbench.action.closeAllEditors')
     await browser.pause(500)
     // Remove the temporary file to avoid accumulation
-    try { if (testFile && fs.existsSync(testFile)) fs.unlinkSync(testFile) } catch {}
+    try { if (testFile && fs.existsSync(testFile)) fs.unlinkSync(testFile) } catch { }
   })
 })

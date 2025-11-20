@@ -63,7 +63,7 @@ async function initializeBlockProtocolInfrastructure(context: vscode.ExtensionCo
 
     const indexingConfig: IndexingServiceConfig = {
       watchPaths,
-      supportedExtensions: ['.md', '.csv', '.viv'],
+      supportedExtensions: ['.md', '.csv'],
       excludePatterns: ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/build/**']
     }
 
@@ -162,7 +162,7 @@ async function initializeLocalBlockDevelopment(context: vscode.ExtensionContext)
     // Listen for configuration changes
     context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(async (event) => {
       if (event.affectsConfiguration('vivafolio.localBlockDirs') ||
-          event.affectsConfiguration('vivafolio.enableLocalDevelopment')) {
+        event.affectsConfiguration('vivafolio.enableLocalDevelopment')) {
         logLine('info', 'Local block development configuration changed, reinitializing...')
         await reinitializeLocalBlockDevelopment(context)
       }
@@ -546,7 +546,7 @@ async function renderBlockProtocolBlock(notification: any, line: number, contain
     if (!editor) return
 
     const forcePanel = process?.env?.VIVAFOLIO_FORCE_PANEL === '1'
-    const createInsetRaw = (vscode.window as any).createWebviewTextEditorInset as undefined | ((editor: vscode.TextEditor, line: number, height: number, opts?: any)=>any)
+    const createInsetRaw = (vscode.window as any).createWebviewTextEditorInset as undefined | ((editor: vscode.TextEditor, line: number, height: number, opts?: any) => any)
     const createInset = forcePanel ? undefined : createInsetRaw
     const initialHeight = computeDefaultInsetHeight(editor)
 
@@ -566,17 +566,17 @@ async function renderBlockProtocolBlock(notification: any, line: number, contain
 
       inset.webview.onDidReceiveMessage(onMessage)
 
-      const postFunc = { post: (m: any) => { try { inset.webview.postMessage(m) } catch {} } }
+      const postFunc = { post: (m: any) => { try { inset.webview.postMessage(m) } catch { } } }
       lastPost = postFunc
       if (notification.blockId) {
         try {
           webviewsByBlockId.set(notification.blockId, {
             post: postFunc.post.bind(postFunc),
-            dispose: () => { try { (inset as any).dispose?.() } catch {} },
+            dispose: () => { try { (inset as any).dispose?.() } catch { } },
             line: line,
             docPath: editor.document.uri.fsPath
           })
-        } catch {}
+        } catch { }
       }
 
       inset.webview.html = finalHtml
@@ -588,9 +588,9 @@ async function renderBlockProtocolBlock(notification: any, line: number, contain
           const msg = { type: 'graph:update', payload }
           lastPosted = msg
           // slight delay to let the webview load its script
-          setTimeout(() => { try { postFunc.post(msg) } catch {} }, 0)
+          setTimeout(() => { try { postFunc.post(msg) } catch { } }, 0)
         }
-      } catch {}
+      } catch { }
 
     } else {
       // Fallback to panel
@@ -613,17 +613,17 @@ async function renderBlockProtocolBlock(notification: any, line: number, contain
         }
       })
 
-      const postFunc = { post: (m: any) => { try { panel.webview.postMessage(m) } catch {} } }
+      const postFunc = { post: (m: any) => { try { panel.webview.postMessage(m) } catch { } } }
       lastPost = postFunc
       if (notification.blockId) {
         try {
           webviewsByBlockId.set(notification.blockId, {
             post: postFunc.post.bind(postFunc),
-            dispose: () => { try { panel.dispose() } catch {} },
+            dispose: () => { try { panel.dispose() } catch { } },
             line: line,
             docPath: editor.document.uri.fsPath
           })
-        } catch {}
+        } catch { }
       }
 
       panel.webview.html = finalHtml
@@ -639,11 +639,11 @@ function logLine(level: 'info' | 'warn' | 'error', message: string) {
   try {
     const ts = new Date().toISOString()
     const line = `${ts} [${level.toUpperCase()}] ${message}`
-    try { outputChannel?.appendLine(line) } catch {}
+    try { outputChannel?.appendLine(line) } catch { }
     if (logToFileEnabled && logFilePath) {
-      try { fs.appendFileSync(logFilePath, line + '\n') } catch {}
+      try { fs.appendFileSync(logFilePath, line + '\n') } catch { }
     }
-  } catch {}
+  } catch { }
 }
 
 function computeDefaultInsetHeight(editor: vscode.TextEditor): number {
@@ -705,17 +705,17 @@ async function renderInset(line: number, html?: string, init?: any, entityGraph?
   const editor = vscode.window.activeTextEditor
   if (!editor) return
   const forcePanel = process?.env?.VIVAFOLIO_FORCE_PANEL === '1'
-  const createInsetRaw = (vscode.window as any).createWebviewTextEditorInset as undefined | ((editor: vscode.TextEditor, line: number, height: number, opts?: any)=>any)
+  const createInsetRaw = (vscode.window as any).createWebviewTextEditorInset as undefined | ((editor: vscode.TextEditor, line: number, height: number, opts?: any) => any)
   const createInset = forcePanel ? undefined : createInsetRaw
   const initialHeight = Math.max(12, Math.min(Number(init?.height) || computeDefaultInsetHeight(editor), 2000))
-  const htmlFinal = injectAutoResize(html ?? `<!DOCTYPE html><html><body><div>Vivafolio</div><script>try{(typeof acquireVsCodeApi==='function'&&acquireVsCodeApi().postMessage)?acquireVsCodeApi().postMessage({type:'ready'}):window.parent.postMessage({type:'ready'},'*')}catch(e){}</script></body></html>`) 
+  const htmlFinal = injectAutoResize(html ?? `<!DOCTYPE html><html><body><div>Vivafolio</div><script>try{(typeof acquireVsCodeApi==='function'&&acquireVsCodeApi().postMessage)?acquireVsCodeApi().postMessage({type:'ready'}):window.parent.postMessage({type:'ready'},'*')}catch(e){}</script></body></html>`)
   let updateHeight: undefined | ((h: number) => void)
   try {
     console.log('[Vivafolio] renderInset start', JSON.stringify({ line, forcePanel, hasCreateInset: typeof createInset === 'function', hasEntityGraph: !!entityGraph }))
-  } catch {}
+  } catch { }
   const onMessage = async (msg: any) => {
     lastMessage = msg
-    try { messageLog.push(msg); if (messageLog.length > 50) messageLog.shift() } catch {}
+    try { messageLog.push(msg); if (messageLog.length > 50) messageLog.shift() } catch { }
 
     if (msg?.type === 'graph:update') {
       logLine('info', `Extension received graph:update: ${JSON.stringify(msg)}`)
@@ -742,7 +742,7 @@ async function renderInset(line: number, html?: string, init?: any, entityGraph?
         console.log('Error processing graph:update:', e)
       }
     } else if (msg?.type === 'log') {
-      try { logLine('info', `[WEBVIEW] ${String(msg?.text ?? '')}`) } catch {}
+      try { logLine('info', `[WEBVIEW] ${String(msg?.text ?? '')}`) } catch { }
     } else {
       console.log('Extension received message:', msg)
     }
@@ -751,7 +751,7 @@ async function renderInset(line: number, html?: string, init?: any, entityGraph?
         const payload = { entities: entityGraph?.entities ?? [], links: entityGraph?.links ?? [] }
         lastPosted = { type: 'graph:update', payload }
         lastPost?.post(lastPosted)
-      } catch {}
+      } catch { }
     }
     if (msg?.type === 'graph:query' && entityGraph !== undefined) {
       try {
@@ -760,10 +760,10 @@ async function renderInset(line: number, html?: string, init?: any, entityGraph?
         lastPosted = queryResponse
         lastPost?.post(queryResponse)
         logLine('info', 'Responded to graph:query with entity data')
-      } catch {}
+      } catch { }
     }
     if (msg?.type === 'resize' && typeof msg.height === 'number') {
-      try { updateHeight?.(Math.max(12, Math.min(Math.ceil(Number(msg.height)), 2000))) } catch {}
+      try { updateHeight?.(Math.max(12, Math.min(Math.ceil(Number(msg.height)), 2000))) } catch { }
       return
     }
   }
@@ -774,12 +774,12 @@ async function renderInset(line: number, html?: string, init?: any, entityGraph?
     usedInset = true
     lastInsetLine = line
     const inset = createInset(editor, line, initialHeight, { enableScripts: true })
-    updateHeight = (h: number) => { try { inset.updateHeight(h) } catch {} }
+    updateHeight = (h: number) => { try { inset.updateHeight(h) } catch { } }
     inset.webview.onDidReceiveMessage(onMessage)
-    const postFunc = { post: (m: any) => { try { inset.webview.postMessage(m) } catch {} } }
+    const postFunc = { post: (m: any) => { try { inset.webview.postMessage(m) } catch { } } }
     lastPost = postFunc
     if (isPicker) pickerPost = postFunc
-    try { console.log('[Vivafolio] setting inset.webview.html (inset path), isPicker=', isPicker) } catch {}
+    try { console.log('[Vivafolio] setting inset.webview.html (inset path), isPicker=', isPicker) } catch { }
     inset.webview.html = htmlFinal
     // Proactively post entityGraph to the newly created webview to avoid race on 'ready'
     try {
@@ -788,27 +788,27 @@ async function renderInset(line: number, html?: string, init?: any, entityGraph?
         const msg = { type: 'graph:update', payload }
         lastPosted = msg
         // slight delay to let the webview load its script
-        setTimeout(() => { try { postFunc.post(msg) } catch {} }, 0)
+        setTimeout(() => { try { postFunc.post(msg) } catch { } }, 0)
       }
-    } catch {}
+    } catch { }
     if (blockId) {
       try {
         webviewsByBlockId.set(blockId, {
           post: postFunc.post.bind(postFunc),
-          dispose: () => { try { (inset as any).dispose?.() } catch {} },
+          dispose: () => { try { (inset as any).dispose?.() } catch { } },
           line: line,
           docPath: editor.document.uri.fsPath
         })
-      } catch {}
+      } catch { }
     }
     if (init !== undefined) { lastPosted = { type: 'initState', viewstate: init }; lastPost.post(lastPosted) }
   } else {
     const panel = vscode.window.createWebviewPanel('vivafolio.inline.fallback', 'Vivafolio', { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true }, { enableScripts: true })
     panel.webview.onDidReceiveMessage(onMessage)
-    const postFunc = { post: (m: any) => { try { panel.webview.postMessage(m) } catch {} } }
+    const postFunc = { post: (m: any) => { try { panel.webview.postMessage(m) } catch { } } }
     lastPost = postFunc
     if (isPicker) pickerPost = postFunc
-    try { console.log('[Vivafolio] setting panel.webview.html (fallback path), isPicker=', isPicker) } catch {}
+    try { console.log('[Vivafolio] setting panel.webview.html (fallback path), isPicker=', isPicker) } catch { }
     panel.webview.html = htmlFinal
     // Proactively post entityGraph to the newly created webview to avoid race on 'ready'
     try {
@@ -816,22 +816,22 @@ async function renderInset(line: number, html?: string, init?: any, entityGraph?
         const payload = { entities: entityGraph?.entities ?? [], links: entityGraph?.links ?? [] }
         const msg = { type: 'graph:update', payload }
         lastPosted = msg
-        setTimeout(() => { try { postFunc.post(msg) } catch {} }, 0)
+        setTimeout(() => { try { postFunc.post(msg) } catch { } }, 0)
       }
-    } catch {}
+    } catch { }
     if (blockId) {
       try {
         webviewsByBlockId.set(blockId, {
           post: postFunc.post.bind(postFunc),
-          dispose: () => { try { panel.dispose() } catch {} },
+          dispose: () => { try { panel.dispose() } catch { } },
           line: line,
           docPath: editor.document.uri.fsPath
         })
-      } catch {}
+      } catch { }
     }
     if (init !== undefined) { lastPosted = { type: 'initState', viewstate: init }; lastPost.post(lastPosted) }
   }
-  try { console.log('[Vivafolio] renderInset end') } catch {}
+  try { console.log('[Vivafolio] renderInset end') } catch { }
 }
 async function applyColorMarker(completeJsonString: string, entityId?: string): Promise<void> {
   console.log('applyColorMarker called with complete JSON:', completeJsonString, 'entityId:', entityId)
@@ -846,7 +846,7 @@ async function applyColorMarker(completeJsonString: string, entityId?: string): 
     const doc = editor.document
 
     // Check if this is a supported file (language-specific syntax)
-    // Accept vivafolio (production), vivafolio-mock (old test), and mocklang (new test) languages
+    // Accept vivafolio (production) and mocklang (test) languages
     if (doc.languageId !== 'vivafolio' && doc.languageId !== 'vivafolio-mock' && doc.languageId !== 'mocklang') {
       console.log('applyColorMarker: skipping - not a supported file (language:', doc.languageId + ')')
       return
@@ -942,9 +942,9 @@ function parseVivafolioPayload(diag: vscode.Diagnostic): any | undefined {
     if (jsonStr) return JSON.parse(jsonStr)
     if (codeVal && codeVal.toLowerCase() === 'vivafolio') {
       // Try whole message as JSON
-      try { return JSON.parse(msg) } catch {}
+      try { return JSON.parse(msg) } catch { }
     }
-  } catch {}
+  } catch { }
   return undefined
 }
 
@@ -1035,7 +1035,7 @@ function parseRuntimeVivafolioBlock(lines: string[]): any[] {
       const parsed = JSON.parse(line.trim())
       // Validate it's a VivafolioBlock notification
       if (parsed && typeof parsed === 'object' &&
-          parsed.blockId && parsed.blockType && parsed.entityGraph) {
+        parsed.blockId && parsed.blockType && parsed.entityGraph) {
         notifications.push(parsed)
         console.log('[Vivafolio] Parsed VivafolioBlock notification:', parsed.blockId)
       }
@@ -1090,7 +1090,7 @@ function updateAutoHide(editor: vscode.TextEditor | undefined) {
         ranges.push(new vscode.Range(editor.document.positionAt(m.index), editor.document.positionAt(m.index + m[0].length)))
       }
     }
-  } catch {}
+  } catch { }
   editor.setDecorations(hiddenDecoration, ranges)
 }
 
@@ -1104,12 +1104,12 @@ export function activate(context: vscode.ExtensionContext) {
     outputChannel.appendLine(`[Vivafolio] OutputChannel initialized at ${new Date().toISOString()}`)
     if (logToFileEnabled) {
       const logDir = path.join(context.globalStorageUri?.fsPath || context.extensionPath, 'logs')
-      try { fs.mkdirSync(logDir, { recursive: true }) } catch {}
+      try { fs.mkdirSync(logDir, { recursive: true }) } catch { }
       logFilePath = path.join(logDir, `vivafolio-${Date.now()}.log`)
-      try { fs.appendFileSync(logFilePath, `[Vivafolio] Log file created at ${new Date().toISOString()}\n`) } catch {}
+      try { fs.appendFileSync(logFilePath, `[Vivafolio] Log file created at ${new Date().toISOString()}\n`) } catch { }
       outputChannel.appendLine(`[Vivafolio] File logging enabled at: ${logFilePath}`)
     }
-  } catch {}
+  } catch { }
   hiddenDecoration = vscode.window.createTextEditorDecorationType({ textDecoration: 'none; opacity: 0;' })
   context.subscriptions.push(hiddenDecoration)
 
@@ -1142,7 +1142,7 @@ export function activate(context: vscode.ExtensionContext) {
       // If no hints at all, clear all webviews for this document
       if (hints.length === 0) {
         for (const [blockId, webviewInfo] of webviewsByBlockId.entries()) {
-          try { webviewInfo.dispose() } catch {}
+          try { webviewInfo.dispose() } catch { }
         }
         webviewsByBlockId.clear()
         return
@@ -1151,7 +1151,7 @@ export function activate(context: vscode.ExtensionContext) {
       // Remove webviews for blockIds that are no longer present (stale insets)
       for (const [blockId, webviewInfo] of webviewsByBlockId.entries()) {
         if (!currentBlockIds.has(blockId)) {
-          try { webviewInfo.dispose(); webviewsByBlockId.delete(blockId) } catch {}
+          try { webviewInfo.dispose(); webviewsByBlockId.delete(blockId) } catch { }
         }
       }
 
@@ -1167,34 +1167,34 @@ export function activate(context: vscode.ExtensionContext) {
             if (payload?.error) {
               lastPosted = { type: 'graph:error', error: payload.error }
               const existing = payload?.blockId ? webviewsByBlockId.get(String(payload.blockId)) : undefined
-              try { if (existing) existing.post(lastPosted); else lastPost?.post(lastPosted) } catch {}
+              try { if (existing) existing.post(lastPosted); else lastPost?.post(lastPosted) } catch { }
             } else {
               const prePayload = { entities: payload?.entityGraph?.entities ?? [], links: payload?.entityGraph?.links ?? [] }
               lastPosted = { type: 'graph:update', payload: prePayload }
               const existing = payload?.blockId ? webviewsByBlockId.get(String(payload.blockId)) : undefined
-              try { if (existing) existing.post(lastPosted); else lastPost?.post(lastPosted) } catch {}
+              try { if (existing) existing.post(lastPosted); else lastPost?.post(lastPosted) } catch { }
             }
-          } catch {}
-        // Create VivafolioBlock notification from diagnostic payload
-        const notification = createVivafolioBlockNotification(payload, active.document, d)
-        if (!notification) {
-          logLine('error', 'Failed to create VivafolioBlock notification')
-          return
-        }
+          } catch { }
+          // Create VivafolioBlock notification from diagnostic payload
+          const notification = createVivafolioBlockNotification(payload, active.document, d)
+          if (!notification) {
+            logLine('error', 'Failed to create VivafolioBlock notification')
+            return
+          }
 
-        if (notification.blockId && webviewsByBlockId.has(String(notification.blockId))) {
-          const existingWebview = webviewsByBlockId.get(String(notification.blockId))
-          let isAlive = false
-          try { existingWebview?.post({ type: 'ping' }); isAlive = true } catch {}
-          if (isAlive) return
-          webviewsByBlockId.delete(String(notification.blockId))
-        }
+          if (notification.blockId && webviewsByBlockId.has(String(notification.blockId))) {
+            const existingWebview = webviewsByBlockId.get(String(notification.blockId))
+            let isAlive = false
+            try { existingWebview?.post({ type: 'ping' }); isAlive = true } catch { }
+            if (isAlive) return
+            webviewsByBlockId.delete(String(notification.blockId))
+          }
 
-        // Create new Block Protocol block
-        await renderBlockProtocolBlock(notification, line)
+          // Create new Block Protocol block
+          await renderBlockProtocolBlock(notification, line)
         })()
       }
-    } catch {}
+    } catch { }
   }
 
   // Listen to all diagnostic changes; trigger on Hints only
@@ -1204,7 +1204,7 @@ export function activate(context: vscode.ExtensionContext) {
     const uri = active.document.uri
     const all = vscode.languages.getDiagnostics(uri)
     const hints = all.filter(d => d.severity === vscode.DiagnosticSeverity.Hint)
-    try { console.log('[Vivafolio] onDidChangeDiagnostics: total=', all.length, 'hints=', hints.length) } catch {}
+    try { console.log('[Vivafolio] onDidChangeDiagnostics: total=', all.length, 'hints=', hints.length) } catch { }
 
     // Collect all blockIds present in current diagnostics (complete state)
     const currentBlockIds = new Set<string>()
@@ -1246,7 +1246,7 @@ export function activate(context: vscode.ExtensionContext) {
     // Process current diagnostics: update existing or create new insets
     for (const d of hints) {
       const payload = parseVivafolioPayload(d)
-      if (!payload) { try { console.log('[Vivafolio] hint without vivafolio payload at line', d.range?.start?.line) } catch {}; continue }
+      if (!payload) { try { console.log('[Vivafolio] hint without vivafolio payload at line', d.range?.start?.line) } catch { }; continue }
       const line = Math.max(0, Math.min((d.range?.start?.line ?? 0), active.document.lineCount - 1))
       lastPayload = payload
       const viewstate = payload?.viewstate ?? payload?.state ?? undefined
@@ -1271,7 +1271,7 @@ export function activate(context: vscode.ExtensionContext) {
               // Don't remove from tracking here as we'll handle it in the main logic below
             }
           }
-        } catch {}
+        } catch { }
         // Create VivafolioBlock notification from diagnostic payload
         const notification = createVivafolioBlockNotification(payload, active.document, d)
         if (!notification) {
@@ -1279,7 +1279,7 @@ export function activate(context: vscode.ExtensionContext) {
           return
         }
 
-        try { console.log('[Vivafolio] rendering Block Protocol block at line', line, 'blockId=', notification.blockId, 'blockType=', notification.blockType) } catch {}
+        try { console.log('[Vivafolio] rendering Block Protocol block at line', line, 'blockId=', notification.blockId, 'blockType=', notification.blockType) } catch { }
 
         // If an inset for this block already exists, check if it's still alive
         if (notification.blockId && webviewsByBlockId.has(String(notification.blockId))) {
@@ -1391,7 +1391,7 @@ export function activate(context: vscode.ExtensionContext) {
       const targetPath = typeof uriOrPath === 'string' ? path.resolve(uriOrPath) : uriOrPath.fsPath
       const res: Array<{ blockId: string, line: number }> = []
       for (const [blockId, info] of webviewsByBlockId.entries()) {
-        try { if (path.resolve(info.docPath) === targetPath) res.push({ blockId, line: info.line }) } catch {}
+        try { if (path.resolve(info.docPath) === targetPath) res.push({ blockId, line: info.line }) } catch { }
       }
       return res
     } catch { return [] }
@@ -1400,7 +1400,7 @@ export function activate(context: vscode.ExtensionContext) {
     try {
       const targetPath = typeof uriOrPath === 'string' ? path.resolve(uriOrPath) : uriOrPath.fsPath
       for (const [, info] of webviewsByBlockId.entries()) {
-        try { if (path.resolve(info.docPath) === targetPath && info.line === Math.max(0, Math.floor(Number(line)||0))) return true } catch {}
+        try { if (path.resolve(info.docPath) === targetPath && info.line === Math.max(0, Math.floor(Number(line) || 0))) return true } catch { }
       }
       return false
     } catch { return false }
