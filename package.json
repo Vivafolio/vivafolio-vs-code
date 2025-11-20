@@ -86,8 +86,6 @@
     "test:e2e:connectivity": "node test/e2e-connectivity.js",
     "test:scenario:basic-comms": "node test/scenarios/basic-comms.js",
     "test:scenario:callsite-diagnostics": "node test/scenarios/callsite-diagnostics.js",
-    "test:e2e:vivafolioblock": "npx playwright test test/e2e-vivafolioblock.js",
-    "test:e2e:vivafolioblock:headed": "npx playwright test test/e2e-vivafolioblock.js --headed",
     "test:e2e:blockprotocol-integration": "node test/e2e-blockprotocol-integration.js",
     "test:runtime:vivafolioblock": "node test/validate-runtime-vivafolioblock.js",
     "test:e2e:mock-lsp-client": "node test/e2e-mock-lsp-client.js",
@@ -99,7 +97,6 @@
     "test:wdio:synchronization": "npx wdio run wdio.conf.ts --spec test/wdio/specs/two-blocks-synchronization.e2e.ts"
   },
   "devDependencies": {
-    "@playwright/test": "^1.40.0",
     "@types/node": "^24.3.1",
     "@types/vscode": "^1.85.0",
     "@types/ws": "^8.5.8",

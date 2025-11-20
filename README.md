@@ -76,7 +76,7 @@ This repository contains several interconnected components that work together to
 - **Test Suite** (`test/`) - Comprehensive test suite including E2E tests, runtime path tests, and mock servers
   - **All Tests**: `just test-all` (runs complete test suite)
   - **VS Code Tests**: `just test-vscode` (extension test harness)
-  - **E2E Tests**: `just test-e2e-vivafolioblock` (headed: `just test-e2e-vivafolioblock-headed`)
+  - **E2E Tests**: `just test-wdio` (WebdriverIO tests for extension)
   - **Runtime Path Tests** (`test/runtime-path/`) - Test programs for dynamic language support ([README](test/runtime-path/README.md))
     - **All Runtime Tests**: `just test-runtime-all`
     - **Individual**: `just test-runtime-python`, `just test-runtime-ruby`, etc.

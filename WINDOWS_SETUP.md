@@ -174,8 +174,8 @@ Create a `.devcontainer/` with a Dockerfile that mirrors `flake.nix` packages us
 Install deps then:
 ```powershell
 npm install
-npx playwright install  # Ensures browsers downloaded
-just test-e2e-vivafolioblock
+npx playwright install  # Only needed for blockprotocol-poc tests
+just test-blockprotocol-core  # Verify POC tests work
 ```
 For WDIO with chromedriver you may need matching Chrome + chromedriver versions.
 
@@ -201,7 +201,7 @@ npm run compile
 | Issue | Fix |
 |-------|-----|
 | `node-gyp` build failures | Install VS Build Tools with C++ workload |
-| Playwright browsers missing | `npx playwright install` |
+| Playwright browsers missing | `cd apps/blockprotocol-poc && npx playwright install` |
 | R package install blocked | Run PowerShell as Admin or set R library path writable |
 | Python not found in VS Code | Set `python.defaultInterpreterPath` in settings |
 | Lean tooling missing | Install elan; reopen terminal |

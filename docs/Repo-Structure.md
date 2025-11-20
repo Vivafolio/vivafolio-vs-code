@@ -28,8 +28,7 @@ If you prefer a higher‑level overview first, see `docs/Vivafolio-Overview.md` 
 Other notable files:
 
 - `tsconfig.json` – TypeScript config for the extension.
-- `wdio.conf.ts` – WebdriverIO config for VS Code UI tests.
-- `playwright.config.js` – Playwright config used by multiple suites.
+- `wdio.conf.ts` – WebdriverIO config for VS Code extension testing.
 
 ## How the pieces fit
 
@@ -174,7 +173,7 @@ Each package is wired in the root `package.json` via `file:` dependencies, so lo
 ### `test/`
 
 - E2E and integration tests spanning:
-  - Extension + webviews (`e2e-vivafolioblock.js`, connectivity, etc.)
+  - Extension + webviews (connectivity, WDIO tests)
   - Playwright setup/teardown helpers
   - Mock LSP server (`mock-lsp-server.js`) and direct invocation utils
   - WDIO specs under `test/wdio/`
@@ -219,8 +218,6 @@ just vscode-dev
 3) Run a quick smoke test
 
 ```bash
-just test-e2e-vivafolioblock
-# or
 just test-blockprotocol-core
 ```
 
