@@ -1,0 +1,77 @@
+name: Tests
+
+on:
+  # Run tests automatically after the Build workflow completes successfully.
+  workflow_run:
+    workflows: ["Build"]
+    types:
+      - completed
+  # Allow manual runs for local debugging / experimentation.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Tests (non-Playwright)
+    # Only run automatically when the Build workflow has succeeded.
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y direnv just
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v12
+
+      - name: Enable Nix cache
+        uses: DeterminateSystems/magic-nix-cache-action@v6
+
+      - name: Cache npm cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: Allow direnv
+        run: direnv allow
+
+      - name: Build workspace (build-all)
+        run: just build-all
+
+      - name: Package and block tests
+        run: |
+          just test-packages
+          just test-blocks
+          just test-block-integration
+
+      - name: Extension, LSP, and runtime tests
+        run: |
+          just test-vscode
+          just test-lsp-standalone
+          just test-runtime-all
+          just test-runtime-vivafolioblock
+
+      - name: Block Protocol
+        run: |
+          just test-blockprotocol-all
+
+      - name: Known failing or environment-sensitive suites (allowed to fail)
+        run: |
+          # Multi-language LSP scenarios (missing/partial toolchains)
+          just test-scenario-basic-comms || true
+          just test-scenario-callsite-diagnostics || true
+
+          # Block Protocol integration gaps
+          just test-e2e-blockprotocol-integration || true
+

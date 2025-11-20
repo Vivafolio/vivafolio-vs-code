@@ -12,6 +12,15 @@ set shell := ["./scripts/nix-env.sh", "-c"]
 # to be built and ready for tests.
 build-all:
 	@echo "Initializing git submodules..."
+	# Work around nimlangserver's nested Spectre test submodule sometimes
+	# being pre-populated without git metadata (e.g. in certain CI/act
+	# environments), which causes `git submodule update` to fail with
+	# "destination path ... already exists and is not an empty directory".
+	@if [ -d "third_party/nimlangserver/tests/projects/nimforums/public/css/spectre" ] && [ ! -d "third_party/nimlangserver/tests/projects/nimforums/public/css/spectre/.git" ]; then \
+		echo "Cleaning pre-populated Spectre test assets before submodule init..."; \
+		rm -rf "third_party/nimlangserver/tests/projects/nimforums/public/css/spectre"; \
+	fi
+
 	git submodule update --init --recursive
 
 	just install-all
