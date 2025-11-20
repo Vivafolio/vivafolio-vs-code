@@ -192,7 +192,7 @@ Verifies that the Vivafolio extension can receive a VivafolioBlock notification 
 
 - **Initialization**: Initial color now correct on first load without edits (extension posts `entityGraph` immediately after webview creation).
 - **Editing UX**: While manually editing `gui_state!` JSON, transient parse errors currently trigger a fallback color (`#ff0000`) that overwrites in-progress edits. New objective added for non-destructive syntax-error semantics.
-- **Test isolation**: Two-blocks WDIO spec now uses a temporary copy of `two_blocks.viv` per run and unlinks it in teardown to prevent content duplication in the source file. Full-document replacements use `new vscode.Range(0, 0, doc.lineCount, 0)` to avoid accidental concatenation.
+- **Test isolation**: Two-blocks WDIO spec now uses a temporary copy of `two_blocks.mocklang` per run and unlinks it in teardown to prevent content duplication in the source file. Full-document replacements use `new vscode.Range(0, 0, doc.lineCount, 0)` to avoid accidental concatenation.
 
 #### Passing specs
 - `test/wdio/specs/hello-vscode.e2e.ts`
@@ -607,7 +607,7 @@ just vscode-e2e
 ### Mock Language Extension Details
 - Purpose: Provide a clean, isolated test surface for E2E without polluting the production Vivafolio extension.
 - Language id: `vivafolio-mock`; extension hosts the mock LSP.
-- File extension: `.viv`
+- File extension: `.mocklang`
 - Server spawn: In `mock-language-extension/src/extension.ts`, launches `vivafolio/test/mock-lsp-server.js` via `vscode-languageclient`.
 - Status: PASS (used by the VS Code tests and manual runs)
 - Starting points:
@@ -656,10 +656,10 @@ just vscode-e2e
 ### Phase 3: Test File Updates ✅ COMPLETED
 - **Status**: IMPLEMENTED ✅
 - **Changes Made**:
-  - ✅ Updated `two_blocks.viv` with proper initial state for manual testing
+  - ✅ Updated `two_blocks.mocklang` with proper initial state for manual testing
   - ✅ File now contains both `vivafolio_picker!()` and `vivafolio_square!()` blocks
   - ✅ Includes `gui_state! r#"{"properties":{"color":"#00ff00"}}"#` with initial green color
-- **Files Updated**: `vivafolio/test/projects/vivafolioblock-test/two_blocks.viv`
+- **Files Updated**: `test/projects/vivafolioblock-test/two_blocks.mocklang`
 - **Validation**: File ready for manual testing with proper block structure
 
 ### Phase 4: Bidirectional Sync Debugging ✅ IN PROGRESS
@@ -908,8 +908,8 @@ just vscode-e2e
 ```
 
 **Test Files:**
-- `test/projects/vivafolioblock-test/main.viv` - Single block demonstration
-- `test/projects/vivafolioblock-test/two_blocks.viv` - Interactive color picker + square
+- `test/projects/vivafolioblock-test/main.mocklang` - Single block demonstration
+- `test/projects/vivafolioblock-test/two_blocks.mocklang` - Interactive color picker + square
 
 **Manual Test Scenarios:**
 1. **Inset Creation**: Open files with vivafolio blocks → verify insets appear

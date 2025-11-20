@@ -43,7 +43,7 @@ This note captures why the logging/printf debugging system is designed the way i
 - Webview logging capture is opt‑in
   - Rationale: The majority of runs don’t need webview chatter; capturing only when asked keeps noise down and avoids overhead.
 
-- Test file isolation (two_blocks.viv)
+- Test file isolation (two_blocks.mocklang)
   - WDIO specs operate on a temporary copy and delete it in teardown. Rationale: avoid polluting manual demo files and keep diffs meaningful.
 
 ## Constraints and trade‑offs

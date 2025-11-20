@@ -81,7 +81,7 @@ Programs emit VivafolioBlock notifications to stdout in JSON Lines format:
 
 #### **2. Python Runtime Program**
 - **Status**: IMPLEMENTED ✅
-- **Structure**: Mirrors `two_blocks.viv` with helper functions and main execution
+- **Structure**: Mirrors `two_blocks.mocklang` with helper functions and main execution
 - **Features**:
   - `vivafolio_picker()` and `vivafolio_square()` helper functions
   - `gui_state()` function for state persistence

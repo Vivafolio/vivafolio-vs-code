@@ -29,7 +29,7 @@ The launched instance includes:
 - Fresh user data directory (temporary, unless `PERSIST_PROFILE=1` is set)
 - Fresh extensions directory
 - The vivafolioblock test workspace
-- The `two_blocks.viv` file opened to trigger diagnostics/insets
+- The `two_blocks.mocklang` file opened to trigger diagnostics/insets
 
 ## Debugger Configuration
 
@@ -90,7 +90,7 @@ The **"Debug Extension + LSP (Launch)"** configuration provides the most automat
 5. **Set breakpoints** in your extension source code (e.g., `src/extension.ts`).
 
 6. **Trigger extension functionality** in the debugged VS Code window:
-   - Open/edit the `two_blocks.viv` file
+   - Open/edit the `two_blocks.mocklang` file
    - Use commands like `Ctrl+Shift+R` (Execute Runtime File)
    - Interact with any webviews or insets that appear
 
@@ -329,7 +329,7 @@ The mock language extension is configured to start the LSP server with debugging
    - `extractVivafolioBlocks()` - Block parsing logic
 
 6. **Trigger LSP activity** in the debugged VS Code window:
-   - Open or edit a `.viv` file (like `two_blocks.viv`)
+   - Open or edit a `.mocklang` file (like `two_blocks.mocklang`)
    - The LSP server will process the file and send diagnostics
 
 #### LSP Server Debugging Tips
