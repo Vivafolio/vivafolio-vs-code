@@ -753,7 +753,7 @@ When the indexing service edits files (either directly or through LSP-mediated o
 - ✅ **Sidecar LSP Client**: Created `SidecarLspClient.ts` that monitors indexing service events
 - ✅ **VivafolioBlock Notifications**: Receives VivafolioBlock notifications from LSP server and forwards to indexing service
 - ✅ **Mock LSP Integration**: Extended `MockLspServerImpl` with VivafolioBlock notification callbacks
-- ✅ **Initial Scan**: Performs initial scan of .viv files on startup
+- ✅ **Initial Scan**: Performs initial scan of .mocklang files on startup
 - ✅ **Real-time Coordination**: Ensures synchronization between indexing service edits and LSP diagnostics
 - ✅ **Test Validation**: Integration tests verify LSP notification processing and entity creation
 - **Reference**: Sidecar LSP client implementation in `apps/blockprotocol-poc/src/SidecarLspClient.ts`

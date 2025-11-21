@@ -29,7 +29,7 @@ async function run() {
 		await conn.sendRequest('initialize', { processId: null, capabilities: {}, rootUri: null, workspaceFolders: null })
 		await conn.sendNotification('initialized', {})
 
-		const uri = 'file:///test/syntax-error.viv'
+		const uri = 'file:///test/syntax-error.mocklang'
 		// Start with valid JSON
 		let text = 'vivafolio_picker!() gui_state! r#"{ "color": "#00ff00" }"#\nvivafolio_square!()\n'
 		await conn.sendNotification('textDocument/didOpen', {
@@ -80,7 +80,7 @@ async function run() {
 		console.error('LSP syntax error semantics test failed:', e && e.stack ? e.stack : String(e))
 		process.exit(1)
 	} finally {
-		try { proc.kill() } catch {}
+		try { proc.kill() } catch { }
 		conn.dispose()
 	}
 }

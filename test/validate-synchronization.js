@@ -13,7 +13,7 @@ console.log('================================================')
 
 // Test 1: Check that test file exists with correct content
 console.log('\n1. Checking test file content...')
-const testFile = path.join(__dirname, 'projects', 'vivafolioblock-test', 'two_blocks_sync.viv')
+const testFile = path.join(__dirname, 'projects', 'vivafolioblock-test', 'two_blocks_sync.mocklang')
 
 try {
   const content = fs.readFileSync(testFile, 'utf8')

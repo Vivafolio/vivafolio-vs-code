@@ -17,7 +17,7 @@ const fs = require('fs')
 
 // Test project setup
 const testProjectDir = path.join(__dirname, 'projects', 'blockprotocol-integration-test')
-const testFile = path.join(testProjectDir, 'test.viv')
+const testFile = path.join(testProjectDir, 'test.mocklang')
 
 async function setupTestProject() {
   // Create test project directory
@@ -25,7 +25,7 @@ async function setupTestProject() {
     fs.mkdirSync(testProjectDir, { recursive: true })
   }
 
-  // Create a test .viv file with Block Protocol constructs
+  // Create a test .mocklang file with Block Protocol constructs
   const testContent = `# Test file for Block Protocol integration
 
 vivafolio_block!({
@@ -149,7 +149,7 @@ async function testNotificationProcessing() {
 
     // Check if the extension has the parsing logic
     const hasParseLogic = extensionSource.includes('parseVivafolioPayload') &&
-                         extensionSource.includes('vivafolio:')
+      extensionSource.includes('vivafolio:')
 
     if (!hasParseLogic) {
       console.log('   ✗ Extension missing VivafolioBlock notification parsing logic')
@@ -158,7 +158,7 @@ async function testNotificationProcessing() {
 
     // Check if the extension has the notification processing logic
     const hasNotificationLogic = extensionSource.includes('createVivafolioBlockNotification') &&
-                                extensionSource.includes('renderBlockProtocolBlock')
+      extensionSource.includes('renderBlockProtocolBlock')
 
     if (!hasNotificationLogic) {
       console.log('   ✗ Extension missing VivafolioBlock notification processing logic')
@@ -167,7 +167,7 @@ async function testNotificationProcessing() {
 
     // Check if the createVivafolioBlockNotification function uses the payload correctly
     const usesPayloadCorrectly = extensionSource.includes('...payload') &&
-                                extensionSource.includes('sourceUri: document.uri.toString()')
+      extensionSource.includes('sourceUri: document.uri.toString()')
 
     if (!usesPayloadCorrectly) {
       console.log('   ✗ Extension createVivafolioBlockNotification function not using LSP payload correctly')
@@ -224,7 +224,7 @@ async function testLSPIntegrationFlow() {
     await connection.sendNotification('initialized', {})
 
     // Send didOpen for a test file with VivafolioBlock constructs
-    const testFileUri = 'file:///test/two_blocks.viv'
+    const testFileUri = 'file:///test/two_blocks.mocklang'
     const testContent = `vivafolio_picker!() gui_state! r#"{ "color": "#ff0000" }"#\nvivafolio_square!()\n`
 
     await connection.sendNotification('textDocument/didOpen', {

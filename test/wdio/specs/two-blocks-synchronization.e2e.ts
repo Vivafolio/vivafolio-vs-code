@@ -23,7 +23,7 @@ describe('Vivafolio Two-Blocks Synchronization E2E', () => {
   testColors.forEach((initialColor) => {
     describe(`with initial color ${initialColor}`, () => {
       beforeEach(async () => {
-        testFile = path.join(process.cwd(), 'test', 'projects', 'vivafolioblock-test', `two_blocks_sync_${initialColor.replace('#', '')}.viv`)
+        testFile = path.join(process.cwd(), 'test', 'projects', 'vivafolioblock-test', `two_blocks_sync_${initialColor.replace('#', '')}.mocklang`)
 
         // Ensure the test file exists with initial content using the test color
         const initialContent = `// Vivafolio two blocks synchronization demo
@@ -59,7 +59,7 @@ vivafolio_square!()`
               const hasPicker = await $('#picker').isExisting().catch(() => false)
               await (wv as any).close()
               if (hasPicker) { pickerWebview = wv; break }
-            } catch { try { await (wv as any).close() } catch {} }
+            } catch { try { await (wv as any).close() } catch { } }
           }
           if (!pickerWebview) await browser.pause(1000)
         }
@@ -102,7 +102,7 @@ vivafolio_square!()`
             try {
               await (wv as any).open()
               if (await $('#picker').isExisting().catch(() => false)) pickerWebview = wv
-            } finally { try { await (wv as any).close() } catch {} }
+            } finally { try { await (wv as any).close() } catch { } }
           }
           if (!pickerWebview) await browser.pause(1000)
         }
@@ -165,7 +165,7 @@ vivafolio_square!()`
             try {
               await (wv as any).open()
               if (await $('#picker').isExisting().catch(() => false)) pickerWebview = wv
-            } finally { try { await (wv as any).close() } catch {} }
+            } finally { try { await (wv as any).close() } catch { } }
           }
           if (!pickerWebview) await browser.pause(1000)
         }
@@ -219,7 +219,7 @@ vivafolio_square!()`
               await (wv as any).close()
               if (hasPicker && !pickerWebview) pickerWebview = wv
               if (hasSquare && !squareWebview) squareWebview = wv
-            } catch { try { await (wv as any).close() } catch {} }
+            } catch { try { await (wv as any).close() } catch { } }
           }
           if (!pickerWebview || !squareWebview) await browser.pause(1000)
         }
@@ -265,7 +265,7 @@ vivafolio_square!()`
             try {
               await (wv as any).open()
               if (await $('#picker').isExisting().catch(() => false)) pickerWebview = wv
-            } finally { try { await (wv as any).close() } catch {} }
+            } finally { try { await (wv as any).close() } catch { } }
           }
           if (!pickerWebview) await browser.pause(1000)
         }
@@ -312,7 +312,7 @@ vivafolio_square!()`
             try {
               await (wv as any).open()
               if (await $('#picker').isExisting().catch(() => false)) pickerWebview = wv
-            } finally { try { await (wv as any).close() } catch {} }
+            } finally { try { await (wv as any).close() } catch { } }
           }
           if (!pickerWebview) await browser.pause(1000)
         }
