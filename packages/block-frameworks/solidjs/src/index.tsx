@@ -231,59 +231,35 @@ export function createBlockElement<TGraph extends Partial<GraphService> = GraphS
   class SolidBlockElement extends HTMLElement {
     public graph?: TGraph
     public _dispose?: () => void
-
-    constructor() {
-      super()
-    }
-
+    public _setGraph?: (g: TGraph) => void
+    constructor() { super() }
     connectedCallback() {
-      // Will be initialized by the init method
-      if (this.graph) {
-        // Auto-initialize if graph is already set
+      if (this.graph && !this._dispose) {
         const cleanup = init({ element: this, graph: this.graph })
         this._dispose = cleanup
       }
     }
-
     disconnectedCallback() {
-      if (this._dispose) {
-        this._dispose()
-        this._dispose = undefined
-      }
+      if (this._dispose) { this._dispose(); this._dispose = undefined; this._setGraph = undefined }
     }
   }
 
-  const init = (params: {
-    element: HTMLElement
-    graph: TGraph
-  }): (() => void) => {
-  const { element, graph } = params
-
-    // Create container for SolidJS rendering
-    const container = document.createElement('div')
-    container.style.width = '100%'
-    container.style.height = '100%'
-    element.appendChild(container)
-
-    // Render the SolidJS component
-    const dispose = render(
-      () => component({ graph } as BlockProps<TGraph>),
-      container
-    )
-
-    // Persist references on the custom element for lifecycle management
+  const init = (params: { element: HTMLElement; graph: TGraph }): (() => void) => {
+    const { element, graph } = params
     const blockElement = element as SolidBlockElement
-    blockElement.graph = graph
-
-    // Cleanup function that unmounts Solid and removes the container
-    const cleanup = () => {
-      dispose()
-      if (container.parentNode) {
-        container.parentNode.removeChild(container)
-      }
+    let container = element.querySelector(':scope > .solidjs-root') as HTMLDivElement | null
+    if (!container) {
+      container = document.createElement('div')
+      container.className = 'solidjs-root'
+      container.style.width = '100%'
+      container.style.height = '100%'
+      element.appendChild(container)
     }
-
-    // Store cleanup on the element so disconnectedCallback and updates can dispose correctly
+    const [graphSignal, setGraphSignal] = createSignal<TGraph>(graph)
+    blockElement.graph = graph
+    blockElement._setGraph = setGraphSignal
+    const dispose = render(() => component({ graph: graphSignal() } as BlockProps<TGraph>), container)
+    const cleanup = () => { dispose(); blockElement._setGraph = undefined }
     blockElement._dispose = cleanup
 
     // Inject block styles if not already present
@@ -298,22 +274,11 @@ export function createBlockElement<TGraph extends Partial<GraphService> = GraphS
     return cleanup
   }
 
-  const updateGraph = (params: {
-    element: HTMLElement
-    graph: TGraph
-  }) => {
+  const updateGraph = (params: { element: HTMLElement; graph: TGraph }) => {
     const blockElement = params.element as SolidBlockElement
+    if (!blockElement._dispose) { init(params); return }
     blockElement.graph = params.graph
-
-    // If not yet initialized (e.g. first update after external init), initialize now
-    if (!blockElement._dispose) {
-      blockElement._dispose = init(params)
-      return
-    }
-
-    // If already initialized, re-render cleanly
-    blockElement._dispose()
-    blockElement._dispose = init(params)
+    blockElement._setGraph?.(params.graph)
   }
 
   return {
