@@ -1,6 +1,8 @@
 import path from 'path'
 import fs from 'fs'
 import { execSync } from 'child_process'
+// Use require for chromedriver since it doesn't have TypeScript definitions
+const chromedriver = require('chromedriver')
 
 function resolveVSCodeInsidersBinary(): string | undefined {
   const fromEnv = process.env.VSCODE_INSIDERS_PATH
@@ -10,7 +12,7 @@ function resolveVSCodeInsidersBinary(): string | undefined {
     if (whichPath) {
       // Resolve symlinks (Nix often symlinks to store paths)
       let resolved = whichPath
-      try { resolved = fs.realpathSync(whichPath) } catch {}
+      try { resolved = fs.realpathSync(whichPath) } catch { }
       // Nix macOS app bundle path from CLI wrapper
       const nixAppCandidate = resolved.replace(
         /\/bin\/code-insiders$/, '/Applications/Visual Studio Code - Insiders.app'
@@ -20,16 +22,16 @@ function resolveVSCodeInsidersBinary(): string | undefined {
       try {
         const found = execSync('ls -d /nix/store/*-vscode-insiders*/Applications/Visual\\ Studio\\ Code\\ -\\ Insiders.app 2>/dev/null | head -n 1', { encoding: 'utf8' }).trim()
         if (found) return found
-      } catch {}
+      } catch { }
       // Fallback to wrapper if nothing else found
       return whichPath
     }
-  } catch {}
+  } catch { }
   try {
     // macOS Spotlight lookup for the Insiders app, fallback to Electron binary inside the app bundle
     const appPath = execSync('mdfind "kMDItemCFBundleIdentifier == com.microsoft.VSCodeInsiders" | head -n 1', { encoding: 'utf8' }).trim()
     if (appPath) return `${appPath}/Contents/MacOS/Electron`
-  } catch {}
+  } catch { }
   return undefined
 }
 
@@ -50,7 +52,7 @@ try {
   process.env.TMPDIR = shortTmpDir
   process.env.TEMP = shortTmpDir
   process.env.TMP = shortTmpDir
-} catch {}
+} catch { }
 import type { Options } from '@wdio/types'
 
 export const config: Options.Testrunner = {
@@ -73,8 +75,11 @@ export const config: Options.Testrunner = {
   // ============
   capabilities: [{
     browserName: 'vscode',
-    browserVersion: 'insiders',
+    browserVersion: 'insiders', // VS Code version, not Chrome version
     'wdio:enforceWebDriverClassic': true,
+    'wdio:chromedriverOptions': {
+      binary: chromedriver.path // Use ChromeDriver 138 to match bundled Chromium 138
+    },
     'wdio:vscodeOptions': ({
       ...(vscodeInsidersBinary ? { binary: vscodeInsidersBinary } : {}),
       extensionPath: path.resolve(__dirname),
@@ -113,7 +118,10 @@ export const config: Options.Testrunner = {
   connectionRetryCount: 3,
 
   // Test runner services
-  services: [ 'vscode' ],
+  // wdio-vscode-service automatically manages ChromeDriver
+  services: [
+    'vscode'
+  ],
 
   // Framework you want to run your specs with.
   framework: 'mocha',
@@ -148,6 +156,14 @@ export const config: Options.Testrunner = {
    */
   onPrepare: function (config, capabilities) {
     console.log('Starting WebdriverIO VS Code Extension Tests...')
+
+    // Create wdio-vscode-service cache directory to avoid ENOENT errors
+    const cacheDir = path.join(__dirname, '.wdio-vscode-service')
+    if (!fs.existsSync(cacheDir)) {
+      fs.mkdirSync(cacheDir, { recursive: true })
+      console.log('Created .wdio-vscode-service cache directory')
+    }
+
     try {
       // Ensure the main extension is compiled so newly added commands are available
       console.log('Compiling Vivafolio extension...')
@@ -231,7 +247,7 @@ export const config: Options.Testrunner = {
    * @param {Array.<Object>} capabilities list of capabilities details
    * @param {<Object>} results     results object containing test results
    */
-  onComplete: function(exitCode, config, capabilities, results) {
+  onComplete: function (exitCode, config, capabilities, results) {
     console.log('WebdriverIO VS Code Extension Tests Completed')
     if (exitCode !== 0) {
       try {
@@ -242,7 +258,7 @@ export const config: Options.Testrunner = {
         console.log('If VIVAFOLIO_DEBUG=1 was set, Vivafolio file logs are under the extension global storage logs dir.')
         console.log('You can interleave logs with:')
         console.log('  node test/interleave-logs.js /path/to/vscode/logs/**/main*.log /path/to/vscode/logs/**/renderer*.log /path/to/vscode/logs/**/exthost*.log vivafolio/**/vivafolio-*.log')
-      } catch {}
+      } catch { }
     }
   },
 
@@ -251,7 +267,7 @@ export const config: Options.Testrunner = {
    * @param {string} oldSessionId session ID of the old session
    * @param {string} newSessionId session ID of the new session
    */
-  onReload: function(oldSessionId, newSessionId) {
+  onReload: function (oldSessionId, newSessionId) {
     console.log('VS Code session reloaded')
   }
 }
