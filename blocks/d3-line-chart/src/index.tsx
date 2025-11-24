@@ -92,7 +92,8 @@ const factoryFunction = () => ({
       }
     };
   },
-  updateEntity: ({ element, entity }: { element: any; entity: any }) => {
+  // Host → Block render hook: apply a fresh snapshot from the host
+  applyEntitySnapshot: ({ element, entity }: { element: any; entity: any }) => {
     element.graph = { 
       blockEntitySubgraph: {
         roots: [{
