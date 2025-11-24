@@ -1,4 +1,4 @@
-import type { Component } from 'solid-js'
+import type { Component, Accessor } from 'solid-js'
 import { createSignal, Show, onCleanup, onMount } from 'solid-js'
 import type { BlockProps, Entity, GraphService } from '@vivafolio/block-solidjs'
 
@@ -12,14 +12,17 @@ const STATUS: Record<StatusOption, { label: string; color: string; bg: string }>
   'review': { label: 'Review', color: '#8b5cf6', bg: '#e9d5ff' },
 }
 
-export type StatusPillGraphService = GraphService & {
+export type StatusPillGraphService = Omit<GraphService, 'blockEntity' | 'readonly'> & {
+  blockEntity: Accessor<Entity>
+  readonly: Accessor<boolean>
   updateEntity?: (args: { entityId: string; properties: Record<string, unknown> }) => Promise<void>
 }
 
 export interface StatusPillProps extends BlockProps<StatusPillGraphService> {}
 
 const StatusPill: Component<StatusPillProps> = (props) => {
-  const entity = () => props.graph.blockEntity as Entity
+  const entity = () => props.graph.blockEntity()
+  const readonly = () => props.graph.readonly()
   const [open, setOpen] = createSignal(false)
   // Optimistic UI: prefer locally chosen status until next server notification arrives
   const [pending, setPending] = createSignal<StatusOption | undefined>(undefined)
@@ -39,15 +42,6 @@ const StatusPill: Component<StatusPillProps> = (props) => {
     const id = entity().metadata?.recordId?.entityId ?? entity().entityId
   try { console.log('[StatusPill] commit called with', next, 'for entity', id) } catch {}
   // Optimistic update first
-  // Mutate the entity object in-place so that if the component is re-mounted
-  // (our current SolidJS wrapper tears down & recreates on each snapshot)
-  // the freshly constructed props.graph.blockEntity already reflects the
-  // optimistic status. This ensures tests observing the DOM after persistence
-  // don't see the stale pre-change value.
-  try {
-    const current = entity() as Entity
-    current.properties = { ...(current.properties || {}), status: next }
-  } catch {}
   setPending(next)
   await props.graph.updateEntity?.({ entityId: id, properties: { ...(entity().properties || {}), status: next } })
   try { console.log('[StatusPill] updateEntity invoked for', id, 'next status =', next) } catch {}
@@ -58,11 +52,11 @@ const StatusPill: Component<StatusPillProps> = (props) => {
     <div class="status-pill-block vf-status-pill" style={{
       display: 'inline-flex', 'align-items': 'center', padding: '4px 8px', 'border-radius': '12px',
       background: cfg().bg, border: `1px solid ${cfg().color}20`, color: cfg().color, position: 'relative',
-      cursor: props.graph.readonly ? 'default' : 'pointer'
-    }} onClick={() => !props.graph.readonly && setOpen(!open())}>
+      cursor: readonly() ? 'default' : 'pointer'
+    }} onClick={() => !readonly() && setOpen(!open())}>
       <div style={{ width: '6px', height: '6px', 'border-radius': '50%', background: cfg().color, 'margin-right': '6px' }} />
       <span>{cfg().label}</span>
-      <Show when={!props.graph.readonly}>
+      <Show when={!readonly()}>
         <span style={{ 'font-size': '10px', 'margin-left': '4px', opacity: 0.6 }}>▼</span>
         <Show when={open()}>
           <div class="vf-status-menu" role="menu" style={{ position: 'absolute', top: '100%', left: 0, background: 'white', border: '1px solid #e5e7eb', 'border-radius': '8px', 'box-shadow': '0 4px 6px -1px rgba(0,0,0,0.1)', 'z-index': 1000, 'min-width': '140px', 'margin-top': '4px' }}>
