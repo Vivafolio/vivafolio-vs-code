@@ -94,20 +94,6 @@ const latestPayloads = new Map<string, VivafolioBlockNotification>()
 const iframeControllers = new Map<string, { iframe: HTMLIFrameElement; ready: boolean }>()
 const publishedLoaders = new Map<string, BlockLoader>()
 
-// Deduplicate identical graph/update messages across multiple paths (loader callback vs window fallback)
-// Keyed by blockId|entityId|sortedProperties, with a short TTL to coalesce duplicates in quick succession
-const recentGraphUpdateKeys = new Map<string, number>()
-
-function makeGraphUpdateKey(update: { blockId: string; entityId: string; properties: Record<string, unknown> }) {
-  // Stable stringify properties (shallow sort by key)
-  const props = update.properties || {}
-  const sorted = Object.keys(props)
-    .sort()
-    .map((k) => `${k}:${JSON.stringify((props as any)[k])}`)
-    .join('|')
-  return `${update.blockId}::${update.entityId}::${sorted}`
-}
-
 type HtmlTemplateHandlers = {
   setEntity: (entity: Entity) => void
   setReadonly: (readonly: boolean) => void
@@ -405,24 +391,12 @@ function createElement<K extends keyof HTMLElementTagNameMap>(
 }
 
 function sendGraphUpdateMessage(update: GraphUpdatePayload) {
-  // If socket not open yet, queue and return
   if (!liveSocket || liveSocket.readyState !== WebSocket.OPEN) {
     pendingGraphUpdates.push(update)
     try { console.warn('[Client] sendGraphUpdateMessage: socket not open, queued update', update) } catch {}
     return
   }
-  // Record this update to dedupe any fallback window message carrying the same payload shortly after
-  try {
-    const key = makeGraphUpdateKey({
-      blockId: update.blockId,
-      entityId: update.entityId,
-      properties: update.properties ?? {}
-    })
-    recentGraphUpdateKeys.set(key, Date.now())
-  } catch {}
-  try {
-    console.log('[Client] sendGraphUpdateMessage: sending graph/update', update)
-  } catch {}
+  try { console.log('[Client] sendGraphUpdateMessage: sending graph/update', update) } catch {}
   liveSocket.send(
     JSON.stringify({
       type: 'graph/update',
@@ -816,7 +790,15 @@ function renderPublishedBlock(notification: VivafolioBlockNotification): HTMLEle
   // Subsequent updates: reuse loader + existing container; avoid reloading/evaluating bundle again
   console.log('[POC] Reusing existing loader for:', notification.blockId)
   if (existing) {
+    try {
+      const before = existing.querySelector('.status-pill-block')?.textContent?.trim()
+      console.log('[POC] Reuse path before updateBlock pill text =', before)
+    } catch {}
     loader.updateBlock(adaptedNotification)
+    try {
+      const after = existing.querySelector('.status-pill-block')?.textContent?.trim()
+      console.log('[POC] Reuse path after updateBlock pill text =', after)
+    } catch {}
     return existing
   }
 
@@ -1148,17 +1130,6 @@ window.addEventListener('message', (event) => {
       if (!controller) return
       controller.ready = true
       requestFrameInit(blockId)
-      break
-    }
-    case 'updateEntity': {
-      // Spec-style update from a block via postMessage
-      // Accept both { data: { entityId, properties } } and flat payload shapes.
-      const payload = (data as any).data ?? data
-      const entityId = payload?.entityId
-      const properties = payload?.properties ?? {}
-      if (entityId) {
-        handleBlockUpdate({ blockId, entityId, properties })
-      }
       break
     }
     case 'graph:update': {

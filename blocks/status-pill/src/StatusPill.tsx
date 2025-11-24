@@ -39,6 +39,15 @@ const StatusPill: Component<StatusPillProps> = (props) => {
     const id = entity().metadata?.recordId?.entityId ?? entity().entityId
   try { console.log('[StatusPill] commit called with', next, 'for entity', id) } catch {}
   // Optimistic update first
+  // Mutate the entity object in-place so that if the component is re-mounted
+  // (our current SolidJS wrapper tears down & recreates on each snapshot)
+  // the freshly constructed props.graph.blockEntity already reflects the
+  // optimistic status. This ensures tests observing the DOM after persistence
+  // don't see the stale pre-change value.
+  try {
+    const current = entity() as Entity
+    current.properties = { ...(current.properties || {}), status: next }
+  } catch {}
   setPending(next)
   await props.graph.updateEntity?.({ entityId: id, properties: { ...(entity().properties || {}), status: next } })
   try { console.log('[StatusPill] updateEntity invoked for', id, 'next status =', next) } catch {}
