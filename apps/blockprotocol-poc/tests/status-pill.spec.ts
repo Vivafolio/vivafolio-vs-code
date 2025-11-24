@@ -24,9 +24,7 @@ async function writeCsv(value: string) {
 
 // Wait for status/persisted from the dev server after triggering an update
 async function waitForPersisted(page: import('@playwright/test').Page, expectedLabel: string) {
-  // Listen to network WS frames for our persisted message
-  // Playwright doesn't expose direct WS messages from the page-level WebSocket easily,
-  // so rely on polling the CSV as a fallback with a generous timeout.
+  // Poll CSV as a persistence signal (fallback for WS observe). Original logic pre-rename.
   for (let i = 0; i < 80; i++) {
     const value = await readCsv()
     if (value === expectedLabel) return
@@ -135,7 +133,7 @@ test.describe('Status Pill – CSV integration', () => {
   const chooseBlocked = container.locator('vivafolio-status-pill [role="menuitem"]').filter({ hasText: 'Blocked' })
     await expect(chooseBlocked).toBeVisible()
     await chooseBlocked.click()
-    await waitForPersisted(page, 'Blocked')
+  await waitForPersisted(page, 'Blocked')
   await expect(container.locator('vivafolio-status-pill .status-pill-block')).toHaveCount(1)
     await expect(pill).toContainText('Blocked')
 
@@ -145,7 +143,7 @@ test.describe('Status Pill – CSV integration', () => {
   const chooseReview = container.locator('vivafolio-status-pill [role="menuitem"]').filter({ hasText: 'Review' })
     await expect(chooseReview).toBeVisible()
     await chooseReview.click()
-    await waitForPersisted(page, 'Review')
+  await waitForPersisted(page, 'Review')
   await expect(container.locator('vivafolio-status-pill .status-pill-block')).toHaveCount(1)
     await expect(pill).toContainText('Review')
 

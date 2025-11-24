@@ -568,6 +568,46 @@
 			],
 			"isBackground": false,
 			"group": "test"
+		},
+		{
+			"label": "build-block-loader",
+			"type": "shell",
+			"command": "just",
+			"args": [
+				"build-blocks"
+			],
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "build-block-loader",
+			"type": "shell",
+			"command": "just",
+			"args": [
+				"build-blocks"
+			],
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "build-block-loader",
+			"type": "shell",
+			"command": "just",
+			"args": [
+				"build-blocks"
+			],
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "build-block-loader",
+			"type": "shell",
+			"command": "just",
+			"args": [
+				"build-blocks"
+			],
+			"isBackground": false,
+			"group": "build"
 		}
 	]
 }

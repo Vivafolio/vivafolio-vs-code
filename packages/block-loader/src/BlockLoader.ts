@@ -249,8 +249,34 @@ export class VivafolioBlockLoader implements BlockLoader {
     this.blockSubgraph = this.buildBlockEntitySubgraph(this.blockEntity, this.blockGraph)
 
     // Update custom element if present
+    try {
+      console.log(
+        '[BlockLoader] updateBlock entry:',
+        JSON.stringify({
+          isCustomElement: this.isCustomElement,
+          hasUpdateFn: !!this.customElementUpdateFn,
+          entityId: (this.blockEntity as any)?.entityId,
+          status: (this.blockEntity as any)?.properties?.status
+        })
+      )
+    } catch {}
     if (this.isCustomElement && this.customElementUpdateFn) {
+      try {
+        console.log(
+          '[BlockLoader] Calling customElementUpdateFn with entityId =',
+          this.blockEntity.entityId,
+          'status =',
+          (this.blockEntity as any).properties?.status
+        )
+      } catch {}
       this.customElementUpdateFn(this.blockEntity, false)
+      // Attempt to verify DOM text after snapshot application
+      try {
+        const el = this.customElementInstance as HTMLElement | undefined
+        const pill = el?.querySelector('.status-pill-block')
+        const text = pill?.textContent?.trim()
+        console.log('[BlockLoader] Post-snapshot pill text =', text)
+      } catch {}
     }
 
     // Update embedder
@@ -583,9 +609,11 @@ export class VivafolioBlockLoader implements BlockLoader {
             })
           }
 
-          if (typeof (factoryResult as any).updateEntity === 'function') {
+          //    * Host → Block render hook: apply the latest entity snapshot to this custom element.
+          const applySnapshot = (factoryResult as any).applyEntitySnapshot
+          if (typeof applySnapshot === 'function') {
             this.customElementUpdateFn = (entity: Entity, readonly: boolean) => {
-              (factoryResult as any).updateEntity({ element: customElement, entity, readonly })
+              applySnapshot({ element: customElement, entity, readonly })
             }
           }
           return
