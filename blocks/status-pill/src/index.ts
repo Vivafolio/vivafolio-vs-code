@@ -1,10 +1,27 @@
 import { createBlockElement } from '@vivafolio/block-solidjs'
 import StatusPill, { type StatusPillGraphService } from './StatusPill'
-import type { Entity, GraphService } from '@vivafolio/block-solidjs'
+import type { Entity } from '@vivafolio/block-solidjs'
+import { createSignal } from 'solid-js'
 import './styles.css'
 
-const { element: StatusPillElement, init, updateGraph } = createBlockElement<StatusPillGraphService>(
-  StatusPill,
+// Adapter: map base GraphService to accessor-based StatusPillGraphService
+const StatusPillAdapter: any = (props: any) => {
+  // If graph.blockEntity is an entity (not accessor), wrap it in a signal
+  const rawGraph = props.graph as any
+  if (typeof rawGraph.blockEntity === 'function') {
+    return StatusPill(props as any)
+  }
+  const [entitySignal] = createSignal(rawGraph.blockEntity)
+  const [readonlySignal] = createSignal(rawGraph.readonly ?? false)
+  const adapted: StatusPillGraphService = {
+    ...rawGraph,
+    blockEntity: entitySignal,
+    readonly: readonlySignal
+  }
+  return StatusPill({ graph: adapted } as any)
+}
+const { element: StatusPillElement, init, updateGraph } = createBlockElement(
+  StatusPillAdapter,
   { name: 'Status Pill', version: '0.1.0', description: 'A status indicator pill Web Component.' }
 )
 
@@ -17,38 +34,27 @@ if (!customElements.get('vivafolio-status-pill')) {
 export default function StatusPillFactory(_graphModule?: unknown) {
   const factoryResult = {
   element: StatusPillElement,
-  init: ({ element, entity, readonly, updateEntity }: {
-      element: HTMLElement
-      entity: Entity
-      readonly: boolean
-      updateEntity?: (properties: Record<string, unknown>) => void
-    }) => {
+  init: ({ element, entity, readonly, updateEntity }: { element: HTMLElement; entity: Entity; readonly: boolean; updateEntity?: (properties: Record<string, unknown>) => void }) => {
+      const [entitySignal, setEntitySignal] = createSignal(entity)
+      const [readonlySignal, setReadonlySignal] = createSignal(readonly)
       const graph: StatusPillGraphService = {
-        blockEntity: entity,
+        blockEntity: entitySignal,
         blockGraph: { depth: 1, linkedEntities: [entity], linkGroups: [] },
         entityTypes: [],
         linkedAggregations: [],
-        readonly,
-        // Bridge BlockLoader's property-only updater to our graph.updateEntity signature
+        readonly: readonlySignal,
         updateEntity: async ({ entityId, properties }) => {
           try { console.log('[StatusPillFactory] graph.updateEntity bridge called for', entityId, properties) } catch {}
-          // Notify loader/host via provided updateEntity bridge (properties-only). Spec-aligned path.
-          if (typeof updateEntity === 'function') {
-            updateEntity(properties)
-          } else {
-            try { console.warn('[StatusPillFactory] updateEntity callback missing; update discarded', { entityId }) } catch {}
-          }
+          // Optimistically reflect property changes in local entity signal to avoid relying solely on pending()
+          setEntitySignal({ ...entitySignal(), properties: { ...(entitySignal().properties || {}), ...properties } })
+          if (typeof updateEntity === 'function') updateEntity(properties)
         }
       }
-
-      const cleanup = init({ element, graph })
-
-      // Save update hook on the element so updateEntity calls can re-render with new graph
+  const cleanup = init({ element, graph: graph as any })
       ;(element as any).__vf_update = (nextEntity: Entity, ro: boolean) => {
-        const nextGraph: StatusPillGraphService = { ...graph, blockEntity: nextEntity, readonly: ro }
-        updateGraph({ element, graph: nextGraph })
+        setEntitySignal(nextEntity)
+        setReadonlySignal(ro)
       }
-
       return cleanup
     },
   /**
@@ -66,9 +72,6 @@ export default function StatusPillFactory(_graphModule?: unknown) {
     try { console.log('[StatusPillFactory] applyEntitySnapshot invoked for', entity.entityId, 'status =', nextStatus, 'readonly =', readonly) } catch {}
     // Always apply snapshot to keep UI consistent with host state (test relies on immediate text change)
     ;(element as any).__vf_prevEntity = entity
-  // If component instance kept a local optimistic pending status, clear it by
-  // mutating the entity object so rebuilt graphs reflect authoritative host value.
-  try { (entity as any).properties = { ...(entity as any).properties, status: nextStatus } } catch {}
     const fn = (element as any).__vf_update as ((e: Entity, ro: boolean) => void) | undefined
     fn?.(entity, readonly)
   }
