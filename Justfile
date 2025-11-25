@@ -378,21 +378,9 @@ test-lsp-standalone: test-lsp-direct test-lsp-protocol test-lsp-syntax-errors
 # WDIO VS Code Integration Tests
 # -----------------------------
 
-# Run WDIO tests for VS Code integration
+# Run all WebDriverIO VS Code Extension tests
 test-wdio:
 	npm run test:wdio
-
-# Test single block creation and interaction
-test-wdio-single-block:
-	npm run test:wdio:single-block
-
-# Test two blocks interaction
-test-wdio-two-blocks:
-	npm run test:wdio:two-blocks
-
-# Test two blocks synchronization
-test-wdio-synchronization:
-	npm run test:wdio:synchronization
 
 # -----------------------------
 # Block Development Commands
