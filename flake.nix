@@ -109,9 +109,7 @@
             rPackages.devtools
             # JavaScript/Node.js for runtime path testing (already have nodejs_22 above)
             # WebdriverIO testing dependencies
-            chromedriver
             chromium
-            selenium-server-standalone
             xorg.xorgserver # provides Xvfb for headless VS Code on Linux
             # Virtual framebuffer for headless GUI testing in CI (Linux only)
             # xvfb-run  # Not available on macOS
