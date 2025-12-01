@@ -11,9 +11,8 @@
   },
   "devDependencies": {
     "rimraf": "^5.0.5",
-    "postbuild": "node ../utils/postbuild.js",
-    "preview": "vite preview"
-  },
+    "postbuild": "node ../utils/postbuild.js"
+},
   "blockprotocol": {
     "id": "https://vivafolio.org/blocks/d3-line-chart",
     "name": "D3 Line Chart",

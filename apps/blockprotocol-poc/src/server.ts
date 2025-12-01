@@ -2152,59 +2152,6 @@ let localBlockBuilder: any | undefined
     }
   }
 
-  // Robust CSV parser (handles quotes and escaped quotes) and entity builder
-  function parseCsvLine(line: string): string[] {
-    const out: string[] = []
-    let cur = ''
-    let inQuotes = false
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i]
-      if (ch === '"') {
-        if (inQuotes && line[i + 1] === '"') { // escaped quote
-          cur += '"'
-          i++
-        } else {
-          inQuotes = !inQuotes
-        }
-      } else if (ch === ',' && !inQuotes) {
-        out.push(cur)
-        cur = ''
-      } else {
-        cur += ch
-      }
-    }
-    out.push(cur)
-    return out.map((s) => s.trim())
-  }
-
-  async function parseCsvEntities(filePath: string) {
-    try {
-      const content = await fs.readFile(filePath, 'utf8')
-      const lines = content.split(/\r?\n/).filter(Boolean)
-      if (lines.length < 2) return []
-      const headers = parseCsvLine(lines[0]).map(h => h.replace(/^\"|\"$/g, ''))
-      const entities: any[] = []
-      for (let i = 1; i < lines.length; i++) {
-        const cells = parseCsvLine(lines[i])
-        const props: Record<string, unknown> = {}
-        headers.forEach((h, idx) => {
-          props[h] = cells[idx] ?? ''
-        })
-        entities.push({
-          entityId: `${path.basename(filePath, '.csv')}-row-${i - 1}`,
-          entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
-          properties: props,
-          sourceType: 'csv',
-          sourcePath: filePath
-        })
-      }
-      return entities
-    } catch (e) {
-      console.warn('[d3-line-graph] CSV fallback parse failed:', e)
-      return []
-    }
-  }
-
   // Setup framework watchers if enabled
   if (enableFrameworkWatch) {
     try {
