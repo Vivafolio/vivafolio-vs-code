@@ -1,5 +1,5 @@
 {
-  "name": "@vivafolio/blocks-status-pill",
+  "name": "status-pill-block",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -9,7 +9,44 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "postbuild": "node ../utils/postbuild.js",
     "preview": "vite preview",
     "clean": "rm -rf dist node_modules"
+  },
+  "blockprotocol": {
+    "id": "https://vivafolio.org/blocks/status-pill",
+    "name": "status-pill",
+    "version": "0.1.0",
+    "blockType": "custom-element",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "todo",
+            "in-progress",
+            "done",
+            "blocked",
+            "review"
+          ]
+        }
+      }
+    },
+    "resources": {
+      "js": [
+        "dist/main.cjs"
+      ],
+      "css": [
+        "dist/styles.css"
+      ]
+    },
+    "icon": "icon.svg",
+    "description": "A status indicator pill rendered as a Web Component.",
+    "author": "Vivafolio",
+    "externals": {
+      "solid-js": "^1.9.2"
+    }
   }
+
 }
