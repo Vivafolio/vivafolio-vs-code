@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta charset="utf-8">
   <title>Color Picker Block</title>
@@ -53,6 +54,7 @@
     }
   </style>
 </head>
+
 <body>
   <div class="color-picker-container">
     <label class="color-picker-label">
@@ -153,6 +155,7 @@
     function handleColorChange() {
       if (!isInitialized || !entityId) {
         log('Ignoring color change - block not fully initialized', 'warn');
+        log(`  Current state: isInitialized=${isInitialized}, entityId=${entityId}, value=${colorPicker.value}`, 'warn');
         return;
       }
 
@@ -212,4 +215,5 @@
     sendMessage({ type: 'ready' });
   </script>
 </body>
+
 </html>

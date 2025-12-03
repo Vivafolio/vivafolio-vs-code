@@ -11,7 +11,7 @@ export async function activate(_context: vscode.ExtensionContext) {
     console.log('LSP server module path:', serverModule)
 
     const serverOptions: ServerOptions = {
-      run:   { module: serverModule, transport: TransportKind.stdio },
+      run: { module: serverModule, transport: TransportKind.stdio },
       debug: { module: serverModule, transport: TransportKind.stdio, options: { execArgv: ['--nolazy', '--inspect-brk=6009'] } }
     }
 
@@ -26,13 +26,20 @@ export async function activate(_context: vscode.ExtensionContext) {
     console.log('Starting Mocklang Language Client...')
     await client.start()
     console.log('Mocklang Language Client started successfully')
+
+    // Log when documents are opened
+    vscode.workspace.onDidOpenTextDocument(doc => {
+      if (doc.languageId === 'mocklang') {
+        console.log('[Mocklang] Document opened:', doc.uri.toString())
+      }
+    })
   } catch (err) {
     console.error('Failed to start Mocklang Language server:', err)
   }
 }
 
 export async function deactivate(): Promise<void> {
-  try { await client?.stop() } catch {}
+  try { await client?.stop() } catch { }
 }
 
 
