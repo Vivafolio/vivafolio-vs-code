@@ -1129,11 +1129,26 @@ export function activate(context: vscode.ExtensionContext) {
   // diagnostics arrive before our change listener runs)
   async function processCurrentDiagnosticsForActiveEditor() {
     try {
-      const active = vscode.window.activeTextEditor
-      if (!active) return
+      // Retry up to 5 times with 200ms delay if editor isn't active yet
+      let active = vscode.window.activeTextEditor
+      let retries = 0
+      while (!active && retries < 5) {
+        console.log(`[Vivafolio] No active editor yet, waiting... (attempt ${retries + 1}/5)`)
+        await new Promise(resolve => setTimeout(resolve, 200))
+        active = vscode.window.activeTextEditor
+        retries++
+      }
+
+      console.log("Processing diagnostics for file: ", active?.document.uri)
+      if (!active) {
+        console.log('[Vivafolio] processCurrentDiagnostics: No active editor after retries, skipping')
+        return
+      }
       const uri = active.document.uri
       const all = vscode.languages.getDiagnostics(uri)
       const hints = all.filter(d => d.severity === vscode.DiagnosticSeverity.Hint)
+
+      console.log(`[Vivafolio] processCurrentDiagnostics: Found ${all.length} total diagnostics, ${hints.length} hints for ${uri.toString()}`)
 
       // Collect all blockIds present in current diagnostics (complete state)
       const currentBlockIds = new Set<string>()
@@ -1202,9 +1217,14 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Listen to all diagnostic changes; trigger on Hints only
   context.subscriptions.push(vscode.languages.onDidChangeDiagnostics(e => {
+    console.log('[Vivafolio] onDidChangeDiagnostics fired for URIs:', e.uris.map(u => u.toString()))
     const active = vscode.window.activeTextEditor
-    if (!active) return
+    if (!active) {
+      console.log('[Vivafolio] No active text editor, skipping')
+      return
+    }
     const uri = active.document.uri
+    console.log('[Vivafolio] Active document URI:', uri.toString())
     const all = vscode.languages.getDiagnostics(uri)
     const hints = all.filter(d => d.severity === vscode.DiagnosticSeverity.Hint)
     try { console.log('[Vivafolio] onDidChangeDiagnostics: total=', all.length, 'hints=', hints.length) } catch { }

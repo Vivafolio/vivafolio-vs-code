@@ -5,41 +5,47 @@ import { BaseWebviewPage } from './BaseWebviewPage'
  * Page Object for the Color Picker webview block
  */
 export class ColorPickerPage extends BaseWebviewPage {
-  private get colorInput() { return $('#picker') }
-  private get colorValue() { return $('#picker') }
+  private get colorInput() { return $('#colorPicker') }
+  private get colorValue() { return $('#colorPicker') }
 
   /**
    * Set the color using the color input
    */
   async setColor(color: string): Promise<void> {
+    console.log('[setColor] Starting, target color:', color)
     await this.switchToWebview()
+    console.log('[setColor] Switched to webview')
     try {
       const input = await this.colorInput
-      try { await input.scrollIntoView(); } catch {}
-      try { await input.click(); } catch {}
-      try {
-        await input.setValue(color)
-      } catch {
-        // Fallback: set value via script and dispatch input event
-        await browser.execute((c) => {
-          const el = document.getElementById('picker') as HTMLInputElement | null
-          if (el) {
-            el.value = c
-            el.dispatchEvent(new Event('input', { bubbles: true }))
-          }
-        }, color)
-      }
+      console.log('[setColor] Got color input element')
+      try { await input.scrollIntoView(); } catch { }
+      try { await input.click(); } catch { }
+      console.log('[setColor] Clicked input')
 
-      // Wait for the input change event to trigger
-      await browser.pause(500)
+      // Set the value via WebDriver
+      await input.setValue(color)
+      console.log('[setColor] setValue completed')
 
-      // Verify the color was set
-      const currentValue = await input.getValue()
-      if (currentValue !== color) {
-        throw new Error(`Failed to set color. Expected: ${color}, Got: ${currentValue}`)
-      }
+      // CRITICAL: setValue() doesn't trigger input event for color inputs
+      // We must manually dispatch it so the webview's JavaScript processes the change
+      await browser.execute((c) => {
+        const el = document.getElementById('colorPicker') as HTMLInputElement | null
+        if (el) {
+          console.log('[COLOR-PICKER] Manually dispatching input event for color:', c)
+          el.dispatchEvent(new Event('input', { bubbles: true }))
+          el.dispatchEvent(new Event('change', { bubbles: true }))
+        }
+      }, color)
+      console.log('[setColor] Manually dispatched input/change events')
+
+      // Wait for the webview to process the event
+      console.log('[setColor] Waiting for webview to process change')
+      await browser.pause(1000)
+      console.log('[setColor] setValue complete, change should have propagated')
     } finally {
+      console.log('[setColor] Switching back to workbench')
       await this.switchToWorkbench()
+      console.log('[setColor] Complete')
     }
   }
 

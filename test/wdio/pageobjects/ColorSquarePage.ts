@@ -5,7 +5,7 @@ import { BaseWebviewPage } from './BaseWebviewPage'
  * Page Object for the Color Square webview block
  */
 export class ColorSquarePage extends BaseWebviewPage {
-  private get colorSquare() { return $('#sq') }
+  private get colorSquare() { return $('#colorSquare') }
 
   /**
    * Get the current background color of the square
