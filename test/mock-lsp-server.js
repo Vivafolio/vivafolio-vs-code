@@ -27,7 +27,7 @@ connection.onRequest('initialize', (params) => {
 connection.onNotification('initialized', () => {
   try {
     console.error('LSP initialized: received initialized notification')
-  } catch {}
+  } catch { }
 })
 
 function createVivafolioBlockPayload(blockId, entityId, sourceUri, range, options = {}) {
@@ -248,7 +248,7 @@ connection.onNotification('textDocument/didOpen', (p) => {
   try {
     console.error('LSP didOpen uri=', p?.textDocument?.uri)
     console.error('LSP didOpen: initialized =', initialized)
-  } catch {}
+  } catch { }
 
   // LSP requires COMPLETE state semantics - send ALL diagnostics for the document
   if (!initialized) {
@@ -354,7 +354,7 @@ connection.onNotification('textDocument/didOpen', (p) => {
       try {
         console.error('LSP didOpen: publishing', diagnostics.length, 'diagnostics')
         console.error('LSP didOpen: first diagnostic message preview:', diagnostics[0]?.message?.substring(0, 200))
-      } catch {}
+      } catch { }
 
       const diagnosticParams = {
         uri: doc.uri,
@@ -373,7 +373,7 @@ connection.onNotification('textDocument/didOpen', (p) => {
 connection.onNotification('textDocument/didChange', (p) => {
   try {
     console.error('LSP didChange uri=', p?.textDocument?.uri, 'version=', p?.textDocument?.version)
-  } catch {}
+  } catch { }
 
   // Re-analyze on changes - LSP requires COMPLETE state semantics (not incremental)
   if (!initialized || !p?.textDocument?.uri) return
