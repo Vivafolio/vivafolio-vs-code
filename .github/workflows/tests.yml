@@ -1,28 +1,27 @@
 name: Tests
 
 on:
-  # Run tests automatically after the Build workflow completes successfully.
-  workflow_run:
-    workflows: ["Build"]
-    types:
-      - completed
-  # Allow manual runs for local debugging / experimentation.
+  pull_request:
   workflow_dispatch:
+  
+  # Run the pipeline for each PR part of merge queues as well
+  merge_group:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.repository }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+  
 permissions:
   contents: read
 
 jobs:
   tests:
-    name: Tests (non-Playwright)
-    # Only run automatically when the Build workflow has succeeded.
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success'
+    name: Build & Test
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
 
       - name: Install prerequisites
         run: |
@@ -30,23 +29,20 @@ jobs:
           sudo apt-get install -y direnv just
 
       - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v12
-
-      - name: Enable Nix cache
-        uses: DeterminateSystems/magic-nix-cache-action@v6
-
-      - name: Cache npm cache
-        uses: actions/cache@v4
+        uses: metacraft-labs/nixos-modules/.github/install-nix@main
         with:
-          path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-npm-
+          cachix-auth-token: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          cachix-cache: ${{ vars.CACHIX_CACHE }}
+
+      - name: Build & activate the Nix Dev Shell
+        run: |
+          direnv allow .
+          direnv export gha > "$GITHUB_ENV"
 
       - name: Allow direnv
         run: direnv allow
 
-      - name: Build workspace (build-all)
+      - name: Build (just build-all)
         run: just build-all
 
       - name: Package and block tests
