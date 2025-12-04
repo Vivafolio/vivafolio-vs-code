@@ -172,6 +172,23 @@ export const config: Options.Testrunner = {
       console.warn('Failed to compile Vivafolio extension:', e)
     }
     try {
+      // Build the mock language extension so out/extension.js exists (needed in CI)
+      const mockExtDir = path.resolve(__dirname, 'mocklang-extension')
+      const mockNodeModules = path.join(mockExtDir, 'node_modules')
+      const mockOutFile = path.join(mockExtDir, 'out', 'extension.js')
+      if (!fs.existsSync(mockNodeModules)) {
+        console.log('Installing mock language extension dependencies...')
+        execSync('npm ci --no-audit --progress=false', { cwd: mockExtDir, stdio: 'inherit' })
+      }
+      console.log('Compiling mock language extension...')
+      execSync('npm run -s compile', { cwd: mockExtDir, stdio: 'inherit' })
+      if (!fs.existsSync(mockOutFile)) {
+        throw new Error('mocklang-extension compile did not emit out/extension.js')
+      }
+    } catch (e) {
+      console.warn('Failed to compile mock language extension:', e)
+    }
+    try {
       // Pre-install the mock language extension by symlinking it into the extensions dir
       const extensionsDir = path.join(uniqueStorageRoot, 'extensions')
       const mockExtSrc = path.resolve(__dirname, 'mocklang-extension')
