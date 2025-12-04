@@ -62,6 +62,10 @@ jobs:
         run: |
           just test-blockprotocol-all
 
+      - name: WebDriverIO tests
+        run: |
+          just test-wdio
+
       - name: Known failing or environment-sensitive suites (allowed to fail)
         run: |
           # Multi-language LSP scenarios (missing/partial toolchains)
