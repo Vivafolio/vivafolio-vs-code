@@ -34,8 +34,7 @@ import { SidecarLspClient, MockLspServerImpl } from './SidecarLspClient.js'
 import path from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'
 import fs from 'fs/promises'
-import { readFileSync, existsSync, watch, statSync, mkdirSync } from 'fs'
-import crypto from 'crypto'
+import { readFileSync, existsSync } from 'fs'
 
 import type { ViteDevServer } from 'vite'
 import type { Entity, LinkEntity, EntityGraph, VivafolioBlockNotification } from '@vivafolio/block-loader'
@@ -209,20 +208,12 @@ export interface FrameworkBundle {
   lastModified: Date
 }
 
-interface FrameworkWatcher {
-  framework: string
-  sourceDir: string
-  outputDir: string
-  watcher?: ReturnType<typeof watch>
-  bundles: Map<string, FrameworkBundle>
-}
-
 interface StartServerOptions {
   port?: number
   host?: string
   attachSignalHandlers?: boolean
   enableVite?: boolean
-  enableFrameworkWatch?: boolean
+  blockServerPort?: number
 }
 
 const HTML_TEMPLATE_BLOCK_CLIENT_SOURCE = [
@@ -294,8 +285,6 @@ const HTML_TEMPLATE_BLOCK_CLIENT_SOURCE = [
 ].join('\n')
 
 
-console.log('[blockprotocol-poc] html template dir', HTML_TEMPLATE_BLOCK_DIR)
-
 const entityGraph: EntityGraph = {
   entities: [],
   links: []
@@ -362,7 +351,6 @@ const socketStates = new Map<
 >()
 
 let resourceCounter = 0
-let globalFrameworkWatchers: FrameworkWatcher[] = []
 
 function nextCachingTag() {
   // Generates a unique cache-busting tag for resources to ensure browsers fetch fresh content
@@ -400,307 +388,78 @@ function buildLineChartSubgraph(params: {
   return { entities: [configEntity, datasetEntity], links: [] }
 }
 
-// Framework compilation helpers
-function generateAssetHash(content: string): string {
-  // Creates a content-based hash for cache busting and integrity checking
-  // Ensures that when asset content changes, the URL changes too
-  return crypto.createHash('sha256').update(content).digest('hex').slice(0, 8)
-}
+const DEFAULT_FRAMEWORKS = ['solidjs', 'vue', 'svelte', 'lit', 'angular']
 
-async function compileSolidJSBlock(sourcePath: string, outputPath: string): Promise<FrameworkBundle> {
-  // Compiles a SolidJS block component into a browser-compatible bundle
-  // Creates a simple CommonJS wrapper around the SolidJS code for execution
-  // This is a placeholder implementation - real compilation would use esbuild or similar
-  const sourceContent = await fs.readFile(sourcePath, 'utf8')
-  const hash = generateAssetHash(sourceContent)
-
-  // For now, create a simple CommonJS wrapper
-  // In a real implementation, this would use esbuild or similar
-  const compiledContent = `
-(function() {
-  const React = { createElement: function(tag, props, ...children) {
-    if (typeof tag === 'function') {
-      return tag(props || {}, children);
-    }
-    const el = document.createElement(tag);
-    if (props) {
-      Object.keys(props).forEach(key => {
-        if (key === 'className') {
-          el.className = props[key];
-        } else if (key === 'style') {
-          Object.assign(el.style, props[key]);
-        } else if (key.startsWith('on') && typeof props[key] === 'function') {
-          el.addEventListener(key.slice(2).toLowerCase(), props[key]);
-        } else {
-          el.setAttribute(key, props[key]);
-        }
-      });
-    }
-    children.forEach(child => {
-      if (typeof child === 'string') {
-        el.appendChild(document.createTextNode(child));
-      } else if (child) {
-        el.appendChild(child);
-      }
-    });
-    return el;
-  }};
-
-  ${sourceContent}
-
-  if (typeof module !== 'undefined' && module.exports) {
-    return module.exports;
+// Seed a sensible default so resources built during module init still point to the block server
+let blockServerOrigin = `http://localhost:${process.env.BLOCK_SERVER_PORT ?? 5006}`
+const blockResourceCache = new Map<
+  string,
+  {
+    origin: string
+    resources: Array<{ logicalName: string, physicalPath: string, cachingTag: string }>
   }
-  return StatusPillBlock;
-})();
-`
+>()
 
-  const outputFile = path.join(outputPath, `solidjs-${hash}.js`)
-  await fs.mkdir(outputPath, { recursive: true })
-  await fs.writeFile(outputFile, compiledContent, 'utf8')
-
+function buildBlockResource(blockName: string, fileName: string, cachingTag?: string) {
   return {
-    id: `solidjs-${path.basename(sourcePath, path.extname(sourcePath))}`,
-    hash,
-    assets: [`solidjs-${hash}.js`],
-    metadata: {
-      framework: 'solidjs',
-      sourcePath,
-      compiledAt: new Date().toISOString()
-    },
-    entryPoint: `solidjs-${hash}.js`,
-    lastModified: new Date()
+    logicalName: fileName,
+    physicalPath: `${blockServerOrigin}/blocks/${blockName}/${fileName}`,
+    cachingTag: cachingTag ?? nextCachingTag()
   }
 }
 
-async function compileVueBlock(sourcePath: string, outputPath: string): Promise<FrameworkBundle> {
-  const sourceContent = await fs.readFile(sourcePath, 'utf8')
-  const hash = generateAssetHash(sourceContent)
+function buildBlockStaticResource(blockName: string, relativePath: string, cachingTag?: string) {
+  const normalized = relativePath.replace(/^\//, '')
+  const logicalName = normalized.split('/').pop() || normalized
+  return {
+    logicalName,
+    physicalPath: `${blockServerOrigin}/${blockName}/${normalized}`,
+    cachingTag: cachingTag ?? nextCachingTag()
+  }
+}
 
-  // Simple Vue compilation placeholder
-  const compiledContent = `
-(function() {
-  const Vue = {
-    createApp: function(component) {
-      return {
-        mount: function(el) {
-          console.log('Vue block mounted:', component);
-          el.innerHTML = '<div class="vue-block">Vue Block Component</div>';
-        }
-      };
+function buildBlockResources(blockName: string) {
+  const cached = blockResourceCache.get(blockName)
+  if (cached && cached.origin === blockServerOrigin) return cached.resources
+
+  const normalizeFile = (file: string) => file.replace(/^dist[\\/]/, '')
+  try {
+    const metadataPath = path.resolve(REPO_ROOT, 'blocks', blockName, 'dist', 'block-metadata.json')
+    const raw = readFileSync(metadataPath, 'utf8')
+    const metadata = JSON.parse(raw) as { resources?: { js?: string[], css?: string[] }, icon?: string }
+    const resources: Array<{ logicalName: string, physicalPath: string, cachingTag: string }> = [
+      buildBlockResource(blockName, 'block-metadata.json')
+    ]
+
+    for (const entry of metadata.resources?.js ?? []) {
+      resources.push(buildBlockResource(blockName, normalizeFile(entry)))
     }
-  };
-
-  ${sourceContent}
-
-  return { default: VueBlock };
-})();
-`
-
-  const outputFile = path.join(outputPath, `vue-${hash}.js`)
-  await fs.mkdir(outputPath, { recursive: true })
-  await fs.writeFile(outputFile, compiledContent, 'utf8')
-
-  return {
-    id: `vue-${path.basename(sourcePath, path.extname(sourcePath))}`,
-    hash,
-    assets: [`vue-${hash}.js`],
-    metadata: {
-      framework: 'vue',
-      sourcePath,
-      compiledAt: new Date().toISOString()
-    },
-    entryPoint: `vue-${hash}.js`,
-    lastModified: new Date()
-  }
-}
-
-async function compileSvelteBlock(sourcePath: string, outputPath: string): Promise<FrameworkBundle> {
-  const sourceContent = await fs.readFile(sourcePath, 'utf8')
-  const hash = generateAssetHash(sourceContent)
-
-  // Simple Svelte compilation placeholder
-  const compiledContent = `
-(function() {
-  ${sourceContent}
-
-  return { default: SvelteBlock };
-})();
-`
-
-  const outputFile = path.join(outputPath, `svelte-${hash}.js`)
-  await fs.mkdir(outputPath, { recursive: true })
-  await fs.writeFile(outputFile, compiledContent, 'utf8')
-
-  return {
-    id: `svelte-${path.basename(sourcePath, path.extname(sourcePath))}`,
-    hash,
-    assets: [`svelte-${hash}.js`],
-    metadata: {
-      framework: 'svelte',
-      sourcePath,
-      compiledAt: new Date().toISOString()
-    },
-    entryPoint: `svelte-${hash}.js`,
-    lastModified: new Date()
-  }
-}
-
-async function compileLitBlock(sourcePath: string, outputPath: string): Promise<FrameworkBundle> {
-  const sourceContent = await fs.readFile(sourcePath, 'utf8')
-  const hash = generateAssetHash(sourceContent)
-
-  // Simple Lit compilation placeholder
-  const compiledContent = `
-(function() {
-  ${sourceContent}
-
-  return { LitBlock };
-})();
-`
-
-  const outputFile = path.join(outputPath, `lit-${hash}.js`)
-  await fs.mkdir(outputPath, { recursive: true })
-  await fs.writeFile(outputFile, compiledContent, 'utf8')
-
-  return {
-    id: `lit-${path.basename(sourcePath, path.extname(sourcePath))}`,
-    hash,
-    assets: [`lit-${hash}.js`],
-    metadata: {
-      framework: 'lit',
-      sourcePath,
-      compiledAt: new Date().toISOString()
-    },
-    entryPoint: `lit-${hash}.js`,
-    lastModified: new Date()
-  }
-}
-
-async function compileAngularBlock(sourcePath: string, outputPath: string): Promise<FrameworkBundle> {
-  const sourceContent = await fs.readFile(sourcePath, 'utf8')
-  const hash = generateAssetHash(sourceContent)
-
-  // Simple Angular compilation placeholder
-  const compiledContent = `
-(function() {
-  ${sourceContent}
-
-  return { AngularBlock };
-})();
-`
-
-  const outputFile = path.join(outputPath, `angular-${hash}.js`)
-  await fs.mkdir(outputPath, { recursive: true })
-  await fs.writeFile(outputFile, compiledContent, 'utf8')
-
-  return {
-    id: `angular-${path.basename(sourcePath, path.extname(sourcePath))}`,
-    hash,
-    assets: [`angular-${hash}.js`],
-    metadata: {
-      framework: 'angular',
-      sourcePath,
-      compiledAt: new Date().toISOString()
-    },
-    entryPoint: `angular-${hash}.js`,
-    lastModified: new Date()
-  }
-}
-
-function getFrameworkCompiler(framework: string) {
-  // Returns the appropriate compilation function for a given framework
-  // Each framework (SolidJS, Vue, Svelte, Lit, Angular) has its own compilation strategy
-  switch (framework) {
-    case 'solidjs': return compileSolidJSBlock
-    case 'vue': return compileVueBlock
-    case 'svelte': return compileSvelteBlock
-    case 'lit': return compileLitBlock
-    case 'angular': return compileAngularBlock
-    default: throw new Error(`Unsupported framework: ${framework}`)
-  }
-}
-
-async function setupFrameworkWatchers(): Promise<FrameworkWatcher[]> {
-  // Sets up file watchers for framework examples to enable hot-reload during development
-  // Monitors source directories for changes and recompiles blocks automatically
-  // Supports SolidJS, Vue, Svelte, Lit, and Angular frameworks
-  const watchers: FrameworkWatcher[] = []
-  const frameworksDir = path.resolve(ROOT_DIR, '..', '..', 'packages', 'block-frameworks')
-  const outputDir = path.resolve(ROOT_DIR, 'dist/frameworks')
-
-  const frameworks = ['solidjs', 'vue', 'svelte', 'lit', 'angular']
-
-  for (const framework of frameworks) {
-    const sourceDir = path.join(frameworksDir, framework, 'examples')
-    const frameworkOutputDir = path.join(outputDir, framework)
-
-    if (!existsSync(sourceDir)) {
-      console.log(`[framework-watch] Skipping ${framework} - examples directory not found`)
-      continue
+    for (const entry of metadata.resources?.css ?? []) {
+      resources.push(buildBlockResource(blockName, normalizeFile(entry)))
+    }
+    if (metadata.icon) {
+      resources.push(buildBlockResource(blockName, normalizeFile(metadata.icon)))
     }
 
-    const watcher: FrameworkWatcher = {
-      framework,
-      sourceDir,
-      outputDir: frameworkOutputDir,
-      bundles: new Map()
-    }
-
-    // Initial compilation of existing blocks
-    try {
-      const files = await fs.readdir(sourceDir)
-      const compiler = getFrameworkCompiler(framework)
-
-      for (const file of files) {
-        if (file.endsWith('.tsx') || file.endsWith('.ts') || file.endsWith('.js') || file.endsWith('.vue') || file.endsWith('.svelte')) {
-          const sourcePath = path.join(sourceDir, file)
-          const bundle = await compiler(sourcePath, frameworkOutputDir)
-          watcher.bundles.set(bundle.id, bundle)
-          console.log(`[framework-watch] Compiled ${framework}/${file} -> ${bundle.entryPoint}`)
-        }
-      }
-    } catch (error) {
-      console.error(`[framework-watch] Failed to compile ${framework} blocks:`, error)
-    }
-
-    // Setup file watcher for hot reload
-    watcher.watcher = watch(sourceDir, { recursive: true }, async (event, filename) => {
-      if (!filename || !filename.match(/\.(tsx|ts|js|vue|svelte)$/)) return
-
-      try {
-        const sourcePath = path.join(sourceDir, filename)
-        const compiler = getFrameworkCompiler(framework)
-        const bundle = await compiler(sourcePath, frameworkOutputDir)
-
-        watcher.bundles.set(bundle.id, bundle)
-        console.log(`[framework-watch] Recompiled ${framework}/${filename} -> ${bundle.entryPoint}`)
-
-        // Notify connected clients about the update
-        for (const socket of liveSockets) {
-          socket.send(JSON.stringify({
-            type: 'framework-update',
-            framework,
-            bundle: {
-              id: bundle.id,
-              hash: bundle.hash,
-              entryPoint: bundle.entryPoint,
-              lastModified: bundle.lastModified.toISOString()
-            }
-          }))
-        }
-      } catch (error) {
-        console.error(`[framework-watch] Failed to recompile ${framework}/${filename}:`, error)
-      }
-    })
-
-    watchers.push(watcher)
-    console.log(`[framework-watch] Watching ${framework} blocks in ${sourceDir}`)
+    console.log('[block-resources] built resources', { blockName, origin: blockServerOrigin, resources })
+    blockResourceCache.set(blockName, { origin: blockServerOrigin, resources })
+    return resources
+  } catch (error) {
+    console.warn(`[block-resources] failed to build resources for ${blockName}:`, error)
+    const fallback = [buildBlockResource(blockName, 'block-metadata.json')]
+    blockResourceCache.set(blockName, { origin: blockServerOrigin, resources: fallback })
+    return fallback
   }
-
-  return watchers
 }
 
+
+function buildFrameworkResource(framework: string, entryPoint: string, cachingTag?: string) {
+  return {
+    logicalName: entryPoint,
+    physicalPath: `${blockServerOrigin}/frameworks/${framework}/${entryPoint}`,
+    cachingTag: cachingTag ?? nextCachingTag()
+  }
+}
 
 function createHelloWorldGraph(): EntityGraph {
   // Creates a simple entity graph for the hello-world scenario
@@ -843,7 +602,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
         links: []
       }
     }),
-    buildNotifications: (state) => {
+    buildNotifications: (state, request) => {
       // This will be handled specially in the WebSocket connection handler
       return []
     }
@@ -870,23 +629,15 @@ const scenarios: Record<string, ScenarioDefinition> = {
 
       // Check if this is a local block (starts with @)
       const isLocalBlock = blockParam.startsWith('@')
+      const normalizedBlockName = blockParam.replace('@', '')
       const blockType = isLocalBlock
-        ? `https://blockprotocol.org/@local/blocks/${blockParam.replace('@', '')}/v1`
+        ? `https://blockprotocol.org/@local/blocks/${normalizedBlockName}/v1`
         : `https://vivafolio.dev/blocks/${blockParam}/v1`
       console.log('[custom-scenario] isLocalBlock:', isLocalBlock, 'blockType:', blockType)
 
-      // For local blocks, provide resources that point to cache URLs
       const resources = isLocalBlock ? [
-        {
-          logicalName: 'block-metadata.json',
-          physicalPath: `/cache/${blockParam}/latest/block-metadata.json`,
-          cachingTag: 'v1'
-        },
-        {
-          logicalName: 'app.html',
-          physicalPath: `/cache/${blockParam}/latest/index.html`,
-          cachingTag: 'v1'
-        }
+        buildBlockResource(normalizedBlockName, 'block-metadata.json', nextCachingTag()),
+        buildBlockResource(normalizedBlockName, 'main.cjs', nextCachingTag())
       ] : undefined
 
       return [
@@ -1280,28 +1031,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
         entityGraph: state.graph,
         supportsHotReload: true,
         initialHeight: 40,
-        resources: [
-          {
-            logicalName: 'block-metadata.json',
-            physicalPath: '/blocks/status-pill/block-metadata.json',
-            cachingTag: nextCachingTag()
-          },
-          {
-            logicalName: 'main.js',
-            physicalPath: '/blocks/status-pill/dist/main.cjs',
-            cachingTag: nextCachingTag()
-          },
-          {
-            logicalName: 'styles.css',
-            physicalPath: '/blocks/status-pill/dist/styles.css',
-            cachingTag: nextCachingTag()
-          },
-          {
-            logicalName: 'icon.svg',
-            physicalPath: '/blocks/status-pill/icon.svg',
-            cachingTag: nextCachingTag()
-          }
-        ]
+        resources: buildBlockResources('status-pill')
       }
     ],
     applyUpdate: ({ state, update, socket }) => {
@@ -1524,14 +1254,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
         entityGraph: state.graph,
         supportsHotReload: true,
         initialHeight: 480,
-        resources: [
-          { logicalName: 'block-metadata.json', physicalPath: '/external/d3-line-graph/block-metadata.json', cachingTag: nextCachingTag() },
-          // Prefer compiled TS output directly for this local block
-          { logicalName: 'main.js', physicalPath: '/external/d3-line-graph/dist/index.js', cachingTag: nextCachingTag() },
-          // Local dependency used by the compiled block (resolved via BlockLoader require)
-          { logicalName: 'libs/d3/dist/index.js', physicalPath: '/external/d3-line-graph/libs/d3/dist/index.js', cachingTag: nextCachingTag() },
-          { logicalName: 'icon.svg', physicalPath: '/external/d3-line-graph/icon.svg', cachingTag: nextCachingTag() }
-        ],
+        resources: buildBlockResources('d3-line-chart'),
       }
     ],
     applyUpdate: ({ state, update }) => {
@@ -1558,7 +1281,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
         links: []
       }
     }),
-    buildNotifications: (state) => {
+    buildNotifications: (state, request) => {
       const notifications: VivafolioBlockNotification[] = []
 
       // Add the original static status-pill block
@@ -1570,49 +1293,21 @@ const scenarios: Record<string, ScenarioDefinition> = {
         entityGraph: state.graph,
         supportsHotReload: false,
         initialHeight: 40,
-        resources: [
-          {
-            logicalName: 'block-metadata.json',
-            physicalPath: '/blocks/status-pill/block-metadata.json',
-            cachingTag: nextCachingTag()
-          },
-          {
-            logicalName: 'main.js',
-            physicalPath: '/blocks/status-pill/dist/main.cjs',
-            cachingTag: nextCachingTag()
-          },
-          {
-            logicalName: 'styles.css',
-            physicalPath: '/blocks/status-pill/dist/styles.css',
-            cachingTag: nextCachingTag()
-          },
-          {
-            logicalName: 'icon.svg',
-            physicalPath: '/blocks/status-pill/icon.svg',
-            cachingTag: nextCachingTag()
-          }
-        ]
+        resources: buildBlockResources('status-pill')
       })
 
-      // Add compiled framework versions if available
-      for (const watcher of globalFrameworkWatchers) {
-        const solidjsBundles = watcher.bundles.get('solidjs-status-pill')
-        if (solidjsBundles && watcher.framework === 'solidjs') {
+      const frameworkBundles: Record<string, FrameworkBundle[]> = (request as any)?.frameworkBundles ?? {}
+      for (const [framework, bundles] of Object.entries(frameworkBundles)) {
+        for (const bundle of bundles) {
           notifications.push({
-            blockId: `status-pill-${watcher.framework}`,
-            blockType: `https://vivafolio.dev/blocks/status-pill-${watcher.framework}/v1`,
+            blockId: `status-pill-${framework}`,
+            blockType: `https://vivafolio.dev/blocks/status-pill-${framework}/v1`,
             entityId: state.graph.entities[0]?.entityId ?? 'framework-demo-entity',
             displayMode: 'inline',
             entityGraph: state.graph,
             supportsHotReload: true,
             initialHeight: 40,
-            resources: [
-              {
-                logicalName: 'main.js',
-                physicalPath: `/frameworks/${watcher.framework}/${solidjsBundles.entryPoint}`,
-                cachingTag: solidjsBundles.hash
-              }
-            ]
+            resources: [buildFrameworkResource(framework, bundle.entryPoint, bundle.hash)]
           })
         }
       }
@@ -1662,7 +1357,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
         links: []
       }
     }),
-    buildNotifications: (state) => {
+    buildNotifications: (state, request) => {
       const notifications: VivafolioBlockNotification[] = []
 
       // Parent block (using existing implementation)
@@ -1684,50 +1379,33 @@ const scenarios: Record<string, ScenarioDefinition> = {
       })
 
       // Child blocks from different frameworks
-      const solidjsWatcher = globalFrameworkWatchers.find((w: FrameworkWatcher) => w.framework === 'solidjs')
-      if (solidjsWatcher) {
-        const solidjsBundle = solidjsWatcher.bundles.get('solidjs-task-block')
-        if (solidjsBundle) {
-          notifications.push({
-            blockId: 'child-solidjs',
-            blockType: 'https://vivafolio.dev/blocks/child-solidjs/v1',
-            entityId: 'child-entity-1',
-            displayMode: 'inline',
-            entityGraph: state.graph,
-            supportsHotReload: true,
-            initialHeight: 60,
-            resources: [
-              {
-                logicalName: 'main.js',
-                physicalPath: `/frameworks/solidjs/${solidjsBundle.entryPoint}`,
-                cachingTag: solidjsBundle.hash
-              }
-            ]
-          })
-        }
+      const frameworkBundles: Record<string, FrameworkBundle[]> = (request as any)?.frameworkBundles ?? {}
+      const solidjsBundle = frameworkBundles.solidjs?.[0]
+      if (solidjsBundle) {
+        notifications.push({
+          blockId: 'child-solidjs',
+          blockType: 'https://vivafolio.dev/blocks/child-solidjs/v1',
+          entityId: 'child-entity-1',
+          displayMode: 'inline',
+          entityGraph: state.graph,
+          supportsHotReload: true,
+          initialHeight: 60,
+          resources: [buildFrameworkResource('solidjs', solidjsBundle.entryPoint, solidjsBundle.hash)]
+        })
       }
 
-      const vueWatcher = globalFrameworkWatchers.find((w: FrameworkWatcher) => w.framework === 'vue')
-      if (vueWatcher) {
-        const vueBundle = vueWatcher.bundles.get('vue-task-block')
-        if (vueBundle) {
-          notifications.push({
-            blockId: 'child-vue',
-            blockType: 'https://vivafolio.dev/blocks/child-vue/v1',
-            entityId: 'child-entity-2',
-            displayMode: 'inline',
-            entityGraph: state.graph,
-            supportsHotReload: true,
-            initialHeight: 60,
-            resources: [
-              {
-                logicalName: 'main.js',
-                physicalPath: `/frameworks/vue/${vueBundle.entryPoint}`,
-                cachingTag: vueBundle.hash
-              }
-            ]
-          })
-        }
+      const vueBundle = frameworkBundles.vue?.[0]
+      if (vueBundle) {
+        notifications.push({
+          blockId: 'child-vue',
+          blockType: 'https://vivafolio.dev/blocks/child-vue/v1',
+          entityId: 'child-entity-2',
+          displayMode: 'inline',
+          entityGraph: state.graph,
+          supportsHotReload: true,
+          initialHeight: 60,
+          resources: [buildFrameworkResource('vue', vueBundle.entryPoint, vueBundle.hash)]
+        })
       }
 
       return notifications
@@ -1896,7 +1574,8 @@ export async function startServer(options: StartServerOptions = {}) {
   const host = options.host ?? '0.0.0.0'
   const attachSignalHandlers = options.attachSignalHandlers ?? true
   const enableVite = options.enableVite ?? process.env.NODE_ENV !== 'production'
-  const enableFrameworkWatch = options.enableFrameworkWatch ?? process.env.ENABLE_FRAMEWORK_WATCH === 'true'
+  const blockServerPort = options.blockServerPort ?? Number(process.env.BLOCK_SERVER_PORT ?? 5006)
+  const blockServerHost = process.env.BLOCK_SERVER_HOST ?? host
 
   const app = express()
 
@@ -1926,13 +1605,7 @@ export async function startServer(options: StartServerOptions = {}) {
     }))
   }
 
-  // Framework watchers and bundles
-  let frameworkWatchers: FrameworkWatcher[] = []
-
-// Local Block Development
-let localBlockDirs: string[] = []
-let localBlockWatchers: Map<string, { watcher: any, dispose: () => void }> = new Map()
-let localBlockBuilder: any | undefined
+  app.use(express.json())
 
   // Dynamically load internal monorepo packages so paths are correct in both dev (tsx) and prod (dist)
   const loadModule = async (...candidates: string[]) => {
@@ -1949,13 +1622,21 @@ let localBlockBuilder: any | undefined
     'packages/indexing-service/dist/IndexingService.js',
     'packages/indexing-service/src/IndexingService.ts'
   ) as any
-  const { BlockResourcesCache } = await loadModule(
-    'packages/block-resources-cache/dist/index.js',
-    'packages/block-resources-cache/src/index.ts'
+  const { startBlockServer } = await loadModule(
+    'blocks/dist/server.js',
+    'blocks/src/server.ts'
   ) as any
-  const { BlockBuilder } = await loadModule(
-    'blocks/dist/builder.js'
-  ) as any
+
+  const blockServer = await startBlockServer({
+    host: blockServerHost,
+    port: blockServerPort,
+    blocksDir: path.resolve(REPO_ROOT, 'blocks'),
+    enableHotReload: true,
+    enableFrameworkBuilder: false
+  })
+  const printableBlockHost =
+    blockServerHost === '0.0.0.0' || blockServerHost === '::' ? 'localhost' : blockServerHost
+  blockServerOrigin = `http://${printableBlockHost}:${blockServerPort}`
 
   // Initialize indexing service
   const indexingService = new IndexingService({
@@ -2001,168 +1682,6 @@ let localBlockBuilder: any | undefined
   const lspServer = new MockLspServerImpl()
   const sidecarLspClient = new SidecarLspClient(indexingService, lspServer, broadcastLspNotification)
 
-  // Initialize block resources cache
-  const blockResourcesCache = new BlockResourcesCache({
-    maxSize: 100 * 1024 * 1024, // 100MB cache
-    ttl: 24 * 60 * 60 * 1000,   // 24 hours
-    maxEntries: 1000,
-    cacheDir: path.join(process.cwd(), '.block-cache'),
-  })
-
-  // Initialize block builder for framework compilation
-  const blockBuilder = new BlockBuilder({
-    frameworks: ['solidjs', 'vue', 'svelte', 'lit', 'angular'],
-    outputDir: path.join(process.cwd(), 'dist', 'blocks'),
-    watchMode: false, // We'll handle hot reload through the existing framework watchers
-    onBundleUpdate: (framework: string, bundle: any) => {
-      console.log(`[block-builder] Bundle updated: ${framework}/${bundle.id}`)
-    }
-  })
-
-  // Initialize local block development if directories are specified
-  const localDirsParam = process.env.LOCAL_BLOCK_DIRS || process.argv.find(arg => arg.startsWith('--local-block-dirs='))?.split('=')[1]
-  if (localDirsParam) {
-    localBlockDirs = localDirsParam.split(',').map(dir => dir.trim())
-    console.log('[blockprotocol-poc] Local block directories:', localBlockDirs)
-
-    // Initialize local block builder
-    localBlockBuilder = new BlockBuilder({
-      frameworks: ['solidjs', 'vue', 'svelte', 'lit', 'angular'],
-      outputDir: path.join(process.cwd(), 'dist', 'local-blocks'),
-      watchMode: true,
-      onBundleUpdate: (framework: string, bundle: any) => {
-        console.log(`[local-block-builder] Bundle updated: ${framework}/${bundle.id}`)
-        // Broadcast cache invalidation to connected clients
-        broadcastLocalBlockUpdate(bundle.id)
-      }
-    })
-
-    // Set up watchers for local directories
-    for (const dir of localBlockDirs) {
-      setupLocalBlockWatcher(dir)
-    }
-  }
-
-  console.log('[blockprotocol-poc] html template dir', HTML_TEMPLATE_BLOCK_DIR)
-
-  await ensureHtmlTemplateAssets()
-
-  // Set up file watcher for a local block directory
-  function setupLocalBlockWatcher(dirPath: string): void {
-    try {
-      const resolvedPath = path.resolve(dirPath)
-      console.log(`[local-block-watcher] Setting up watcher for: ${resolvedPath}`)
-
-      // Ensure the directory exists
-      if (!existsSync(resolvedPath)) {
-        mkdirSync(resolvedPath, { recursive: true })
-        console.log(`[local-block-watcher] Created directory: ${resolvedPath}`)
-      }
-
-      // Use Node.js fs.watch for file monitoring
-      const watcher = watch(resolvedPath, { recursive: true }, (eventType, filename) => {
-        if (filename) {
-          const filePath = path.join(resolvedPath, filename)
-          console.log(`[local-block-watcher] ${eventType} detected: ${filePath}`)
-
-          // Only process relevant source files
-          const ext = path.extname(filePath)
-          const relevantExtensions = ['.ts', '.tsx', '.js', '.jsx', '.vue', '.svelte', '.html', '.css', '.json']
-
-          if (relevantExtensions.includes(ext)) {
-            handleLocalBlockFileChange(filePath, eventType as 'change' | 'rename')
-          }
-        }
-      })
-
-      localBlockWatchers.set(resolvedPath, {
-        watcher,
-        dispose: () => {
-          watcher.close()
-          console.log(`[local-block-watcher] Cleaned up watcher for ${resolvedPath}`)
-        }
-      })
-
-    } catch (error) {
-      console.error(`[local-block-watcher] Failed to set up watcher for ${dirPath}:`, error)
-    }
-  }
-
-  // Handle file changes in local block directories
-  function handleLocalBlockFileChange(filePath: string, changeType: 'change' | 'rename'): void {
-    console.log(`[local-block-watcher] Processing ${changeType} for: ${filePath}`)
-
-    // The localBlockBuilder will handle the rebuild automatically due to watchMode: true
-    // The onBundleUpdate callback will broadcast the update
-  }
-
-  // Broadcast local block updates to connected clients
-  function broadcastLocalBlockUpdate(blockId: string): void {
-    console.log(`[local-block-broadcast] Broadcasting update for block: ${blockId}`)
-
-    // Send cache invalidation to all connected WebSocket clients
-    for (const socket of liveSockets) {
-      try {
-        socket.send(JSON.stringify({
-          type: 'cache:invalidate',
-          payload: { blockId }
-        }))
-      } catch (error) {
-        console.error('[local-block-broadcast] Error broadcasting to socket:', error)
-      }
-    }
-  }
-
-  // Helper function to check if a file exists
-  async function fileExists(filePath: string): Promise<boolean> {
-    try {
-      await fs.access(filePath)
-      return true
-    } catch {
-      return false
-    }
-  }
-
-  // Helper function to get content type from file extension
-  function getContentType(filePath: string): string {
-    const ext = path.extname(filePath).toLowerCase()
-    switch (ext) {
-      case '.js':
-      case '.mjs':
-        return 'application/javascript'
-      case '.css':
-        return 'text/css'
-      case '.html':
-        return 'text/html'
-      case '.json':
-        return 'application/json'
-      case '.png':
-        return 'image/png'
-      case '.jpg':
-      case '.jpeg':
-        return 'image/jpeg'
-      case '.svg':
-        return 'image/svg+xml'
-      case '.woff':
-        return 'font/woff'
-      case '.woff2':
-        return 'font/woff2'
-      default:
-        return 'text/plain'
-    }
-  }
-
-  // Setup framework watchers if enabled
-  if (enableFrameworkWatch) {
-    try {
-      frameworkWatchers = await setupFrameworkWatchers()
-      globalFrameworkWatchers = frameworkWatchers
-      console.log(`[framework-watch] Initialized ${frameworkWatchers.length} framework watchers`)
-    } catch (error) {
-      console.error('[framework-watch] Failed to setup framework watchers:', error)
-    }
-  }
-
   // Start indexing service
   try {
     await indexingService.start()
@@ -2180,68 +1699,72 @@ let localBlockBuilder: any | undefined
   }
 
   // Block resources cache middleware with local block priority
-  app.use('/cache/:package/:version/*', async (req, res, next) => {
+  const proxyJson = async (targetUrl: string, res: express.Response, fallbackData: any = {}, okStatus = 200) => {
     try {
-      const { package: packageName, version } = req.params
-      const resourcePath = (req.params as any)[0] // Everything after package/version/
-
-      // First, check if this block exists in local directories
-      if (localBlockDirs.length > 0) {
-        for (const localDir of localBlockDirs) {
-          try {
-            // Try to find the block in local directory
-            const localBlockPath = path.join(localDir, packageName)
-            const localResourcePath = path.join(localBlockPath, resourcePath)
-
-            if (await fileExists(localResourcePath)) {
-              console.log(`[cache-middleware] Serving local block resource: ${localResourcePath}`)
-              const content = await fs.readFile(localResourcePath, 'utf8')
-              const contentType = getContentType(resourcePath)
-
-              res.set({
-                'Content-Type': contentType,
-                'Cache-Control': 'no-cache', // Local files should not be cached
-                'X-Cache-Status': 'LOCAL',
-                'X-Local-Block': 'true'
-              })
-              res.send(content)
-              return
-            }
-          } catch (error) {
-            // Continue to next local directory or remote source
-          }
-        }
+      const upstream = await fetch(targetUrl)
+      if (!upstream.ok) {
+        res.status(okStatus).json(fallbackData)
+        return
       }
-
-      // Fall back to remote cache
-      const cacheResult = await blockResourcesCache.fetchBlock({
-        name: packageName,
-        version: version === 'latest' ? undefined : version
-      })
-
-      if (cacheResult.success && cacheResult.data) {
-        // Find the specific resource
-        const resource = cacheResult.data.resources.get(resourcePath)
-        if (resource) {
-          res.set({
-            'Content-Type': resource.contentType,
-            'Cache-Control': 'public, max-age=31536000', // 1 year
-            'X-Cache-Status': 'HIT',
-            'ETag': resource.etag || `"${resource.sha256.slice(0, 8)}"`
-          })
-          res.send(resource.content)
-          return
-        }
-      }
-
-      // Cache miss or error - add cache status header
-      res.set('X-Cache-Status', 'MISS')
-      next()
+      const text = await upstream.text()
+      const asJson = text ? JSON.parse(text) : fallbackData
+      res.status(upstream.status).json(asJson)
     } catch (error) {
-      console.warn('[cache-middleware] Cache error:', error)
-      res.set('X-Cache-Status', 'ERROR')
-      next()
+      console.warn('[block-server-proxy] falling back for', targetUrl, error)
+      res.status(okStatus).json(fallbackData)
     }
+  }
+
+  // Proxy block metadata APIs to the block server
+  app.get('/api/blocks', async (_req, res) => {
+    await proxyJson(`${blockServerOrigin}/api/blocks`, res, [])
+  })
+
+  app.get('/api/blocks/:blockName', async (req, res) => {
+    const { blockName } = req.params
+    await proxyJson(`${blockServerOrigin}/api/blocks/${blockName}`, res, { error: 'not found' }, 404)
+  })
+
+  // Proxy framework bundle metadata to the block server; return empty arrays if the builder is disabled
+  app.get('/api/frameworks/:framework/bundles', async (req, res) => {
+    const { framework } = req.params
+    await proxyJson(`${blockServerOrigin}/api/frameworks/${framework}/bundles`, res, { bundles: [] })
+  })
+
+  app.get('/api/frameworks/bundles', async (_req, res) => {
+    const bundles: Record<string, any[]> = {}
+    for (const framework of DEFAULT_FRAMEWORKS) {
+      try {
+        const upstream = await fetch(`${blockServerOrigin}/api/frameworks/${framework}/bundles`)
+        if (upstream.ok) {
+          const data = await upstream.json()
+          bundles[framework] = data?.bundles ?? data ?? []
+        } else {
+          bundles[framework] = []
+        }
+      } catch {
+        bundles[framework] = []
+      }
+    }
+    res.json({ bundles })
+  })
+
+  app.get('/frameworks/manifest.json', async (_req, res) => {
+    const byFramework = await fetchFrameworkBundles()
+    const bundles: Array<FrameworkBundle & { framework: string, sourcePath: string }> = []
+    for (const [framework, list] of Object.entries(byFramework)) {
+      for (const bundle of list) {
+        bundles.push({
+          ...bundle,
+          framework,
+          sourcePath: path.resolve(REPO_ROOT)
+        })
+      }
+    }
+    res.json({
+      generatedAt: new Date().toISOString(),
+      bundles
+    })
   })
 
   // Static asset serving with production optimizations
@@ -2264,50 +1787,54 @@ let localBlockBuilder: any | undefined
   app.use('/examples/blocks/board-view', express.static(path.resolve(ROOT_DIR, 'dist/frameworks/board-view'), createOptimizedStaticOptions()))
   app.use('/templates', express.static(TEMPLATES_DIR, createOptimizedStaticOptions()))
 
-  // Framework compiled assets with aggressive caching for hashed bundles
-  app.use('/frameworks', express.static(path.resolve(ROOT_DIR, 'dist/frameworks'), createOptimizedStaticOptions()))
-
-  // Also serve general blocks from /frameworks/general/ for bundle size tests
-  app.use('/frameworks/general', express.static(path.resolve(ROOT_DIR, 'dist/frameworks'), createOptimizedStaticOptions()))
-
-  // Serve SolidJS blocks from their individual directories
-  app.use('/examples/blocks/solidjs-board-view', express.static(path.resolve(ROOT_DIR, 'dist/frameworks/solidjs/board-view'), createOptimizedStaticOptions()))
-  app.use('/examples/blocks/solidjs-table-view', express.static(path.resolve(ROOT_DIR, 'dist/frameworks/solidjs/table-view'), createOptimizedStaticOptions()))
-
-  // Framework bundles API
-  app.get('/api/frameworks/:framework/bundles', (req, res) => {
-    const { framework } = req.params
-    const watcher = frameworkWatchers.find(w => w.framework === framework)
-
-    if (!watcher) {
-      return res.status(404).json({ error: `Framework ${framework} not found` })
+  const fetchFrameworkBundles = async (): Promise<Record<string, FrameworkBundle[]>> => {
+    const bundles: Record<string, FrameworkBundle[]> = {}
+    for (const framework of DEFAULT_FRAMEWORKS) {
+      try {
+        const upstream = await fetch(`${blockServerOrigin}/api/frameworks/${framework}/bundles`)
+        if (upstream.ok) {
+          const data = await upstream.json()
+          bundles[framework] = data?.bundles ?? []
+        } else {
+          bundles[framework] = []
+        }
+      } catch (error) {
+        console.warn(`[framework-bundles] failed to load for ${framework}:`, error)
+        bundles[framework] = []
+      }
     }
+    return bundles
+  }
 
-    const bundles = Array.from(watcher.bundles.values()).map(bundle => ({
-      id: bundle.id,
-      hash: bundle.hash,
-      entryPoint: bundle.entryPoint,
-      lastModified: bundle.lastModified.toISOString(),
-      assets: bundle.assets
-    }))
+  app.use('/templates', express.static(TEMPLATES_DIR, createOptimizedStaticOptions()))
 
-    res.json({ bundles })
+  app.get('/api/performance', async (_req, res) => {
+    const bundlesByFramework = await fetchFrameworkBundles()
+    const performance = {
+      server: {
+        uptime: process.uptime(),
+        memory: process.memoryUsage(),
+        nodeVersion: process.version,
+        environment: process.env.NODE_ENV || 'development'
+      },
+      bundles: Object.entries(bundlesByFramework).map(([framework, bundles]) => ({
+        framework,
+        bundleCount: bundles.length,
+        bundles: bundles.map((bundle) => ({
+          id: bundle.id,
+          hash: bundle.hash,
+          entryPoint: bundle.entryPoint,
+          assets: bundle.assets
+        }))
+      })),
+      timestamp: new Date().toISOString()
+    }
+    res.json(performance)
   })
 
-  app.get('/api/frameworks/bundles', (req, res) => {
-    const allBundles: Record<string, any[]> = {}
-
-    for (const watcher of frameworkWatchers) {
-      allBundles[watcher.framework] = Array.from(watcher.bundles.values()).map(bundle => ({
-        id: bundle.id,
-        hash: bundle.hash,
-        entryPoint: bundle.entryPoint,
-        lastModified: bundle.lastModified.toISOString(),
-        assets: bundle.assets
-      }))
-    }
-
-    res.json({ bundles: allBundles })
+  app.post('/api/performance/bundle-load', async (req, res) => {
+    const { bundleId, loadTime, framework, userAgent } = req.body ?? {}
+    res.json({ recorded: true, bundleId, loadTime, framework, userAgent })
   })
 
   dumpExpressStack(app)
@@ -2326,56 +1853,12 @@ let localBlockBuilder: any | undefined
     app.use(express.static(DIST_CLIENT_DIR, { index: false }))
   }
 
-  app.use(express.json())
-
   app.get('/api/graph', (_req, res) => {
     res.json(entityGraph)
   })
 
   app.get('/healthz', (_req, res) => {
-    res.json({ ok: true, timestamp: new Date().toISOString() })
-  })
-
-  // Performance monitoring endpoint
-  app.get('/api/performance', (req, res) => {
-    const performance = {
-      server: {
-        uptime: process.uptime(),
-        memory: process.memoryUsage(),
-        nodeVersion: process.version,
-        environment: process.env.NODE_ENV || 'development'
-      },
-      bundles: Array.from(globalFrameworkWatchers || []).map(watcher => ({
-        framework: watcher.framework,
-        bundleCount: watcher.bundles.size,
-        bundles: Array.from(watcher.bundles.values()).map(bundle => ({
-          id: bundle.id,
-          size: bundle.assets.reduce((total, asset) => {
-            try {
-              const stat = statSync(path.join(ROOT_DIR, 'dist/frameworks', watcher.framework, asset))
-              return total + stat.size
-            } catch {
-              return total
-            }
-          }, 0),
-          lastModified: bundle.lastModified.toISOString(),
-          hash: bundle.hash
-        }))
-      })),
-      timestamp: new Date().toISOString()
-    }
-
-    res.json(performance)
-  })
-
-  // Bundle loading performance tracking
-  app.post('/api/performance/bundle-load', express.json(), (req, res) => {
-    const { bundleId, loadTime, framework, userAgent } = req.body
-
-    console.log(`[performance] Bundle ${bundleId} (${framework}) loaded in ${loadTime}ms`)
-
-    // In a real implementation, this would be stored in a database or monitoring system
-    res.json({ recorded: true, bundleId, loadTime, framework })
+    res.json({ ok: true, blockServer: blockServerOrigin, timestamp: new Date().toISOString() })
   })
 
   app.get('*', async (req, res, next) => {
@@ -2410,6 +1893,12 @@ let localBlockBuilder: any | undefined
       block: requestUrl.searchParams.get('block'),
       entityId: requestUrl.searchParams.get('entityId')
     } : {}
+
+    const frameworkBundles =
+      (scenarioId === 'framework-compilation-demo' || scenarioId === 'cross-framework-nesting')
+        ? await fetchFrameworkBundles()
+        : undefined
+    const requestContext = { ...customParams, frameworkBundles }
 
     // Always use IndexingService for all scenarios
     const scenario = scenarios[scenarioId] ?? scenarios['hello-world']
@@ -2506,7 +1995,7 @@ let localBlockBuilder: any | undefined
                 physicalPath: '/examples/blocks/table-view/general-block.umd.js',
                 cachingTag: nextCachingTag()
               }
-            ],
+            ],            
             supportsHotReload: false,
             initialHeight: 400
           }
@@ -2514,7 +2003,7 @@ let localBlockBuilder: any | undefined
       )
     } else if (scenarioId === 'd3-line-graph-example') {
       // Send the D3 line graph notification with the populated entityGraph from IndexingService
-      const notifications = scenario.buildNotifications(state, request)
+      const notifications = scenario.buildNotifications(state, requestContext)
       for (const base of notifications) {
         const payload = { ...base, entityGraph, entityId: 'linechart-config' }
         socket.send(
@@ -2525,7 +2014,7 @@ let localBlockBuilder: any | undefined
         )
       }
     } else {
-  dispatchScenarioNotifications(socket, scenario, state, customParams)
+  dispatchScenarioNotifications(socket, scenario, state, requestContext)
     }
 
     socket.on('close', () => {
@@ -2603,7 +2092,7 @@ let localBlockBuilder: any | undefined
               }
             }
             // Push refreshed notifications to the client after state has been updated
-            dispatchScenarioNotifications(socket, scenario, state, request)
+            dispatchScenarioNotifications(socket, scenario, state, requestContext)
 
             // Send ack
             socket.send(
@@ -2687,13 +2176,12 @@ let localBlockBuilder: any | undefined
       await viteServer.close()
     }
 
-    // Clean up framework watchers
-    for (const watcher of globalFrameworkWatchers) {
-      if (watcher.watcher) {
-        watcher.watcher.close()
-      }
+    try {
+      await blockServer.stop()
+      console.log('[block-server] stopped')
+    } catch (error) {
+      console.error('[block-server] failed to stop', error)
     }
-    globalFrameworkWatchers = []
   }
 
   if (attachSignalHandlers) {
@@ -2730,7 +2218,7 @@ let localBlockBuilder: any | undefined
   console.log(`[blockprotocol-poc] server listening on http://${printableHost}:${printablePort}`)
   console.log(`[blockprotocol-poc] mode=${process.env.NODE_ENV ?? 'development'} root=${ROOT_DIR}`)
 
-  return { app, httpServer, wss, close }
+  return { app, httpServer, wss, close, blockServer }
 }
 
 if (process.argv[1] === __filename) {
