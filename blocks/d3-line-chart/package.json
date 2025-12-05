@@ -5,16 +5,18 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && npm run copy:icon && npm run postbuild",
     "preview": "vite preview",
-    "clean": "rimraf dist"
+    "clean": "rimraf dist",
+    "postbuild": "node ../utils/postbuild.js .",
+    "copy:icon": "node -e \"const fs=require('fs'),p=require('path');const src=p.resolve('icon.svg');const dst=p.resolve('dist','icon.svg');fs.mkdirSync(p.dirname(dst),{recursive:true});fs.copyFileSync(src,dst);\""
   },
   "devDependencies": {
-    "rimraf": "^5.0.5",
-    "postbuild": "node ../utils/postbuild.js"
-},
+    "rimraf": "^5.0.5"
+  },
   "blockprotocol": {
-    "id": "https://vivafolio.org/blocks/d3-line-chart",
+    "id": "https://vivafolio.dev/blocks/d3-line-graph/v1",
+    "icon": "dist/icon.svg",
     "name": "D3 Line Chart",
     "version": "0.2.0",
     "blockType": "custom-element",
@@ -136,10 +138,10 @@
     },
     "resources": {
       "js": [
-        "dist/app.js"
+        "dist/index.js"
       ],
       "css": [
-        "dist/styles.css"
+        "dist/index.css"
       ]
     }
   }

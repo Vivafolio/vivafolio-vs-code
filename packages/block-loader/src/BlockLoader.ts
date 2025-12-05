@@ -439,12 +439,15 @@ export class VivafolioBlockLoader implements BlockLoader {
   // Private implementation methods
 
   private detectBlockMode(): 'bundle' | 'html' {
-  // Prefer explicit HTML template blocks
-  const htmlResource = this.findResource('app.html')
-  if (htmlResource) return 'html'
-  // Fall back to bundle if we have a main.js or (legacy) app.js without HTML
-  if (this.findResource('main.js') || this.findResource('app.js')) return 'bundle'
-  return 'html'
+    // Prefer explicit HTML template blocks
+    const htmlResource = this.findResource('app.html')
+    if (htmlResource) return 'html'
+    // Fall back to bundle if we have a main.js or (legacy) app.js without HTML
+    if (this.findResource('main.js') || this.findResource('app.js')) return 'bundle'
+    // Otherwise, treat any JS bundle as a bundle block
+    const hasJsBundle = this.resources.some((res) => /\.(m?js|cjs)$/i.test(res.logicalName))
+    if (hasJsBundle) return 'bundle'
+    return 'html'
   }
 
   private async  initializeBundleBlock(container: HTMLElement): Promise<void> {
@@ -459,14 +462,15 @@ export class VivafolioBlockLoader implements BlockLoader {
     this.reactDomModule = reactDomModule.default || reactDomModule
 
     // Support legacy/fallback naming (app.js used by HTML template blocks when loaded as bundle)
+    const fallbackJsBundle = this.resources.find((res) => /\.(m?js|cjs)$/i.test(res.logicalName))?.logicalName ?? null
     const bundleLogicalName = this.findResource('main.js')
       ? 'main.js'
       : this.findResource('app.js')
         ? 'app.js'
-        : null
+        : fallbackJsBundle
     const bundleUrl = bundleLogicalName ? this.resolveResourceUrl(bundleLogicalName) : null
     if (!bundleUrl) {
-      throw new Error('Bundle resource missing (main.js/app.js)')
+      throw new Error('Bundle resource missing (main.js/app.js/js bundle)')
     }
 
     console.log('[BlockLoader] Bundle URL:', bundleUrl)
@@ -986,7 +990,8 @@ export class VivafolioBlockLoader implements BlockLoader {
     if (resource.cachingTag) {
       url.searchParams.set('cache', resource.cachingTag)
     }
-    return url.pathname + url.search
+    // Preserve origin so cross-origin block servers (different port) remain intact
+    return url.toString()
   }
 
   private async fetchResource(url: string, options: RequestInit = {}): Promise<Response> {
@@ -1037,7 +1042,7 @@ export class VivafolioBlockLoader implements BlockLoader {
     }
 
     // Fall back to direct fetch
-    const response = await fetch(url, { ...options, headers: { 'x-cache-status': 'MISS', ...options.headers } })
+    const response = await fetch(url, options)
     return response
   }
 

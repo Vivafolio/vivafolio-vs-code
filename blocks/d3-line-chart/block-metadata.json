@@ -1,8 +1,8 @@
 {
-  "id": "https://vivafolio.org/blocks/d3-line-chart",
+  "id": "https://vivafolio.dev/blocks/d3-line-graph/v1",
   "name": "D3 Line Chart",
   "version": "0.2.0",
-  "blockType": "custom-element",
+  "blockType": { "entryPoint": "custom-element" },
   "schema": {
     "type": "object",
     "properties": {
@@ -40,7 +40,8 @@
     "additionalProperties": false
   },
   "resources": {
-    "js": ["dist/app.js"],
-    "css": ["dist/styles.css"]
+    "js": ["dist/index.js"],
+    "css": ["dist/index.css"],
+    "html": []
   }
 }

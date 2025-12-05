@@ -5,10 +5,12 @@ export default defineConfig({
   build: {
     target: 'esnext',
     outDir: 'dist',
+    assetsDir: '',
     rollupOptions: { 
       input: 'src/index.tsx', 
       output: { 
         entryFileNames: 'index.js',
+        assetFileNames: 'index.[ext]',
         format: 'cjs'
       } 
     },
