@@ -609,6 +609,8 @@ clean-all:
 dev-blockprotocol-poc:
 	@echo "Building all blocks..."
 	@just build-blocks
+	@echo "Building Block Protocol POC example/framework bundles..."
+	cd apps/blockprotocol-poc && npm run build:frameworks
 	@echo "Starting Block Protocol POC dev server..."
 	cd apps/blockprotocol-poc && \
 		node ../../scripts/guarded-run.js \
@@ -623,6 +625,8 @@ dev-blockprotocol-poc:
 dev-blockprotocol-poc-once:
 	@echo "Building all blocks..."
 	@just build-blocks
+	@echo "Building Block Protocol POC example/framework bundles..."
+	cd apps/blockprotocol-poc && npm run build:frameworks
 	@echo "Starting Block Protocol POC dev server..."
 	cd apps/blockprotocol-poc && \
 		PORT="${PORT:-0}" node ../../scripts/guarded-run.js \
