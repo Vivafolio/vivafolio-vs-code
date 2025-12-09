@@ -34,7 +34,7 @@ import { SidecarLspClient, MockLspServerImpl } from './SidecarLspClient.js'
 import path from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'
 import fs from 'fs/promises'
-import { readFileSync, existsSync } from 'fs'
+import { readFileSync, existsSync, readdirSync } from 'fs'
 import crypto from 'crypto'
 import { BlockResourcesCache, type BlockIdentifier, type BlockResource, type CacheEntry } from '@vivafolio/block-resources-cache'
 
@@ -561,26 +561,44 @@ function buildBlockResources(blockName: string) {
   const cached = blockResourceCache.get(blockName)
   if (cached && cached.origin === blockServerOrigin) return cached.resources
 
-  const normalizeFile = (file: string) => file.replace(/^dist[\\/]/, '')
   try {
-    const metadataPath = path.resolve(REPO_ROOT, 'blocks', blockName, 'dist', 'block-metadata.json')
-    const raw = readFileSync(metadataPath, 'utf8')
-    const metadata = JSON.parse(raw) as { resources?: { js?: string[], css?: string[] }, icon?: string, version?: string }
-    const resources: Array<{ logicalName: string, physicalPath: string, cachingTag: string }> = [
-      buildBlockResource(blockName, 'block-metadata.json')
-    ]
+    const distDir = path.resolve(REPO_ROOT, 'blocks', blockName, 'dist')
 
-    for (const entry of metadata.resources?.js ?? []) {
-      resources.push(buildBlockResource(blockName, normalizeFile(entry)))
-    }
-    for (const entry of metadata.resources?.css ?? []) {
-      resources.push(buildBlockResource(blockName, normalizeFile(entry)))
-    }
-    if (metadata.icon) {
-      resources.push(buildBlockResource(blockName, normalizeFile(metadata.icon)))
+    // Try to read metadata if present, but don't require resources field
+    let metadata: { icon?: string, version?: string } = { version: 'latest' }
+    const metadataPath = path.join(distDir, 'block-metadata.json')
+    if (existsSync(metadataPath)) {
+      try {
+        const raw = readFileSync(metadataPath, 'utf8')
+        const parsed = JSON.parse(raw) as { icon?: string, version?: string }
+        metadata = { ...metadata, ...parsed }
+      } catch (e) {
+        console.warn('[block-resources] failed to parse block-metadata.json for', blockName, e)
+      }
     }
 
-    console.log('[block-resources] built resources', { blockName, origin: blockServerOrigin, resources })
+    const resources: Array<{ logicalName: string, physicalPath: string, cachingTag: string }> = []
+
+    // Always include metadata file if it exists
+    if (existsSync(metadataPath)) {
+      resources.push(buildBlockResource(blockName, 'block-metadata.json'))
+    }
+
+    // Walk the dist directory (non-recursive for now) and add every file as a resource
+    const entries = readdirSync(distDir, { withFileTypes: true })
+
+    for (const entry of entries) {
+      if (!entry.isFile()) continue
+      const relativePath = entry.name
+      const normalized = relativePath.replace(/^\.\//, '')
+
+      // We've already added block-metadata.json explicitly above
+      if (normalized === 'block-metadata.json') continue
+
+  resources.push(buildBlockResource(blockName, normalized))
+    }
+
+    console.log('[block-resources] built resources from dist', { blockName, origin: blockServerOrigin, resources })
     void persistBlockResourcesToCache(blockName, metadata, resources)
     return resources
   } catch (error) {
