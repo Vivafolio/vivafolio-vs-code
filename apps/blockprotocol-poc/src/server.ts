@@ -26,8 +26,8 @@ import { WebSocketServer, WebSocket } from 'ws'
 // Local runtime transport and sidecar pieces stay as static imports
 import { IndexingServiceTransportLayer, WebSocketTransport } from './TransportLayer.js'
 import { SidecarLspClient, MockLspServerImpl } from './SidecarLspClient.js'
-// Monorepo-internal packages are loaded via dynamic import at runtime to work in both dev (tsx) and prod (dist)
-// Types can be imported if needed, but runtime binding happens inside startServer()
+// Monorepo-internal packages are loaded from their built dist outputs to keep dev/prod consistent
+// Types can be imported if needed, but runtime binding happens at module init
 // import type { IndexingService as IndexingServiceType } from '../../../packages/indexing-service/dist/IndexingService.js'
 // import type { BlockBuilder as BlockBuilderType } from '../../../blocks/dist/builder.js'
 // import type { BlockResourcesCache as BlockResourcesCacheType } from '../../../packages/block-resources-cache/dist/index.js'
@@ -164,6 +164,13 @@ function findRepoRoot(startDir = ROOT_DIR) {
 }
 
 const REPO_ROOT = findRepoRoot()
+
+const INDEXING_SERVICE_DIST_PATH = path.resolve(REPO_ROOT, 'packages/indexing-service/dist/index.js')
+const BLOCKS_SERVER_DIST_PATH = path.resolve(REPO_ROOT, 'blocks/dist/server.js')
+
+// Load monorepo packages from compiled output so dev/prod share the same artifacts
+const { IndexingService } = await import(pathToFileURL(INDEXING_SERVICE_DIST_PATH).href)
+const { startBlockServer } = await import(pathToFileURL(BLOCKS_SERVER_DIST_PATH).href)
 
 const HTML_TEMPLATE_BLOCK_DIR = path.resolve(
   REPO_ROOT,
@@ -1738,26 +1745,6 @@ export async function startServer(options: StartServerOptions = {}) {
   }
 
   app.use(express.json())
-
-  // Dynamically load internal monorepo packages so paths are correct in both dev (tsx) and prod (dist)
-  const loadModule = async (...candidates: string[]) => {
-    for (const rel of candidates) {
-      const abs = path.resolve(REPO_ROOT, rel)
-      if (existsSync(abs)) {
-        return import(pathToFileURL(abs).href)
-      }
-    }
-    throw new Error(`Failed to resolve module. Tried: ${candidates.join(', ')}`)
-  }
-
-  const { IndexingService } = await loadModule(
-    'packages/indexing-service/dist/IndexingService.js',
-    'packages/indexing-service/src/IndexingService.ts'
-  ) as any
-  const { startBlockServer } = await loadModule(
-    'blocks/dist/server.js',
-    'blocks/src/server.ts'
-  ) as any
 
   const blockServer = await startBlockServer({
     host: blockServerHost,
