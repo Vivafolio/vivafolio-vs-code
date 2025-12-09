@@ -1,9 +1,0 @@
-{
-  "name": "custom-element-block",
-  "version": "0.1.0",
-  "description": "Baseline custom element block exercising Graph service integration",
-  "protocol": "0.3",
-  "blockType": {
-    "entryPoint": "bundle"
-  }
-}

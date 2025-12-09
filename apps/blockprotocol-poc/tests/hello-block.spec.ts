@@ -143,27 +143,6 @@ test.describe('Milestone 0 – Hello Block', () => {
     await expect(entityInfo).toContainText('feature-showcase-block')
   })
 
-  test('loads CommonJS block with local chunk and stylesheet', async ({ page }) => {
-    await page.goto('/?scenario=resource-loader')
-
-    const container = page.locator('.published-block-container')
-    await expect(container).toBeVisible()
-
-    // Check what's actually rendered
-    const containerHtml = await container.innerHTML()
-    console.log('Resource loader container HTML:', containerHtml)
-
-    const block = container.locator('.cjs-resource-block')
-    await expect(block).toBeVisible()
-    await expect(block.locator('h2')).toHaveText('Resource Loader Diagnostic')
-    await expect(block.locator('p').first()).toContainText('Local chunk.js executed successfully.')
-    await expect(block.locator('.cjs-resource-block__name')).toContainText('Entity name: CJS Resource Block')
-
-    const borderColor = await block.evaluate((element) => window.getComputedStyle(element).borderColor)
-    expect(borderColor).toMatch(/59, 130, 246/)
-  })
-
-
   test('renders HTML entry block and loads content', async ({ page }) => {
     // Listen for console messages
     const consoleMessages: string[] = []
@@ -210,94 +189,6 @@ test.describe('Milestone 0 – Hello Block', () => {
     await expect(input).toHaveValue('Updated by test')
   })
 })
-
-test.describe('F1 – Custom Element Baseline', () => {
-    test('custom element block is instantiated and has basic structure', async ({ page }) => {
-      await page.goto('/?scenario=custom-element-baseline')
-
-      // Check that the custom element exists in the DOM
-      const customElement = page.locator('custom-element-block')
-      await expect(customElement).toHaveCount(1)
-
-      // Check that it has the expected data attribute
-      await expect(customElement).toHaveAttribute('data-block-id', 'custom-element-block-1')
-
-      // Use JavaScript to check the element's content directly
-      const elementContent = await customElement.evaluate(el => ({
-        tagName: el.tagName,
-        childElementCount: el.children.length,
-        hasHeading: el.querySelector('.block-heading') !== null,
-        hasInputs: el.querySelectorAll('input').length,
-        hasSelect: el.querySelector('select') !== null,
-        hasButton: el.querySelector('button') !== null
-      }))
-
-      expect(elementContent.tagName).toBe('CUSTOM-ELEMENT-BLOCK')
-      expect(elementContent.childElementCount).toBeGreaterThan(0)
-      expect(elementContent.hasHeading).toBe(true)
-      expect(elementContent.hasInputs).toBe(2) // title and description
-      expect(elementContent.hasSelect).toBe(true)
-      expect(elementContent.hasButton).toBe(true)
-    })
-
-    test('custom element block can be interacted with', async ({ page }) => {
-      await page.goto('/?scenario=custom-element-baseline')
-
-      // Get the custom element
-      const customElement = page.locator('custom-element-block')
-
-      // Check initial state
-      const initialState = await customElement.evaluate(el => {
-        const inputs = el.querySelectorAll('input')
-        const select = el.querySelector('select')
-        const button = el.querySelector('button')
-
-        return {
-          titleValue: inputs[0]?.value || '',
-          descValue: inputs[1]?.value || '',
-          selectValue: select?.value || '',
-          hasButton: !!button
-        }
-      })
-
-      expect(initialState.titleValue).toBe('Custom Element Baseline')
-      expect(initialState.descValue).toBe('Demonstrates vanilla WebComponent integration')
-      expect(initialState.selectValue).toBe('todo')
-      expect(initialState.hasButton).toBe(true)
-
-      // Verify elements are interactive (not disabled)
-      const isInteractive = await customElement.evaluate(el => {
-        const inputs = el.querySelectorAll('input')
-        const select = el.querySelector('select')
-
-        return {
-          titleEnabled: !inputs[0]?.disabled,
-          descEnabled: !inputs[1]?.disabled,
-          selectEnabled: !select?.disabled
-        }
-      })
-
-      expect(isInteractive.titleEnabled).toBe(true)
-      expect(isInteractive.descEnabled).toBe(true)
-      expect(isInteractive.selectEnabled).toBe(true)
-    })
-
-    test('custom element block shows entity information', async ({ page }) => {
-      await page.goto('/?scenario=custom-element-baseline')
-
-      // Get the custom element
-      const customElement = page.locator('custom-element-block')
-
-      // Check that the element contains entity information
-      const footnoteText = await customElement.evaluate(el => {
-        const footnote = el.querySelector('.block-footnote')
-        return footnote ? footnote.textContent : ''
-      })
-
-      expect(footnoteText).toContain('Entity ID:')
-      expect(footnoteText).toContain('Read-only:')
-    })
-  })
 
   test.describe('F2 – SolidJS Task Baseline', () => {
     test('renders SolidJS task block with form controls', async ({ page }) => {

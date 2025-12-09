@@ -200,14 +200,6 @@ const HTML_TEMPLATE_PUBLIC_METADATA_PATH = path.join(
   'block-metadata.json'
 )
 
-const RESOURCE_LOADER_BLOCK_DIR = path.resolve(
-  REPO_ROOT,
-  'apps',
-  'blockprotocol-poc',
-  'external',
-  'resource-loader-block'
-)
-
 export interface FrameworkBundle {
   id: string
   hash: string
@@ -1049,83 +1041,6 @@ const scenarios: Record<string, ScenarioDefinition> = {
       entity.properties = { ...entity.properties, ...update.properties }
     }
   },
-  'resource-loader': {
-    id: 'resource-loader',
-    title: 'Resource Loader – CJS Modules',
-    description:
-      'Exercises CommonJS require support for local chunks and styles served through the host dev server.',
-    createState: () => ({ graph: createResourceLoaderGraph() }),
-    buildNotifications: (state, request) => [
-      {
-        blockId: 'resource-loader-block-1',
-        blockType: 'https://vivafolio.dev/blocks/resource-loader/v1',
-        entityId:
-          state.graph.entities[0]?.entityId ?? 'resource-loader-entity',
-        displayMode: 'multi-line',
-        entityGraph: state.graph,
-        supportsHotReload: false,
-        initialHeight: 260,
-        resources: [
-          {
-            logicalName: 'main.js',
-            physicalPath: '/external/resource-loader-block/main.js',
-            cachingTag: nextCachingTag()
-          },
-          {
-            logicalName: 'chunk.js',
-            physicalPath: '/external/resource-loader-block/chunk.js',
-            cachingTag: nextCachingTag()
-          },
-          {
-            logicalName: 'style.css',
-            physicalPath: '/external/resource-loader-block/style.css',
-            cachingTag: nextCachingTag()
-          }
-        ]
-      }
-    ],
-    applyUpdate: ({ state, update }) => {
-  const entity = state.graph.entities.find((item: any) => (item as any).entityId === update.entityId)
-      if (!entity) return
-      entity.properties = { ...entity.properties, ...update.properties }
-    }
-  },
-  'custom-element-baseline': {
-    id: 'custom-element-baseline',
-    title: 'F1 – Custom Element Baseline',
-    description: 'Minimal WebComponent block demonstrating Graph service integration and entity updates.',
-    createState: () => ({ graph: createCustomElementGraph() }),
-    buildNotifications: (state, request) => [
-      {
-        blockId: 'custom-element-block-1',
-        blockType: 'https://vivafolio.dev/blocks/custom-element/v1',
-        entityId: state.graph.entities[0]?.entityId ?? 'custom-element-entity',
-        displayMode: 'multi-line',
-        entityGraph: state.graph,
-        supportsHotReload: true,
-        initialHeight: 300,
-        resources: [
-          {
-            logicalName: 'main.js',
-            physicalPath: '/external/custom-element-block/main.js',
-            cachingTag: nextCachingTag()
-          },
-          {
-            logicalName: 'style.css',
-            physicalPath: '/external/custom-element-block/style.css',
-            cachingTag: nextCachingTag()
-          }
-        ]
-      }
-    ],
-    applyUpdate: ({ state, update }) => {
-      const entity = state.graph.entities.find((item: Entity) => item.entityId === update.entityId)
-      if (!entity) return
-      entity.properties = { ...entity.properties, ...update.properties }
-      // Add timestamp for tracking updates
-      entity.properties.lastModified = new Date().toISOString()
-    }
-  },
   'solidjs-task-baseline': {
     id: 'solidjs-task-baseline',
     title: 'F2 – SolidJS Task Baseline',
@@ -1634,21 +1549,6 @@ function createFeatureShowcaseGraph(): EntityGraph {
   return { entities: [entity], links: [] }
 }
 
-function createResourceLoaderGraph(): EntityGraph {
-  const namePropertyBase = 'https://blockprotocol.org/@blockprotocol/types/property-type/name/'
-  const namePropertyVersioned = `${namePropertyBase}v/1`
-  const entity: Entity = {
-    entityId: 'resource-loader-entity',
-    entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
-    properties: {
-      [namePropertyBase]: 'CJS Resource Block',
-      [namePropertyVersioned]: 'CJS Resource Block'
-    }
-  }
-
-  return { entities: [entity], links: [] }
-}
-
 function createCustomElementGraph(): EntityGraph {
   const namePropertyBase = 'https://blockprotocol.org/@blockprotocol/types/property-type/name/'
   const namePropertyVersioned = `${namePropertyBase}v/1`
@@ -1915,7 +1815,6 @@ export async function startServer(options: StartServerOptions = {}) {
 
   // Static asset serving with production optimizations
   app.use('/external/html-template-block', express.static(HTML_TEMPLATE_PUBLIC_DIR, createOptimizedStaticOptions()))
-  app.use('/external/resource-loader-block', express.static(RESOURCE_LOADER_BLOCK_DIR, createOptimizedStaticOptions()))
   app.use('/external/feature-showcase-block', express.static(path.resolve(ROOT_DIR, 'external/feature-showcase-block'), createOptimizedStaticOptions()))
   app.use('/external/custom-element-block', express.static(path.resolve(ROOT_DIR, 'external/custom-element-block'), createOptimizedStaticOptions()))
   app.use('/external/solidjs-task-block', express.static(path.resolve(ROOT_DIR, 'external/solidjs-task-block'), createOptimizedStaticOptions()))
