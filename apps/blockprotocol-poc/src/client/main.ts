@@ -434,8 +434,6 @@ const renderers: Record<string, BlockRenderer> = {
   'https://blockprotocol.org/@blockprotocol/blocks/test-npm-block/v0': renderPublishedBlock,
   'https://blockprotocol.org/@blockprotocol/blocks/html-template/v0': renderPublishedBlock,
   'https://blockprotocol.org/@blockprotocol/blocks/feature-showcase/v1': renderPublishedBlock,
-  'https://vivafolio.dev/blocks/resource-loader/v1': renderPublishedBlock,
-  'https://vivafolio.dev/blocks/custom-element/v1': renderPublishedBlock,
   'https://vivafolio.dev/blocks/solidjs-task/v1': renderPublishedBlock,
   'https://vivafolio.dev/blocks/status-pill/v1': renderPublishedBlock,
   'https://vivafolio.dev/blocks/person-chip/v1': renderPublishedBlock,
