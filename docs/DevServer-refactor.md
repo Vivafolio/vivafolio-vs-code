@@ -31,13 +31,14 @@ Purpose: map the current `apps/blockprotocol-poc/src/server.ts` to the target sp
 - The demo server now boots a sibling block server once and stops it during shutdown, wiring the origin into resource helpers (apps/blockprotocol-poc/src/server.ts).
 - VivafolioBlock notifications for `status-pill`, `d3-line-graph-example`, and custom local blocks now emit block-server URLs via `buildBlockResources`/`buildBlockResource` (apps/blockprotocol-poc/src/server.ts).
 - Block metadata and framework bundle APIs are proxied to the block server, and performance/manifest routes read from those upstreams instead of local compilers (apps/blockprotocol-poc/src/server.ts).
-- BlockLoader keeps full-origin resource URLs and accepts any JS bundle name so cross-origin block-server assets resolve correctly (packages/block-loader/src/BlockLoader.ts).
+ BlockLoader keeps full-origin resource URLs and accepts any JS bundle name so cross-origin block-server assets resolve correctly (packages/block-loader/src/BlockLoader.ts).
 
 ## TODO (still missing)
-- [ ] Replace remaining static mounts (`/external/*`, `/blocks/*`, `/examples/*`) and scenario resources that point at disk with block-server URLs and metadata fetched from the block server (apps/blockprotocol-poc/src/server.ts).
+- [x] Cache invalidation hooks – Notify BlockResourcesCache when blocks are rebuilt for automatic webview updates
 - [ ] Forward block-server `cache:invalidate` events over WebSocket to clients and drop legacy cache middleware/watchers entirely (apps/blockprotocol-poc/src/server.ts).
 - [ ] Make `/healthz` surface block-server health instead of just echoing its origin (apps/blockprotocol-poc/src/server.ts).
 - [ ] Consume block-server APIs for metadata/framework bundles instead of reading `blocks/<name>/dist/block-metadata.json` directly (apps/blockprotocol-poc/src/server.ts).
+- [ ] Move all blocks under `blocks/` and have scenarios call `buildBlockResources()` so every block flows through the block server + cache paths.
 
 ## What to Refactor to Target State
 - **Scenario data source**: the remaining scenarios should build their `entityGraph` from IndexingService results (e.g., `indexing-service`, `d3-line-graph-example`). Replace in-memory `create*Graph()` helpers with calls to `indexingService.getAllEntities()` plus per-scenario filters. That aligns with `docs/block-loader-design.md` where the host owns graph provisioning.

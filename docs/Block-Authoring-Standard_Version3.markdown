@@ -23,10 +23,13 @@ Minimum fields:
 
 ```json
 {
-  "id": "https://vivafolio.org/blocks/color-picker",
-  "name": "Color Picker",
+  "name": "color-picker",
   "version": "0.1.0",
-  "blockType": "custom-element",  // Preferred for Vivafolio (SolidJS-wrapped Web Components)
+  "protocol": "0.3",
+  "blockType": {
+    "entryPoint": "custom-element",
+    "tagName": "vivafolio-color-picker"
+  },
   "schema": {
     "type": "object",
     "properties": {
@@ -35,18 +38,15 @@ Minimum fields:
     "required": ["value"],
     "additionalProperties": false
   },
-  "resources": {
-    "js": ["dist/app.js"],  // Defines the custom element
-    "css": ["dist/styles.css"]
-  }
+  "source": "dist/app.js"
 }
 ```
 
 Notes:
-- **blockType**: Use `"custom-element"` for Vivafolio blocks, especially those built with SolidJS (wrapped in a Web Component). The Host will instantiate the element and pass `graph` (containing `blockEntitySubgraph`, `readonly`, and graph methods) and `blockId` as properties for synchronous initialization.
-- **schema**: Defines the expected structure of the `blockEntitySubgraph`’s root entity properties. Keep strict to ensure compatibility.
-- **resources**: Relative paths to the built JS (defining the custom element) and CSS files, served by the Dev Server or Host.
-- **postbuild generation**: Add `\"postbuild\": \"node ../utils/postbuild.js\"` to each block’s scripts so `npm run build` emits `dist/block-metadata.json` from the `blockprotocol` section. The script strips any leading `dist/` from resource paths and ensures `js`/`css`/`source` point to the bundled filenames (e.g., `main.cjs`, `app.js`, `styles.css`).
+- **blockType**: Use `"entryPoint": "custom-element"` for Vivafolio blocks, especially those built with SolidJS (wrapped in a Web Component). `tagName` is optional but recommended for clarity. The Host will instantiate the element and pass `graph` (containing `blockEntitySubgraph`, `readonly`, and graph methods) and `blockId` as properties for synchronous initialization.
+- **schema**: Inline JSON schema describing the root entity properties expected by the block; keep strict to ensure compatibility with the Host-provided `blockEntitySubgraph`.
+- **source**: Relative path to the bundled entrypoint that defines the custom element (e.g., `dist/app.js`).
+- **postbuild generation**: Add `\"postbuild\": \"node ../utils/postbuild.js\"` to each block’s scripts so `npm run build` emits `dist/block-metadata.json` from the `blockprotocol` section and normalizes the entrypoint path.
 
 ## 4. Folder Structure [Required]
 
@@ -61,6 +61,9 @@ blocks/your-block/
 │   ├── Component.tsx  // Main SolidJS component (e.g., Toggle.tsx, ColorPicker.tsx)
 │   └── styles.css
 └── dist/ (generated)
+    ├── index.js  
+    ├── styles.css
+    └── block-metadata.json
 ```
 
 Notes:
@@ -138,7 +141,8 @@ Blocks MUST conform to the Block Protocol and Vivafolio Host interfaces:
 
 ## 8. Testing Requirements
 
-- Test blocks in isolation using `@blockprotocol/mock-block-dock` to simulate Host behavior.
+- Test blocks in isolation using `apps/blockprotocol-poc` to simulate Host behavior.
+- Write automatic playwright tests under `apps/blockprotocol-poc/tests` for each block
 - Verify rendering with sample `blockEntitySubgraph` data matching the schema.
 - Test in a VS Code WebView to ensure compatibility with Vivafolio’s environment.
 - Validate accessibility and theme integration.
@@ -181,7 +185,6 @@ Blocks MUST conform to the Block Protocol and Vivafolio Host interfaces:
 ```
 blocks/example-toggle/
 ├── README.md
-├── block-metadata.json
 ├── package.json
 ├── src/
 │   ├── index.html
@@ -193,17 +196,17 @@ blocks/example-toggle/
 `block-metadata.json`:
 ```json
 {
-  "id": "https://vivafolio.org/blocks/example-toggle",
-  "name": "Example Toggle",
+  "name": "example-toggle",
   "version": "0.1.0",
-  "blockType": "html",
+  "protocol": "0.3",
+  "blockType": { "entryPoint": "html" },
   "schema": {
     "type": "object",
     "properties": { "enabled": { "type": "boolean" } },
     "required": ["enabled"],
     "additionalProperties": false
   },
-  "resources": { "html": ["dist/index.html"] }
+  "source": "dist/index.html"
 }
 ```
 
@@ -249,29 +252,34 @@ graphModule.blockEntitySubgraphCallback(({ blockEntitySubgraph }) => {
 ```
 blocks/example-toggle/
 ├── README.md
-├── block-metadata.json
 ├── package.json
 ├── src/
 │   ├── index.ts  // Defines Web Component
 │   ├── Toggle.tsx  // SolidJS component
 │   └── styles.css
 └── dist/ (generated)
+    ├── index.js  // Bundled custom element
+    ├── styles.css
+    └── block-metadata.json
 ```
 
 `block-metadata.json`:
 ```json
 {
-  "id": "https://vivafolio.org/blocks/example-toggle",
-  "name": "Example Toggle",
+  "name": "example-toggle",
   "version": "0.1.0",
-  "blockType": "custom-element",
+  "protocol": "0.3",
+  "blockType": {
+    "entryPoint": "custom-element",
+    "tagName": "example-toggle"
+  },
   "schema": {
     "type": "object",
     "properties": { "enabled": { "type": "boolean" } },
     "required": ["enabled"],
     "additionalProperties": false
   },
-  "resources": { "js": ["dist/app.js"], "css": ["dist/styles.css"] }
+  "source": "dist/index.js"
 }
 ```
 

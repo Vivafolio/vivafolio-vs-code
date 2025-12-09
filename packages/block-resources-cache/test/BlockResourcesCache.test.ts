@@ -128,6 +128,8 @@ describe('BlockResourcesCache', () => {
       expect(result.cacheHit).toBe(true);
     });
 
+    // Increase timeout to 10 seconds for this test
+    jest.setTimeout(10000);
     it('should handle network errors gracefully', async () => {
       const identifier: BlockIdentifier = { name: 'test-block', version: '1.0.0' };
 
@@ -139,7 +141,7 @@ describe('BlockResourcesCache', () => {
 
       expect(result.success).toBe(false);
       expect(result.error).toContain('Failed to fetch block');
-    }, 10000); // Increase timeout to 10 seconds
+    });
 
     it('should handle invalid package data', async () => {
       const identifier: BlockIdentifier = { name: 'test-block', version: '1.0.0' };
