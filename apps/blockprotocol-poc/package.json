@@ -15,6 +15,7 @@
     "start:standalone": "tsx src/standalone-server.ts",
     "test": "playwright test",
     "test:devserver": "tsx --test tests-node/dev-server-smoke.test.ts",
+    "test:block-cache": "cross-env BLOCK_CACHE_DIR=${BLOCK_CACHE_DIR:-.block-cache-test} tsx --test tests-node/block-cache-integration.test.ts",
     "build:frameworks": "tsx scripts/build-frameworks.ts",
     "scaffold": "tsx scripts/scaffold-block.ts"
   },

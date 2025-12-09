@@ -258,7 +258,7 @@ test-runtime-vivafolioblock:
 #
 # -----------------------------
 
-# Run all Block Protocol POC tests - all tests in apps/blockprotocol-poc/tests (via npm test)
+# Run all Block Protocol POC tests - all tests in apps/blockprotocol-poc/tests and apps/blockprotocol-poc/tests-node (via npm test)
 test-blockprotocol-poc:
 	# Ensure latest block-loader is built so POC uses correct HTML template handling
 	cd packages/block-loader && npm run -s build | cat
@@ -267,6 +267,8 @@ test-blockprotocol-poc:
 	# Run POC frameworks build and tests
 	cd apps/blockprotocol-poc && \
 	  npm run build:frameworks && \
+	  BLOCK_CACHE_DIR="${BLOCK_CACHE_DIR:-.block-cache-test}" npm run test:block-cache && \
+	  npm run test:devserver && \
 	  PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH:-$(command -v chromium)}" \
 	  npm test | cat
 

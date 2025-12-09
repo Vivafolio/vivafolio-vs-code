@@ -22,7 +22,7 @@
 import express from 'express'
 import compression from 'compression'
 import { createServer as createHttpServer } from 'http'
-import { WebSocketServer, type WebSocket } from 'ws'
+import { WebSocketServer, WebSocket } from 'ws'
 // Local runtime transport and sidecar pieces stay as static imports
 import { IndexingServiceTransportLayer, WebSocketTransport } from './TransportLayer.js'
 import { SidecarLspClient, MockLspServerImpl } from './SidecarLspClient.js'
@@ -35,6 +35,8 @@ import path from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'
 import fs from 'fs/promises'
 import { readFileSync, existsSync } from 'fs'
+import crypto from 'crypto'
+import { BlockResourcesCache, type BlockIdentifier, type BlockResource, type CacheEntry } from '@vivafolio/block-resources-cache'
 
 import type { ViteDevServer } from 'vite'
 import type { Entity, LinkEntity, EntityGraph, VivafolioBlockNotification } from '@vivafolio/block-loader'
@@ -351,6 +353,136 @@ const socketStates = new Map<
 >()
 
 let resourceCounter = 0
+let blockResourcesCache: BlockResourcesCache | undefined
+let blockServerInvalidationClient: WebSocket | undefined
+
+// Build a cache key for the current block server origin (used by the cache storage)
+function blockCacheIdentifier(blockName: string): BlockIdentifier {
+  return { name: blockName, version: 'latest', registry: blockServerOrigin }
+}
+
+// Write a minimal manifest for a block into the shared cache and the in-memory map
+async function persistBlockResourcesToCache(
+  blockName: string,
+  metadata: any,
+  resources: Array<{ logicalName: string, physicalPath: string, cachingTag: string }>
+) {
+  blockResourceCache.set(blockName, { origin: blockServerOrigin, resources })
+  if (!blockResourcesCache) return
+
+  try {
+    const manifest = {
+      metadata: { ...metadata, __origin: blockServerOrigin },
+      resources
+    }
+    const manifestContent = JSON.stringify(manifest)
+    const manifestResource: BlockResource = {
+      url: `${blockServerOrigin}/blocks/${blockName}/block-metadata.json`,
+      content: manifestContent,
+      contentType: 'application/json',
+      sha256: crypto.createHash('sha256').update(manifestContent).digest('hex'),
+      size: Buffer.byteLength(manifestContent, 'utf8')
+    }
+    const entry: CacheEntry = {
+      metadata: manifest.metadata,
+      resources: new Map([['manifest.json', manifestResource]]),
+      cachedAt: new Date(),
+      version: metadata.version ?? 'latest',
+      integrity: ''
+    }
+    const storage = (blockResourcesCache as any)?.storage
+    if (storage?.set) {
+      await storage.set(blockCacheIdentifier(blockName), entry)
+    }
+  } catch (error) {
+    console.warn('[block-cache] failed to persist manifest for', blockName, error)
+  }
+}
+
+// Try to restore block resources for a given block name from the cache on disk
+async function hydrateBlockResourcesFromCache(blockName: string) {
+  if (!blockResourcesCache) return
+  try {
+    const storage = (blockResourcesCache as any)?.storage
+    if (!storage?.get) return
+    const cached = await storage.get(blockCacheIdentifier(blockName))
+    if (!cached) return
+    const resourcesMap = cached.resources instanceof Map ? cached.resources : new Map(Object.entries(cached.resources ?? {}))
+    const manifestResource = resourcesMap.get('manifest.json')
+    if (!manifestResource?.content) return
+    const parsed = JSON.parse(manifestResource.content)
+    if (parsed?.resources && parsed?.metadata?.__origin === blockServerOrigin) {
+      blockResourceCache.set(blockName, { origin: blockServerOrigin, resources: parsed.resources })
+    }
+  } catch (error) {
+    console.warn('[block-cache] failed to hydrate', blockName, error)
+  }
+}
+
+// On startup, scan local blocks and pre-fill the in-memory map from cached manifests
+async function warmBlockResourceCacheFromDisk() {
+  try {
+    const blocksDir = path.resolve(REPO_ROOT, 'blocks')
+    const entries = await fs.readdir(blocksDir, { withFileTypes: true })
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      const blockName = entry.name
+      const metadataPath = path.join(blocksDir, blockName, 'dist', 'block-metadata.json')
+      if (!existsSync(metadataPath)) continue
+      await hydrateBlockResourcesFromCache(blockName)
+    }
+  } catch (error) {
+    console.warn('[block-cache] warm-up failed', error)
+  }
+}
+
+// Remove a block from both the in-memory map and the persistent cache
+async function evictBlockResourceCache(blockName: string) {
+  blockResourceCache.delete(blockName)
+  if (!blockResourcesCache) return
+  try {
+    await blockResourcesCache.evict(blockCacheIdentifier(blockName))
+  } catch (error) {
+    console.warn('[block-cache] eviction failed for', blockName, error)
+  }
+}
+
+// Send cache invalidation messages to all connected demo-server clients
+function broadcastCacheInvalidation(blockId: string) {
+  for (const socket of liveSockets) {
+    try {
+      socket.send(JSON.stringify({ type: 'cache:invalidate', payload: { blockId } }))
+    } catch (error) {
+      console.warn('[block-cache] failed to broadcast cache:invalidate', error)
+    }
+  }
+}
+
+// Bridge: subscribe to the block server WebSocket and forward its cache:invalidate events
+function startBlockServerInvalidationBridge(wsUrl: string) {
+  try {
+    const client = new WebSocket(wsUrl)
+    blockServerInvalidationClient = client
+    client.on('message', async (raw) => {
+      try {
+        const message = JSON.parse(String(raw))
+        if (message?.type === 'cache:invalidate' && typeof message?.payload?.blockId === 'string') {
+          const blockId = message.payload.blockId as string
+          console.log('[block-cache] invalidation received from block server:', blockId)
+          await evictBlockResourceCache(blockId)
+          broadcastCacheInvalidation(blockId)
+        }
+      } catch (error) {
+        console.warn('[block-cache] failed to process invalidation message', error)
+      }
+    })
+    client.on('error', (error) => {
+      console.warn('[block-cache] block server WS error', error)
+    })
+  } catch (error) {
+    console.warn('[block-cache] failed to connect to block server for invalidations', error)
+  }
+}
 
 function nextCachingTag() {
   // Generates a unique cache-busting tag for resources to ensure browsers fetch fresh content
@@ -426,7 +558,7 @@ function buildBlockResources(blockName: string) {
   try {
     const metadataPath = path.resolve(REPO_ROOT, 'blocks', blockName, 'dist', 'block-metadata.json')
     const raw = readFileSync(metadataPath, 'utf8')
-    const metadata = JSON.parse(raw) as { resources?: { js?: string[], css?: string[] }, icon?: string }
+    const metadata = JSON.parse(raw) as { resources?: { js?: string[], css?: string[] }, icon?: string, version?: string }
     const resources: Array<{ logicalName: string, physicalPath: string, cachingTag: string }> = [
       buildBlockResource(blockName, 'block-metadata.json')
     ]
@@ -442,12 +574,12 @@ function buildBlockResources(blockName: string) {
     }
 
     console.log('[block-resources] built resources', { blockName, origin: blockServerOrigin, resources })
-    blockResourceCache.set(blockName, { origin: blockServerOrigin, resources })
+    void persistBlockResourcesToCache(blockName, metadata, resources)
     return resources
   } catch (error) {
     console.warn(`[block-resources] failed to build resources for ${blockName}:`, error)
     const fallback = [buildBlockResource(blockName, 'block-metadata.json')]
-    blockResourceCache.set(blockName, { origin: blockServerOrigin, resources: fallback })
+    void persistBlockResourcesToCache(blockName, { version: 'latest' }, fallback)
     return fallback
   }
 }
@@ -1637,6 +1769,15 @@ export async function startServer(options: StartServerOptions = {}) {
   const printableBlockHost =
     blockServerHost === '0.0.0.0' || blockServerHost === '::' ? 'localhost' : blockServerHost
   blockServerOrigin = `http://${printableBlockHost}:${blockServerPort}`
+  const cacheDir = process.env.BLOCK_CACHE_DIR ?? path.resolve(REPO_ROOT, '.block-cache')
+  blockResourcesCache = new BlockResourcesCache({
+    cacheDir,
+    maxEntries: 2000,
+    maxSize: 200 * 1024 * 1024,
+    ttl: 24 * 60 * 60 * 1000
+  })
+  await warmBlockResourceCacheFromDisk()
+  startBlockServerInvalidationBridge(`ws://${printableBlockHost}:${blockServerPort}`)
 
   // Initialize indexing service
   const indexingService = new IndexingService({
@@ -2174,6 +2315,16 @@ export async function startServer(options: StartServerOptions = {}) {
 
     if (viteServer) {
       await viteServer.close()
+    }
+
+    if (blockServerInvalidationClient) {
+      try {
+        blockServerInvalidationClient.close()
+      } catch (error) {
+        console.warn('[block-server] failed to close invalidation client', error)
+      } finally {
+        blockServerInvalidationClient = undefined
+      }
     }
 
     try {
