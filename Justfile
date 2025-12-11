@@ -272,6 +272,9 @@ test-blockprotocol-poc:
 	  PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH:-$(command -v chromium)}" \
 	  npm test | cat
 
+# Exhaustive Block Protocol command for CI (POC + hooks + standalone build smoke)
+test-blockprotocol-ci: test-blockprotocol-poc test-blockprotocol-hooks test-blockprotocol-standalone-build
+
 # Run all Block Protocol POC test suites individually
 #11.11.2025 - PASS
 test-blockprotocol-all: test-blockprotocol-core test-blockprotocol-frameworks test-blockprotocol-scaffold test-blockprotocol-standalone test-blockprotocol-assets test-blockprotocol-devserver test-blockprotocol-hooks test-blockprotocol-standalone-build

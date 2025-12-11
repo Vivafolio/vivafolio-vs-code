@@ -60,7 +60,7 @@ jobs:
 
       - name: Block Protocol
         run: |
-          just test-blockprotocol-poc
+          just test-blockprotocol-ci
 
       - name: WebDriverIO tests
         run: |
