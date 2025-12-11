@@ -8,6 +8,9 @@
 const { execSync } = require('child_process')
 const path = require('path')
 
+// WebdriverIO and VS Code harnesses can emit large stdout dumps; bump buffer.
+const MAX_BUFFER_BYTES = 20 * 1024 * 1024
+
 console.log('🧪 Vivafolio - Running All Tests')
 console.log('================================\n')
 
@@ -52,7 +55,8 @@ for (const test of tests) {
       cwd: path.join(__dirname, '..'),
       stdio: 'pipe',
       encoding: 'utf8',
-      timeout: 300000 // 5 minutes timeout
+      timeout: 300000, // 5 minutes timeout
+      maxBuffer: MAX_BUFFER_BYTES
     })
 
     // Show last few lines of output for success
