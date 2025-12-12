@@ -111,7 +111,7 @@ This document tracks the proof-of-concept effort to validate the Block Protocol 
 - `src/extension.ts` - VS Code extension settings and BlockBuilder integration
 - `apps/blockprotocol-poc/src/server.ts` - POC server with local block development support
 - `apps/blockprotocol-poc/tests/hello-block.spec.ts` - E2E tests for local block development workflow
-- `packages/blocks/dist/builder.js` - BlockBuilder library for framework compilation
+- `blocks/dist/builder.js` - BlockBuilder library for framework compilation
 
 #### **G5.1.4 - Production Local Development Mode (Week 4)** ✅
 
@@ -169,7 +169,7 @@ This document tracks the proof-of-concept effort to validate the Block Protocol 
 - `apps/blockprotocol-poc/tests/hello-block.spec.ts` - E2E test framework ready for full implementation
 - `apps/blockprotocol-poc/src/server.ts` - POC server with complete local development support
 - `src/extension.ts` - VS Code extension with local block development settings
-- `packages/blocks/src/builder.ts` - BlockBuilder library for framework compilation
+- `blocks/src/builder.ts` - BlockBuilder library for framework compilation
 
 ### 🎯 Current Phase G5.1.5 - Unified Development Experience (Complete ✅)
 

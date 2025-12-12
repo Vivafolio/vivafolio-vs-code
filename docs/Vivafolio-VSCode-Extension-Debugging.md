@@ -22,7 +22,7 @@ just vscode-e2e
 
 This launches VS Code with the following debugging flags:
 - `--inspect-extensions=9229`: Enables extension debugging on port 9229
-- `--extensionDevelopmentPath`: Loads both the main extension and mock language extension
+- `--extensionDevelopmentPath`: Loads both the main extension and mocklang extension
 - `--enable-proposed-api local.vivafolio`: Enables proposed APIs used by the extension
 
 The launched instance includes:
@@ -136,7 +136,7 @@ Webviews run in a separate context but can be debugged:
 
 - **Debug LSP messages** by adding breakpoints in LSP event handlers
 - **Monitor LSP protocol** through the extension's logging (see Printf Debugging docs)
-- **Check LSP server logs** in `vivafolio/test/logs/`
+- **Check LSP server logs** in `test/logs/`
 
 ## Breakpoint Best Practices
 
@@ -300,7 +300,7 @@ The mock LSP server (used for Vivafolio language features) can also be debugged 
 
 #### LSP Server Debug Configuration
 
-The mock language extension is configured to start the LSP server with debugging enabled that breaks immediately on startup. When you run `just vscode-e2e`, the LSP server starts with:
+The mocklang extension is configured to start the LSP server with debugging enabled that breaks immediately on startup. When you run `just vscode-e2e`, the LSP server starts with:
 
 - **Debug Port**: 6009
 - **Command Line**: `--nolazy --inspect-brk=6009`
@@ -352,12 +352,12 @@ If the LSP server fails to start with `--inspect-brk`:
    - Example: `--inspect-brk=6010`
 
 3. **Alternative Approach**: If you prefer attach-after-startup:
-   - Temporarily change `--inspect-brk` back to `--inspect` in `mock-language-extension/src/extension.ts`
+   - Temporarily change `--inspect-brk` back to `--inspect` in `mocklang-extension/src/extension.ts`
    - This allows the server to start normally, then attach the debugger when ready
 
-4. **Debugging the Extension Startup**: To debug the mock language extension itself:
+4. **Debugging the Extension Startup**: To debug the mocklang extension itself:
    - Use the "Attach to Extension Host" configuration
-   - Set breakpoints in `mock-language-extension/src/extension.ts`
+   - Set breakpoints in `mocklang-extension/src/extension.ts`
 
 ### Performance Profiling
 

@@ -169,7 +169,7 @@ Verifies that the Vivafolio extension can receive a VivafolioBlock notification 
 - **Validation**: Square color always matches picker color in real-time
 
 - **Implementation approach**:
-  - Reusable blocks: `vivafolio/test/resources/blocks/color-picker.html` and `vivafolio/test/resources/blocks/color-square.html`
+  - Reusable blocks: `test/resources/blocks/color-picker.html` and `test/resources/blocks/color-square.html`
   - Mock server must handle `textDocument/didChange` notifications and re-publish diagnostics
   - Tests must simulate external file modifications and editor interactions
   - Assertions: Complete state synchronization across all interaction paths
@@ -215,7 +215,7 @@ Verifies that the Vivafolio extension can receive a VivafolioBlock notification 
 
 ### Mock LSP Server
 - Status: PASS
-- Implementation: `vivafolio/test/mock-lsp-server.js`
+- Implementation: `test/mock-lsp-server.js`
 - Features:
   - LSP protocol handling (initialize, initialized, textDocument/didOpen, textDocument/didChange)
   - Whitespace-tolerant matching for `vivafolio_picker!()` / `vivafolio_square!()` markers and `gui_state! r#"…"#`
@@ -223,8 +223,8 @@ Verifies that the Vivafolio extension can receive a VivafolioBlock notification 
   - Multiple block support per file; re-publishes diagnostics on edits
   - Diagnostic clearing when blocks are removed
 - Verified by:
-  - `vivafolio/test/suite/vscode-diagnostics.test.js` and `vscode-two-blocks.test.js`
-  - `vivafolio/test/e2e-mock-lsp-client.js` - LSP client test suite
+  - `test/suite/vscode-diagnostics.test.js` and `vscode-two-blocks.test.js`
+  - `test/e2e-mock-lsp-client.js` - LSP client test suite
 - Recent fixes:
   - Fixed regex pattern for JSON extraction from `gui_state! r#"{...}"#` (changed from `.*?` to `\{.*?\}` for proper JSON matching)
 
@@ -317,7 +317,7 @@ If vendoring proves helpful, we can extend this pattern to `zls` and `crystallin
 
 ### VS Code Extension Support
 - Status: PASS
-- Implementation: `vivafolio/src/extension.ts`
+- Implementation: `src/extension.ts`
 - Features:
   - Listens for Hint diagnostics, parses `vivafolio:` payloads (`parseVivafolioPayload`)
   - Renders insets via proposed API (`createWebviewTextEditorInset`) with panel fallback
@@ -329,7 +329,7 @@ If vendoring proves helpful, we can extend this pattern to `zls` and `crystallin
 
 ### WebdriverIO Test Suite
 - Status: IMPLEMENTED ✅ (Primary E2E Testing Framework)
-- Implementation: `vivafolio/test/wdio/`
+- Implementation: `test/wdio/`
 - **Objective**: True end-to-end automation of webview interactions within VS Code extension host
 - Purpose: Overcome Playwright limitations by using wdio-vscode-service to bridge WebdriverIO with VS Code's internal APIs
 - **Technical Solution**:
@@ -357,7 +357,7 @@ If vendoring proves helpful, we can extend this pattern to `zls` and `crystallin
   - ✅ Screenshot and video capture on failures
   - ✅ Configurable headless/headed modes
   - ✅ Page Object Model for maintainable test code
-- Configuration: `vivafolio/wdio.conf.ts`
+- Configuration: `wdio.conf.ts`
 - Commands:
   - `npm run test:wdio` - Run all WebdriverIO tests
   - `npm run test:wdio:single-block` - Test single block inset creation
@@ -370,7 +370,7 @@ If vendoring proves helpful, we can extend this pattern to `zls` and `crystallin
 
 ### VS Code Extension Test Suite
 - Status: IMPLEMENTED ✅ (Primary UI Validation)
-- Implementation: `vivafolio/src/test/suite/vscode-inset-management.test.js`
+- Implementation: `test/suite/vscode-inset-management.test.js`
 - Purpose: Unit and integration testing using VS Code test framework - PRIMARY method for validating inset behavior
 - Test Coverage:
   - Diagnostic processing and payload parsing
@@ -388,13 +388,13 @@ If vendoring proves helpful, we can extend this pattern to `zls` and `crystallin
 ### Webview Rendering
 - Status: PASS for test blocks
 - Implementations:
-  - `vivafolio/test/resources/blocks/color-picker.html`: initializes from host `graph:update` (no hard-coded default), sends `graph:update` on input, shows ⚠️ indicator on `graph:error` and clears it on valid updates.
-  - `vivafolio/test/resources/blocks/color-square.html`: reflects `graph:update` color, shows ⚠️ indicator on `graph:error` and clears it on valid updates.
+  - `test/resources/blocks/color-picker.html`: initializes from host `graph:update` (no hard-coded default), sends `graph:update` on input, shows ⚠️ indicator on `graph:error` and clears it on valid updates.
+  - `test/resources/blocks/color-square.html`: reflects `graph:update` color, shows ⚠️ indicator on `graph:error` and clears it on valid updates.
 - Verified by VS Code tests and manual runs via Insiders
 
 ### LSP Client Test Suite
 - Status: PASS
-- Implementation: `vivafolio/test/e2e-mock-lsp-client.js`
+- Implementation: `test/e2e-mock-lsp-client.js`
 - Purpose: Validates the mock LSP server's behavior using a real LSP client
 - Test Coverage:
   - Basic LSP protocol flow (initialize/initialized)
@@ -416,7 +416,7 @@ If vendoring proves helpful, we can extend this pattern to `zls` and `crystallin
   - Detailed logging for debugging LSP interactions
 
 #### Stand-alone Tests: gui_state Syntax Error Semantics (Server)
-- File: `vivafolio/test/e2e-lsp-syntax-error.test.js`
+- File: `test/e2e-lsp-syntax-error.test.js`
 - Status: PASS ✅
 - Purpose: Verify the mock LSP server emits a non-destructive syntax-error VivafolioBlock when inline `gui_state!` JSON is invalid during edits.
 - Scenarios:
@@ -580,8 +580,8 @@ just vscode-e2e
 
 ## Files and Directories
 
-- `vivafolio/test/mock-lsp-server.js` - Mock LSP server implementation
-- `vivafolio/test/wdio/` - WebdriverIO E2E test suite (PRIMARY UI automation)
+- `test/mock-lsp-server.js` - Mock LSP server implementation
+- `test/wdio/` - WebdriverIO E2E test suite (PRIMARY UI automation)
   - `wdio.conf.ts` - WebdriverIO configuration for VS Code extension testing
   - `pageobjects/` - Page Object Model classes
     - `BaseWebviewPage.ts` - Common webview interaction functionality
@@ -594,39 +594,39 @@ just vscode-e2e
     - `basic-vscode-test.e2e.ts` - Basic VS Code accessibility tests
     - `minimal-vscode-test.e2e.ts` - Minimal VS Code functionality tests
   - `README.md` - WebdriverIO test documentation
-- `vivafolio/test/e2e-mock-lsp-client.js` - LSP client test suite for mock server validation
-- `vivafolio/src/test/suite/vscode-inset-management.test.js` - VS Code extension inset management tests
-- `vivafolio/test/projects/vivafolioblock-test/` - Test project with sample code
-- `vivafolio/test/resources/` - HTML/CSS/JS resources for test webview
- - `vivafolio/mock-language-extension/` - Stand-alone mock language VS Code extension
+- `test/e2e-mock-lsp-client.js` - LSP client test suite for mock server validation
+- `test/suite/vscode-inset-management.test.js` - VS Code extension inset management tests
+- `test/projects/vivafolioblock-test/` - Test project with sample code
+- `test/resources/` - HTML/CSS/JS resources for test webview
+ - `mocklang-extension/` - Stand-alone mock language VS Code extension
  - VS Code test harness (loads BOTH extensions):
-   - `vivafolio/test/run-vscode-tests.js`
-   - `vivafolio/test/suite/index.js`
-   - `vivafolio/test/suite/vscode-diagnostics.test.js`
+   - `test/run-vscode-tests.js`
+   - `test/suite/index.js`
+   - `test/suite/vscode-diagnostics.test.js`
 
 ### Mock Language Extension Details
 - Purpose: Provide a clean, isolated test surface for E2E without polluting the production Vivafolio extension.
 - Language id: `vivafolio-mock`; extension hosts the mock LSP.
 - File extension: `.mocklang`
-- Server spawn: In `mock-language-extension/src/extension.ts`, launches `vivafolio/test/mock-lsp-server.js` via `vscode-languageclient`.
+- Server spawn: In `mock-language-extension/src/extension.ts`, launches `test/mock-lsp-server.js` via `vscode-languageclient`.
 - Status: PASS (used by the VS Code tests and manual runs)
 - Starting points:
-  - `vivafolio/mock-language-extension/src/extension.ts` (client startup)
-  - `vivafolio/test/mock-lsp-server.js` (server behavior & diagnostics)
-  - `vivafolio/mock-language-extension/package.json` (contributes.languages)
+  - `mocklang-extension/src/extension.ts` (client startup)
+  - `test/mock-lsp-server.js` (server behavior & diagnostics)
+  - `mocklang-extension/package.json` (contributes.languages)
 
 ### Developer Starting Points (Quick Links)
-- Production extension diagnostic handling and inset: `vivafolio/src/extension.ts`
-- Mock language client wiring: `vivafolio/mock-language-extension/src/extension.ts`
-- Mock LSP server (diagnostics generation): `vivafolio/test/mock-lsp-server.js`
-- LSP Client Test Suite (mock server validation): `vivafolio/test/e2e-mock-lsp-client.js`
-- **WebdriverIO E2E Tests (PRIMARY UI automation)**: `vivafolio/test/wdio/`
-  - Configuration: `vivafolio/wdio.conf.ts`
-  - Page Objects: `vivafolio/test/wdio/pageobjects/`
-  - Test Specs: `vivafolio/test/wdio/specs/`
-  - Documentation: `vivafolio/test/wdio/README.md`
-- VS Code Extension Inset Management Tests: `vivafolio/src/test/suite/vscode-inset-management.test.js`
-- VS Code test harness and suite: `vivafolio/test/run-vscode-tests.js`, `vivafolio/test/suite/vscode-diagnostics.test.js`
+- Production extension diagnostic handling and inset: `src/extension.ts`
+- Mock language client wiring: `mocklang-extension/src/extension.ts`
+- Mock LSP server (diagnostics generation): `test/mock-lsp-server.js`
+- LSP Client Test Suite (mock server validation): `test/e2e-mock-lsp-client.js`
+- **WebdriverIO E2E Tests (PRIMARY UI automation)**: `test/wdio/`
+  - Configuration: `wdio.conf.ts`
+  - Page Objects: `test/wdio/pageobjects/`
+  - Test Specs: `test/wdio/specs/`
+  - Documentation: `test/wdio/README.md`
+- VS Code Extension Inset Management Tests: `test/suite/vscode-inset-management.test.js`
+- VS Code test harness and suite: `test/run-vscode-tests.js`, `test/suite/vscode-diagnostics.test.js`
 
 ## Two-Blocks Synchronization Implementation Plan
 
@@ -637,7 +637,7 @@ just vscode-e2e
   - ✅ Extract color values from `textDocument/didChange` content in real-time
   - ✅ Re-publish diagnostics for both blocks with updated color from current document
   - ✅ Add comprehensive logging for change detection and processing
-- **Files Updated**: `vivafolio/test/mock-lsp-server.js`
+- **Files Updated**: `test/mock-lsp-server.js`
 - **Key Fix**: Always extract color from current document content, not cached state
 - **Validation**: ✅ VS Code extension tests confirm diagnostics sent on file open
 - **Test Results**: 7/7 tests passing, diagnostics published within 837ms of file open
@@ -649,7 +649,7 @@ just vscode-e2e
   - ✅ Added initialization tracking to prevent infinite loops on first update
   - ✅ Color square displays correct initial color from VivafolioBlock notification
   - ✅ Dynamic initialization - no hard-coded values, works with any color from gui_state
-- **Files Updated**: `vivafolio/test/resources/blocks/color-picker.html`
+- **Files Updated**: `test/resources/blocks/color-picker.html`
 - **Key Fix**: Track initialization state and handle initial `graph:update` message correctly
 - **Validation**: Both blocks display correct initial colors from source code dynamically
 
@@ -668,7 +668,7 @@ just vscode-e2e
   - ✅ Added comprehensive logging to extension's message handling
   - ✅ Added detailed logging to `applyColorMarker` function
   - ✅ Enhanced error tracking and debugging information
-- **Files Updated**: `vivafolio/src/extension.ts`
+- **Files Updated**: `src/extension.ts`
 - **Next Steps**: Test with manual workflow to verify sync is working
 
 ### Phase 5: Bidirectional UI-Source Sync ✅ COMPLETED
@@ -684,14 +684,14 @@ just vscode-e2e
   - ✅ **Fixed JSON structure consistency**: Extension generates `{"properties":{...}}` format
   - ✅ **Added fallback logic**: Appends gui_state if not found
   - ✅ Added comprehensive logging throughout the flow
-- **Files Updated**: `vivafolio/src/extension.ts`
+- **Files Updated**: `src/extension.ts`
 - **Benefits**: No more JSON parsing errors, robust state synchronization, language-aware, consistent JSON structure
 - **Validation**: ✅ Compilation successful, comprehensive test suites created
 - **Debug Info**: Check VS Code DevTools console for detailed logging
 
 #### Regex Pattern Test Suite ✅ COMPLETED
 - **Status**: IMPLEMENTED ✅
-- **File**: `vivafolio/test/validate-regex-patterns.js`
+- **File**: `test/validate-regex-patterns.js`
 - **Coverage**:
   - ✅ gui_state regex pattern matching (`/gui_state!\s*r#".*"#/`)
   - ✅ Corruption detection logic (multiple blocks, unmatched syntax)
@@ -705,7 +705,7 @@ just vscode-e2e
 
 #### JSON Structure Validation ✅ COMPLETED
 - **Status**: IMPLEMENTED ✅
-- **File**: `vivafolio/test/validate-json-structure.js`
+- **File**: `test/validate-json-structure.js`
 - **Coverage**:
   - ✅ Extension treats component state as opaque (no transformation)
   - ✅ Component sends complete state structure matching file format
@@ -895,7 +895,7 @@ WebdriverIO tests require significant infrastructure fixes before they can be us
 
 - LSP logs: emitted on stderr from `mock-lsp-server.js` (didOpen/didChange + diagnostics count).
 - Extension logs: diagnostics handling, inset rendering path, message posts, and `graph:update` handling are logged to the DevTools console.
-- Manual launch (fresh profile): `just vscode-e2e` (from `vivafolio/`). Set `PERSIST_PROFILE=1` to reuse profile.
+- Manual launch (fresh profile): `just vscode-e2e`. Set `PERSIST_PROFILE=1` to reuse profile.
 
 ### Manual UI Testing
 
