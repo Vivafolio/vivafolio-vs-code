@@ -221,9 +221,9 @@ await close()
 - `src/extension.ts` - VS Code extension with local block development settings and BlockBuilder integration
 - `apps/blockprotocol-poc/src/server.ts` - POC server with local block development support and priority resolution
 - `apps/blockprotocol-poc/tests/hello-block.spec.ts` - E2E tests for local block development workflow
-- `packages/blocks/dist/builder.js` - BlockBuilder library for framework compilation and hot reload
-- `packages/blocks/src/builder.ts` - Core BlockBuilder implementation
-- `packages/blocks/src/server.ts` - HTTP server component for block serving
+- `blocks/dist/builder.js` - BlockBuilder library for framework compilation and hot reload
+- `blocks/src/builder.ts` - Core BlockBuilder implementation
+- `blocks/src/server.ts` - HTTP server component for block serving
 
 ### ✅ Unified Development Experience Complete (Phase G5.1.5 - Complete Workflow) ✅
 
