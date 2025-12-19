@@ -14,7 +14,7 @@ function wait(ms) { return new Promise(r => setTimeout(r, ms)) }
 
 // ---------- Logging helpers ----------
 function ensureLogsDir(repoRoot) {
-  const dir = path.resolve(repoRoot, 'vivafolio', 'test', 'logs')
+  const dir = path.resolve(repoRoot, 'test', 'logs')
   try { fs.mkdirSync(dir, { recursive: true }) } catch {}
   return dir
 }
@@ -53,7 +53,7 @@ function makeConnectionWithLogging(proc, label, repoRoot) {
 function findLakeBinary(_repoRoot) { return 'lake' }
 
 function startLeanLakeServe(repoRoot) {
-  const cwd = path.resolve(repoRoot, 'widgetLibrary')
+  const cwd = path.resolve(repoRoot, 'test', 'projects', 'lean-basic')
   const lakeBin = findLakeBinary(repoRoot)
   const binDir = path.dirname(lakeBin)
   const env = { ...process.env, PATH: `${binDir}:${process.env.PATH || ''}`, LEAN_SERVER_LOG_DIR: path.join(repoRoot, '.lake', 'lsp-logs-vivafolio') }
@@ -88,7 +88,7 @@ async function testLean(repoRoot) {
     await conn.sendNotification('initialized', {})
 
     // Write a Lean file on disk to ensure lake serve picks it up
-    const absPath = path.join(cwd, 'WidgetLibrary', 'TestEmit.lean')
+    const absPath = path.join(cwd, 'TestEmit.lean')
     const fileUri = String(pathToFileURL(absPath))
     const content = (
       'import Lean\n' +
@@ -142,7 +142,7 @@ function startNimLangServer(cwd, repoRoot) {
 }
 
 async function testNim(repoRoot) {
-  const fixtureDir = path.resolve(repoRoot, 'vivafolio', 'test', 'fixtures', 'nim')
+  const fixtureDir = path.resolve(repoRoot, 'test', 'fixtures', 'nim')
   const filePath = path.join(fixtureDir, 'sample.nim')
   const fileUri = String(pathToFileURL(filePath))
   const { conn, proc, logPath } = startNimLangServer(fixtureDir, repoRoot)
@@ -175,11 +175,10 @@ async function testNim(repoRoot) {
 }
 
 async function run() {
-  const repoRoot = path.resolve(__dirname, '..', '..')
+  const repoRoot = path.resolve(__dirname, '..')
   await testLean(repoRoot)
   await testNim(repoRoot)
 }
 
 run().catch(err => { console.error(err); process.exit(1) })
-
 
