@@ -13,6 +13,7 @@ out/
 dist/
 build/
 *.tsbuildinfo
+.lake/
 
 #Local cache
 .block-cache
