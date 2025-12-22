@@ -38,110 +38,6 @@ class LSPEditingModule implements EditingModule {
   }
 }
 
-const DEFAULT_STATUS_COLOR = '#6b7280';
-const CSV_ROW_ID_REGEX = /-row-(\d+)$/;
-
-const STATUS_SYNONYM_SEEDS: Record<string, string[]> = {
-  'to_do': ['to do', 'todo', 'pending', 'not started', 'not_started', 'backlog'],
-  'in_progress': ['in progress', 'in-progress', 'inprogress', 'in_progress', 'doing', 'work in progress'],
-  'done': ['done', 'completed', 'complete', 'finished'],
-  'blocked': ['blocked', 'cancelled', 'canceled', 'on hold', 'hold'],
-  'review': ['review', 'in review', 'qa', 'quality assurance', 'pending review']
-};
-
-const STATUS_SYNONYM_OVERRIDES: Map<string, string> = (() => {
-  const map = new Map<string, string>();
-  for (const [value, synonyms] of Object.entries(STATUS_SYNONYM_SEEDS)) {
-    for (const alias of synonyms) {
-      const normalized = normalizeStatusValue(alias);
-      if (normalized) {
-        map.set(normalized, value);
-      }
-    }
-  }
-  return map;
-})();
-
-function normalizeStatusValue(value?: string | null): string | undefined {
-  if (!value) return undefined;
-  return value.toLowerCase().replace(/[\s_-]+/g, '').trim();
-}
-
-function buildStatusOptionsInfoFromValues(values: unknown, sourcePath?: string): StatusOptionsInfo {
-  const asArray = Array.isArray(values) ? values : [];
-  const coerced = asArray
-    .map((value) => coerceStatusOption(value))
-    .filter((option): option is StatusConfigOption => Boolean(option));
-  if (!coerced.length) {
-    throw new Error(`[status-pill] no valid status options defined${sourcePath ? ` in ${sourcePath}` : ''}`);
-  }
-  const options = sortStatusOptions(coerced);
-  const byValue = new Map<string, StatusConfigOption>();
-  const byCanonical = new Map<string, StatusConfigOption>();
-  for (const option of options) {
-    byValue.set(option.value, option);
-    const canonicalValue = normalizeStatusValue(option.value);
-    if (canonicalValue && !byCanonical.has(canonicalValue)) {
-      byCanonical.set(canonicalValue, option);
-    }
-    const canonicalLabel = normalizeStatusValue(option.label);
-    if (canonicalLabel && !byCanonical.has(canonicalLabel)) {
-      byCanonical.set(canonicalLabel, option);
-    }
-  }
-  for (const [alias, targetValue] of STATUS_SYNONYM_OVERRIDES.entries()) {
-    if (!byCanonical.has(alias)) {
-      const target = byValue.get(targetValue);
-      if (target) {
-        byCanonical.set(alias, target);
-      }
-    }
-  }
-  return { options, byValue, byCanonical, sourcePath };
-}
-
-function sortStatusOptions(list: StatusConfigOption[]): StatusConfigOption[] {
-  return [...list].sort((a, b) => {
-    const orderA = a.order ?? Number.MAX_SAFE_INTEGER;
-    const orderB = b.order ?? Number.MAX_SAFE_INTEGER;
-    if (orderA !== orderB) {
-      return orderA - orderB;
-    }
-    return a.label.localeCompare(b.label);
-  });
-}
-
-function coerceStatusOption(input: unknown): StatusConfigOption | undefined {
-  if (!input || typeof input !== 'object') {
-    return undefined;
-  }
-  const candidate = input as Record<string, unknown>;
-  const rawValue = typeof candidate.value === 'string' ? candidate.value.trim() : undefined;
-  const rawLabel = typeof candidate.label === 'string' ? candidate.label.trim() : undefined;
-  if (!rawValue || !rawLabel) {
-    return undefined;
-  }
-  return {
-    value: rawValue,
-    label: rawLabel,
-    color: typeof candidate.color === 'string' ? candidate.color : undefined,
-    order: typeof candidate.order === 'number' ? candidate.order : undefined
-  };
-}
-
-function findStatusOption(value: string | undefined, info: StatusOptionsInfo): StatusConfigOption | undefined {
-  const normalized = normalizeStatusValue(value);
-  if (!normalized) {
-    return undefined;
-  }
-  return info.byCanonical.get(normalized);
-}
-
-function extractRowIndex(entityId: string): number {
-  const match = entityId.match(CSV_ROW_ID_REGEX);
-  return match ? Number.parseInt(match[1], 10) : Number.POSITIVE_INFINITY;
-}
-
 
 
 // Configuration for the indexing service
@@ -215,47 +111,6 @@ export interface BatchOperationEvent {
   timestamp: Date;
   sourcePath?: string;
   operationType: 'batch';
-}
-
-interface StatusConfigOption {
-  value: string;
-  label: string;
-  color?: string;
-  order?: number;
-}
-
-interface StatusOptionsInfo {
-  options: StatusConfigOption[];
-  byValue: Map<string, StatusConfigOption>;
-  byCanonical: Map<string, StatusConfigOption>;
-  sourcePath?: string;
-  sourceMetadata?: Entity;
-}
-
-export interface StatusPersistenceResult {
-  option: StatusConfigOption;
-  persistedValue: string;
-  label: string;
-  color: string;
-  options: StatusConfigOption[];
-  sourcePath?: string;
-}
-
-export interface StatusPillGraphParams {
-  tasksCsvBasename: string;
-  statusConfigPath: string;
-  statusConfigBasename?: string;
-  defaultEntityTypeId: string;
-  timeoutMs?: number;
-}
-
-export interface StatusPillGraphResult {
-  graph: {
-    entities: Array<{ entityId: string; entityTypeId: string; properties: Record<string, any> }>;
-    links: Array<Record<string, any>>;
-  };
-  targetEntityId?: string;
-  statusOptions?: StatusOptionsInfo;
 }
 
 export class IndexingService {
@@ -847,10 +702,17 @@ export class IndexingService {
       .filter((entity) => entity.sourceType === sourceType);
   }
 
-  // Helper: get entities by CSV basename
-  getEntitiesByBasename(basename: string): Entity[] {
-    return Array.from(this.entityGraph.values())
-      .filter((entity) => entity.sourceType === 'csv' && path.basename(entity.sourcePath) === basename);
+  // Helper: get entities by file basename with optional source type filtering
+  getEntitiesByBasename(basename: string, options: { sourceType?: string } = {}): Entity[] {
+    return Array.from(this.entityGraph.values()).filter((entity) => {
+      if (!entity.sourcePath) {
+        return false;
+      }
+      if (options.sourceType && entity.sourceType !== options.sourceType) {
+        return false;
+      }
+      return path.basename(entity.sourcePath) === basename;
+    });
   }
 
   // Batch operations support
@@ -950,133 +812,6 @@ export class IndexingService {
       success: overallSuccess,
       results
     };
-  }
-
-  async buildStatusPillEntityGraph(params: StatusPillGraphParams): Promise<StatusPillGraphResult | undefined> {
-    const timeoutMs = params.timeoutMs ?? 5000;
-    const taskMetadata = await this.waitForMetadata(() => {
-      const candidates = this.getEntitiesByBasename(params.tasksCsvBasename)
-        .filter((meta) => meta && typeof meta.entityId === 'string')
-        .sort((a, b) => extractRowIndex(a.entityId) - extractRowIndex(b.entityId));
-      return candidates[0];
-    }, timeoutMs);
-
-    if (!taskMetadata) {
-      console.warn('[indexing-service] No CSV entity available for status pill graph');
-      return undefined;
-    }
-
-    let statusOptions: StatusOptionsInfo;
-    try {
-      statusOptions = await this.loadStatusOptionsInfo(params, timeoutMs);
-    } catch (error) {
-      console.error('[indexing-service] Failed to load status options for graph hydration:', error);
-      return undefined;
-    }
-
-    const props = { ...(taskMetadata.properties ?? {}) };
-    const rawStatus = typeof props.status === 'string' ? props.status : undefined;
-    const resolvedOption = findStatusOption(rawStatus, statusOptions) ?? statusOptions.options[0];
-    if (!resolvedOption) {
-      console.error('[indexing-service] Status config is empty; cannot hydrate status pill graph');
-      return undefined;
-    }
-
-    const taskEntityId = taskMetadata.entityId;
-    const enhancedProps: Record<string, any> = {
-      ...props,
-      status: resolvedOption.value,
-      statusLabel: resolvedOption.label,
-      statusColor: resolvedOption.color ?? DEFAULT_STATUS_COLOR,
-      statusSourceValue: rawStatus ?? resolvedOption.label,
-      availableStatuses: statusOptions.options,
-      taskId: props.task_id ?? taskEntityId
-    };
-
-    const entities: Array<{ entityId: string; entityTypeId: string; properties: Record<string, any> }> = [
-      {
-        entityId: taskEntityId,
-        entityTypeId: params.defaultEntityTypeId,
-        properties: enhancedProps
-      }
-    ];
-
-    if (statusOptions.sourceMetadata) {
-      entities.push({
-        entityId: statusOptions.sourceMetadata.entityId,
-        entityTypeId: params.defaultEntityTypeId,
-        properties: statusOptions.sourceMetadata.properties ?? {}
-      });
-    }
-
-    return {
-      graph: { entities, links: [] },
-      targetEntityId: taskEntityId,
-      statusOptions
-    };
-  }
-
-  async resolveStatusPillPersistence(value: string | null | undefined, params: StatusPillGraphParams): Promise<StatusPersistenceResult | undefined> {
-    let statusOptions: StatusOptionsInfo;
-    try {
-      statusOptions = await this.loadStatusOptionsInfo(params, params.timeoutMs ?? 5000);
-    } catch (error) {
-      console.error('[indexing-service] Failed to load status options for persistence:', error);
-      return undefined;
-    }
-
-    const matchedOption = findStatusOption(typeof value === 'string' ? value : undefined, statusOptions)
-      ?? statusOptions.options[0];
-    if (!matchedOption) {
-      return undefined;
-    }
-
-    return {
-      option: matchedOption,
-      persistedValue: matchedOption.label,
-      label: matchedOption.label,
-      color: matchedOption.color ?? DEFAULT_STATUS_COLOR,
-      options: statusOptions.options,
-      sourcePath: statusOptions.sourcePath ?? params.statusConfigPath
-    };
-  }
-
-  private findStatusOptionsMetadata(params: StatusPillGraphParams): Entity | undefined {
-    const absolute = path.resolve(params.statusConfigPath);
-    const fallbackBasename = params.statusConfigBasename ?? path.basename(params.statusConfigPath);
-    for (const metadata of this.entityGraph.values()) {
-      if (!metadata.sourcePath) {
-        continue;
-      }
-      const normalized = path.resolve(metadata.sourcePath);
-      if (normalized === absolute || path.basename(normalized) === fallbackBasename) {
-        return metadata;
-      }
-    }
-    return undefined;
-  }
-
-  private async loadStatusOptionsInfo(params: StatusPillGraphParams, timeoutMs: number): Promise<StatusOptionsInfo> {
-    const metadata = await this.waitForMetadata(() => this.findStatusOptionsMetadata(params), timeoutMs);
-    if (!metadata) {
-      throw new Error('status-pill.json has not been indexed yet');
-    }
-    const info = buildStatusOptionsInfoFromValues(metadata.properties?.availableStatuses, metadata.sourcePath);
-    info.sourcePath = metadata.sourcePath ?? info.sourcePath;
-    info.sourceMetadata = metadata;
-    return info;
-  }
-
-  private async waitForMetadata(resolver: () => Entity | undefined, timeoutMs: number): Promise<Entity | undefined> {
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-      const metadata = resolver();
-      if (metadata) {
-        return metadata;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 150));
-    }
-    return undefined;
   }
 
   // Enhanced Event System API
