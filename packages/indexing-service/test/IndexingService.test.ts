@@ -124,7 +124,7 @@ This is a test document.`;
         assignee: 'Alice',
         status: 'Done'
       });
-      expect(entities[0].dslModule).toBeDefined();
+      expect(service.getDslModuleForEntityType(entities[0].entityTypeId)).toBeDefined();
     });
   });
 

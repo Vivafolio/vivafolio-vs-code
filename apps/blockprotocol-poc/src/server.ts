@@ -41,6 +41,7 @@ import { BlockResourcesCache, type BlockIdentifier, type BlockResource, type Cac
 import type { ViteDevServer } from 'vite'
 import type { Entity, LinkEntity, EntityGraph, VivafolioBlockNotification } from '@vivafolio/block-loader'
 
+
 // Using shared Entity, LinkEntity, and EntityGraph from block-core via block-loader
 
 interface ScenarioState {
@@ -138,9 +139,9 @@ function createOptimizedStaticOptions(maxAge: number = 31536000) { // 1 year def
           res.setHeader('Cache-Control', `public, max-age=${maxAge / 10}`) // 1 month
         }
 
-  // Add security headers: allow same-origin iframes (needed for iframe-based blocks)
-  res.setHeader('X-Content-Type-Options', 'nosniff')
-  res.setHeader('X-Frame-Options', 'SAMEORIGIN')
+        // Add security headers: allow same-origin iframes (needed for iframe-based blocks)
+        res.setHeader('X-Content-Type-Options', 'nosniff')
+        res.setHeader('X-Frame-Options', 'SAMEORIGIN')
       }
     }
   }
@@ -285,61 +286,20 @@ const HTML_TEMPLATE_BLOCK_CLIENT_SOURCE = [
   '});'
 ].join('\n')
 
+// --- Status Pill tasks.csv integration helpers --------------------------------
+// We materialize status metadata directly from status-pill.json so the UI reflects
+// labels/colors configured by content authors rather than hard-coded enums.
+const TASKS_CSV_PATH = path.resolve(REPO_ROOT, 'apps', 'blockprotocol-poc', 'data', 'tasks.csv')
+const TASKS_CSV_BASENAME = path.basename(TASKS_CSV_PATH)
+const STATUS_PILL_CONFIG_PATH = path.resolve(REPO_ROOT, 'apps', 'blockprotocol-poc', 'data', 'status-pill.json')
+const STATUS_PILL_CONFIG_BASENAME = path.basename(STATUS_PILL_CONFIG_PATH)
+const DEFAULT_ENTITY_TYPE_ID = 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2'
 
-const entityGraph: EntityGraph = {
-  entities: [],
-  links: []
-}
-
-// --- Status Pill CSV integration helpers ------------------------------------
-// CSV file contains a single line with a human-readable status label, e.g. "In Progress"
-// We normalize to the internal enum keys used by the block (todo, in-progress, done, blocked, review)
-const STATUS_CSV_PATH = path.resolve(REPO_ROOT, 'apps', 'blockprotocol-poc', 'data', 'status-pill.csv')
-const StatusKeyMap: Record<string, 'todo' | 'in-progress' | 'done' | 'blocked' | 'review'> = {
-  'to do': 'todo',
-  'todo': 'todo',
-  'in progress': 'in-progress',
-  'in-progress': 'in-progress',
-  'done': 'done',
-  'blocked': 'blocked',
-  'review': 'review'
-}
-const StatusLabelMap: Record<'todo' | 'in-progress' | 'done' | 'blocked' | 'review', string> = {
-  'todo': 'To Do',
-  'in-progress': 'In Progress',
-  'done': 'Done',
-  'blocked': 'Blocked',
-  'review': 'Review'
-}
-
-function readStatusFromCsv(): 'todo' | 'in-progress' | 'done' | 'blocked' | 'review' {
-  try {
-    if (!existsSync(STATUS_CSV_PATH)) {
-      return 'in-progress'
-    }
-    const raw = readFileSync(STATUS_CSV_PATH, 'utf8')
-    const first = raw.split(/\r?\n/).map((l) => l.trim()).find((l) => l.length > 0) || ''
-    const norm = first.toLowerCase().replace(/_/g, ' ').replace(/-/g, ' ').replace(/\s+/g, ' ').trim()
-  const key = StatusKeyMap[norm] ?? 'in-progress'
-  console.log('[status-pill] CSV read -> raw:', JSON.stringify(first), 'norm:', JSON.stringify(norm), 'key:', key)
-  return key
-  } catch (e) {
-    console.warn('[status-pill] failed to read CSV, defaulting to in-progress:', e)
-    return 'in-progress'
-  }
-}
-
-async function writeStatusToCsv(next: string) {
-  try {
-    // Normalize to one of our keys if possible
-    const key = StatusKeyMap[next?.toLowerCase?.().replace(/_/g, ' ').replace(/-/g, ' ').replace(/\s+/g, ' ').trim?.() ?? ''] ?? (next as any)
-    const label = StatusLabelMap[key as keyof typeof StatusLabelMap] ?? 'In Progress'
-    await fs.mkdir(path.dirname(STATUS_CSV_PATH), { recursive: true })
-    await fs.writeFile(STATUS_CSV_PATH, label + '\n', 'utf8')
-    console.log('[status-pill] CSV updated:', STATUS_CSV_PATH, '->', label)
-  } catch (e) {
-    console.error('[status-pill] failed to write CSV:', e)
-  }
+const STATUS_PILL_GRAPH_PARAMS: StatusPillGraphParams = {
+  tasksCsvBasename: TASKS_CSV_BASENAME,
+  statusConfigPath: STATUS_PILL_CONFIG_PATH,
+  statusConfigBasename: STATUS_PILL_CONFIG_BASENAME,
+  defaultEntityTypeId: DEFAULT_ENTITY_TYPE_ID
 }
 
 const liveSockets = new Set<WebSocket>()
@@ -348,6 +308,7 @@ const socketStates = new Map<
   {
     scenario: ScenarioDefinition
     state: ScenarioState
+    context?: Record<string, unknown>
   }
 >()
 
@@ -587,7 +548,7 @@ function buildBlockResources(blockName: string) {
       // We've already added block-metadata.json explicitly above
       if (normalized === 'block-metadata.json') continue
 
-  resources.push(buildBlockResource(blockName, normalized))
+      resources.push(buildBlockResource(blockName, normalized))
     }
 
     console.log('[block-resources] built resources from dist', { blockName, origin: blockServerOrigin, resources })
@@ -821,7 +782,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
       }
     ],
     applyUpdate: ({ state, update }) => {
-  const entity = state.graph.entities.find((item: Entity) => item.entityId === update.entityId)
+      const entity = state.graph.entities.find((item: Entity) => item.entityId === update.entityId)
       if (!entity) return
       entity.properties = { ...entity.properties, ...update.properties }
 
@@ -875,7 +836,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
       }
     ],
     applyUpdate: ({ state, update }) => {
-  const entity = state.graph.entities.find((item: Entity) => item.entityId === update.entityId)
+      const entity = state.graph.entities.find((item: Entity) => item.entityId === update.entityId)
       if (!entity) return
       entity.properties = { ...entity.properties, ...update.properties }
 
@@ -938,7 +899,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
       }
     ],
     applyUpdate: ({ state, update }) => {
-  const entity = state.graph.entities.find((item: Entity) => item.entityId === update.entityId)
+      const entity = state.graph.entities.find((item: Entity) => item.entityId === update.entityId)
       if (!entity) return
       entity.properties = { ...entity.properties, ...update.properties }
 
@@ -946,7 +907,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
         const tasks = (state.graph.entities as Entity[]).filter(
           (item) => item.entityTypeId === 'https://vivafolio.dev/entity-types/task/v1'
         )
-  const board = state.graph.entities.find((item: Entity) => item.entityId === 'kanban-board-1')
+        const board = state.graph.entities.find((item: Entity) => item.entityId === 'kanban-board-1')
         if (board) {
           board.properties = {
             ...board.properties,
@@ -991,7 +952,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
       }
     ],
     applyUpdate: ({ state, update }) => {
-  const entity = state.graph.entities.find((item: any) => (item as any).entityId === update.entityId)
+      const entity = state.graph.entities.find((item: any) => (item as any).entityId === update.entityId)
       if (!entity) return
       entity.properties = { ...entity.properties, ...update.properties }
     }
@@ -1036,7 +997,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
       }
     ],
     applyUpdate: ({ state, update }) => {
-  const entity = state.graph.entities.find((item: any) => (item as any).entityId === update.entityId)
+      const entity = state.graph.entities.find((item: any) => (item as any).entityId === update.entityId)
       if (!entity) return
       entity.properties = { ...entity.properties, ...update.properties }
     }
@@ -1078,19 +1039,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
     description: 'Demonstrates the StatusPillBlock - a property renderer for status values',
     createState: () => ({
       graph: {
-        entities: [{
-          entityId: 'status-pill-entity',
-          entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
-          properties: {
-            'https://blockprotocol.org/@blockprotocol/types/property-type/name/': 'Status Pill Example',
-            'https://blockprotocol.org/@blockprotocol/types/property-type/name/v/1': 'Status Pill Example',
-            status: (() => {
-              const s = readStatusFromCsv()
-              console.log('[status-pill] scenario init: setting entity.properties.status =', s)
-              return s
-            })()
-          }
-        }],
+        entities: [],
         links: []
       }
     }),
@@ -1105,40 +1054,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
         initialHeight: 40,
         resources: buildBlockResources('status-pill')
       }
-    ],
-    applyUpdate: ({ state, update, socket }) => {
-      const entity = state.graph.entities.find((item: Entity) => item.entityId === update.entityId)
-      if (!entity) return
-      console.log('[status-pill] applyUpdate: incoming properties =', JSON.stringify(update.properties))
-      entity.properties = { ...entity.properties, ...update.properties }
-      // Persist status changes to CSV if provided
-      const nextStatus = (update.properties?.status as string | undefined)
-      if (typeof nextStatus === 'string' && nextStatus.trim().length > 0) {
-        console.log('[status-pill] applyUpdate: nextStatus =', nextStatus)
-        // Ensure in-memory state uses normalized key used by the block
-        const norm = nextStatus.toLowerCase().replace(/\s+/g, '-').replace(/_/g, '-') as any
-        entity.properties.status = norm
-        console.log('[status-pill] applyUpdate: normalized in-memory status =', norm)
-        // Persist asynchronously to CSV (human label)
-        // After persistence completes, emit a persistence confirmation so tests/clients can await deterministically
-        void writeStatusToCsv(nextStatus).then(() => {
-          try {
-            socket?.send(
-              JSON.stringify({
-                type: 'status/persisted',
-                payload: {
-                  entityId: update.entityId,
-                  status: norm,
-                  label: StatusLabelMap[(StatusKeyMap[norm] ?? norm) as keyof typeof StatusLabelMap] ?? nextStatus
-                }
-              })
-            )
-          } catch (e) {
-            console.warn('[status-pill] failed to send status/persisted message', e)
-          }
-        })
-      }
-    }
+    ]
   },
   'person-chip-example': {
     id: 'person-chip-example',
@@ -1664,6 +1580,15 @@ export async function startServer(options: StartServerOptions = {}) {
 
   app.use(express.json())
 
+  app.get('/healthz', (_req, res) => {
+    res.json({
+      ok: true,
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      uptimeSeconds: process.uptime()
+    })
+  })
+
   const blockServer = await startBlockServer({
     host: blockServerHost,
     port: blockServerPort,
@@ -1693,7 +1618,7 @@ export async function startServer(options: StartServerOptions = {}) {
       // Also watch the demo datasets used by scenarios (CSV, etc.)
       path.join(ROOT_DIR, 'data')
     ],
-    supportedExtensions: ['csv', 'md'], // Only direct data files, not source files
+    supportedExtensions: ['csv', 'md', 'json'], // Only direct data files, not source files
     excludePatterns: ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/vivafolio-data-examples/**'],
     csv: {
       // Enable typing so numeric columns (e.g., OBS_VALUE, TIME_PERIOD) are numbers
@@ -1743,6 +1668,8 @@ export async function startServer(options: StartServerOptions = {}) {
   } catch (error) {
     console.error('[sidecar-lsp] Failed to start sidecar LSP client:', error)
   }
+
+  // Status pill graph hydration is now delegated to the indexing service via STATUS_PILL_GRAPH_PARAMS
 
   // Block resources cache middleware with local block priority
   const proxyJson = async (targetUrl: string, res: express.Response, fallbackData: any = {}, okStatus = 200) => {
@@ -1898,14 +1825,6 @@ export async function startServer(options: StartServerOptions = {}) {
     app.use(express.static(DIST_CLIENT_DIR, { index: false }))
   }
 
-  app.get('/api/graph', (_req, res) => {
-    res.json(entityGraph)
-  })
-
-  app.get('/healthz', (_req, res) => {
-    res.json({ ok: true, blockServer: blockServerOrigin, timestamp: new Date().toISOString() })
-  })
-
   app.get('*', async (req, res, next) => {
     try {
       if (viteServer) {
@@ -1951,12 +1870,25 @@ export async function startServer(options: StartServerOptions = {}) {
 
     // Special handling for indexing-service and d3-line-graph scenarios
     let entityGraph = state.graph
+    const connectionContext: Record<string, unknown> = {}
+
+    if (scenarioId === 'status-pill-example') {
+      const hydrated = await indexingService.buildStatusPillEntityGraph(STATUS_PILL_GRAPH_PARAMS)
+      if (hydrated) {
+        state.graph = hydrated.graph as EntityGraph
+        entityGraph = state.graph
+        connectionContext.statusPill = { targetEntityId: hydrated.targetEntityId }
+      } else {
+        console.warn('[status-pill] failed to hydrate state from tasks.csv; leaving graph empty')
+      }
+    }
     if (scenarioId === 'indexing-service') {
       // Get entities from IndexingService for the indexing-service scenario
       const allEntities = indexingService.getAllEntities()
       const entities = allEntities.map((metadata: any) => ({
         entityId: metadata.entityId,
         entityTypeId: metadata.entityTypeId || 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
+        editionId: metadata.editionId,
         properties: metadata.properties,
         sourceType: metadata.sourceType,
         sourcePath: metadata.sourcePath
@@ -2040,7 +1972,7 @@ export async function startServer(options: StartServerOptions = {}) {
                 physicalPath: '/examples/blocks/table-view/general-block.umd.js',
                 cachingTag: nextCachingTag()
               }
-            ],            
+            ],
             supportsHotReload: false,
             initialHeight: 400
           }
@@ -2059,8 +1991,14 @@ export async function startServer(options: StartServerOptions = {}) {
         )
       }
     } else {
-  dispatchScenarioNotifications(socket, scenario, state, requestContext)
+      dispatchScenarioNotifications(socket, scenario, state, requestContext)
     }
+
+    socketStates.set(socket, {
+      scenario,
+      state,
+      context: Object.keys(connectionContext).length ? connectionContext : undefined
+    })
 
     socket.on('close', () => {
       liveSockets.delete(socket)
@@ -2069,11 +2007,11 @@ export async function startServer(options: StartServerOptions = {}) {
       console.log(`[transport] Unregistered transport ${transportId}`)
     })
 
-  // All messages go through the IndexingService transport layer
-  // For historical scenarios, we still broadcast notifications, but updates delegate to IndexingService
-  socket.on('message', async (raw) => {
+    // All messages go through the IndexingService transport layer
+    // For historical scenarios, we still broadcast notifications, but updates delegate to IndexingService
+    socket.on('message', async (raw) => {
       try {
-    const payload = JSON.parse(String(raw))
+        const payload = JSON.parse(String(raw))
         console.log(`[transport] Message received: ${payload.type}`)
 
         // Handle cache invalidation from local block development
@@ -2088,27 +2026,44 @@ export async function startServer(options: StartServerOptions = {}) {
           console.log('[transport] graph/update payload received:', JSON.stringify(payload.payload))
           const upd = payload.payload as GraphUpdate
           try {
-            const ok = await indexingService.updateEntity(upd.entityId, upd.properties)
-
-            // Temporary demo-specific persistence for status-pill scenario:
-            // Our IndexingService CSV module expects headered, row-based CSVs and doesn't
-            // index the single-line file used by this scenario. Until a dedicated editing
-            // module is added, persist the chosen status directly to the CSV here.
-            if (
-              scenario.id === 'status-pill-example' &&
-              upd.entityId === 'status-pill-entity' &&
-              typeof (upd.properties as any)?.status === 'string'
-            ) {
-              try {
-                await writeStatusToCsv(String((upd.properties as any).status))
-              } catch (e) {
-                console.warn('[status-pill] CSV write fallback failed:', e)
+            let persistenceProps: Record<string, unknown> = upd.properties
+            let statusPersistence: StatusPersistenceResult | undefined
+            if (scenario.id === 'status-pill-example') {
+              statusPersistence = await indexingService.resolveStatusPillPersistence(
+                (upd.properties as any)?.status as string,
+                STATUS_PILL_GRAPH_PARAMS
+              )
+              if (!statusPersistence) {
+                console.warn('[status-pill] graph/update missing status field, skipping persistence')
+                socket.send(
+                  JSON.stringify({
+                    type: 'graph/ack',
+                    payload: { entityId: upd.entityId, ok: false }
+                  })
+                )
+                return
+              }
+              persistenceProps = { status: statusPersistence.persistedValue }
+              upd.properties = {
+                ...upd.properties,
+                status: statusPersistence.option.value,
+                statusLabel: statusPersistence.label,
+                statusColor: statusPersistence.color,
+                statusSourceValue: statusPersistence.persistedValue,
+                availableStatuses: statusPersistence.options
               }
             }
 
+            const ok = await indexingService.updateEntity(upd.entityId, persistenceProps)
+
             // Maintain scenario-specific derived state if applyUpdate is provided; otherwise shallow merge
             // This should be removed after all scenarios are migrated to IndexingService-driven updates 
-              if (typeof scenario.applyUpdate === 'function') {
+            if (scenario.id === 'status-pill-example') {
+              const refreshed = await indexingService.buildStatusPillEntityGraph(STATUS_PILL_GRAPH_PARAMS)
+              if (refreshed) {
+                state.graph = refreshed.graph as EntityGraph
+              }
+            } else if (typeof scenario.applyUpdate === 'function') {
               try {
                 scenario.applyUpdate({
                   state,
@@ -2148,12 +2103,18 @@ export async function startServer(options: StartServerOptions = {}) {
             )
 
             // Domain-specific persisted signal for status-pill demo if status changed
-            if (upd.properties && typeof (upd.properties as any).status === 'string') {
-              const next = String((upd.properties as any).status)
+            if (scenario.id === 'status-pill-example' && statusPersistence) {
               socket.send(
                 JSON.stringify({
                   type: 'status/persisted',
-                  payload: { entityId: upd.entityId, status: next }
+                  payload: {
+                    entityId: upd.entityId,
+                    status: statusPersistence.option.value,
+                    label: statusPersistence.label,
+                    sourceValue: statusPersistence.persistedValue,
+                    color: statusPersistence.color,
+                    sourcePath: path.relative(ROOT_DIR, statusPersistence.sourcePath ?? TASKS_CSV_PATH)
+                  }
                 })
               )
             }
@@ -2161,7 +2122,7 @@ export async function startServer(options: StartServerOptions = {}) {
             console.error('[transport] updateEntity failed:', e)
             try {
               socket.send(JSON.stringify({ type: 'graph/ack', payload: { entityId: upd.entityId, ok: false } }))
-            } catch {}
+            } catch { }
           }
         }
       } catch (error) {

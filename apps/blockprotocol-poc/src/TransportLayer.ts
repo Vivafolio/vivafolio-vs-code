@@ -16,7 +16,7 @@ export interface Transport {
 
 // WebSocket-based transport for POC
 export class WebSocketTransport implements Transport {
-  constructor(private ws: WebSocket) {}
+  constructor(private ws: WebSocket) { }
 
   send(message: BlockProtocolMessage): void {
     this.ws.send(JSON.stringify(message))
@@ -197,11 +197,13 @@ export class IndexingServiceTransportLayer {
 
     // Get all entities (simple implementation - could be enhanced with filtering)
     const allEntities = this.indexingService.getAllEntities()
-    const entities = allEntities.map((metadata: any) => ({
-      entityId: metadata.entityId,
-      properties: metadata.properties,
-      sourceType: metadata.sourceType,
-      lastModified: metadata.lastModified
+    const entities = allEntities.map((entity: any) => ({
+      entityId: entity.entityId,
+      entityTypeId: entity.entityTypeId,
+      editionId: entity.editionId,
+      sourcePath: entity.sourcePath,
+      sourceType: entity.sourceType,
+      properties: entity.properties,
     }))
 
     // Send query response

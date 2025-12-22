@@ -25,10 +25,10 @@ export interface TableViewGraphService extends GraphService {
     totalCount: number 
   }>;
   // Entity mutation
-  updateEntity: (args: { 
-    entityId: string; 
-    properties: Record<string, unknown> 
-  }) => Promise<void>;
+  updateEntity: (
+    entityId: string,
+    properties: Record<string, unknown>,
+  ) => Promise<boolean>;
 }
 
 export interface TableViewProps { 
@@ -51,7 +51,7 @@ const TableView: Component<TableViewProps> = (props) => {
   const [loading, setLoading] = createSignal(false);
 
   async function setCfg(next: TableConfig) {
-    await props.graph.updateEntity({ entityId: rootEntity()?.entityId!, properties: next as any });
+    await props.graph.updateEntity(rootEntity()?.entityId!, next as any);
     await loadPage();
   }
 
@@ -105,10 +105,10 @@ const TableView: Component<TableViewProps> = (props) => {
             type={col.type}
             value={value}
             onCommit={async (newVal) => {
-              await props.graph.updateEntity({
-                entityId: row.entityId,
-                properties: setByPath(row.properties ?? {}, col.path, newVal),
-              });
+              await props.graph.updateEntity(
+                row.entityId,
+                setByPath(row.properties ?? {}, col.path, newVal),
+              );
             }}
           />
         );
@@ -185,6 +185,7 @@ const TableView: Component<TableViewProps> = (props) => {
 
 export default TableView;
 
+// Renders a minimal inline editor for table cells, mapping column types to inputs and committing edits via props.onCommit.
 function PrimitiveEditor(props: { readonly: boolean; type: ColumnType; value: any; onCommit: (v: any) => void }) {
   const [val, setVal] = createSignal(props.value);
   const commit = () => props.onCommit(val() as any);

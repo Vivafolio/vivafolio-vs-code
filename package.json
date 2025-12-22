@@ -124,6 +124,8 @@
     "@vivafolio/block-loader": "file:./packages/block-loader",
     "@vivafolio/block-resources-cache": "file:./packages/block-resources-cache",
     "@vivafolio/indexing-service": "file:./packages/indexing-service",
+    "csv-parse": "^6.1.0",
+    "csv-stringify": "^6.6.0",
     "vscode-languageclient": "^9.0.1",
     "ws": "^8.14.2"
   }

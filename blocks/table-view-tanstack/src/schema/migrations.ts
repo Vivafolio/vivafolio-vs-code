@@ -11,7 +11,7 @@ export interface GraphLike {
     sort?: { path: string; dir: "asc" | "desc" }[];
     filters?: { path: string; op: string; value?: unknown }[];
   }) => Promise<{ items: any[]; pageNumber: number; itemsPerPage: number; pageCount: number; totalCount: number }>;
-  updateEntity: (args: { entityId: string; properties: Record<string, unknown> }) => Promise<void>;
+  updateEntity: (entityId: string, properties: Record<string, unknown>) => Promise<boolean>;
 }
 
 export async function migrateColumnType(
@@ -42,7 +42,7 @@ export async function migrateColumnType(
       if (coerced === current) { processed++; continue; }
 
       const nextProps = setByPath(props, col.path, coerced);
-      await graph.updateEntity({ entityId: row.entityId, properties: nextProps });
+      await graph.updateEntity(row.entityId, nextProps);
       processed++;
       progress?.({ processed, total: res.totalCount });
     }

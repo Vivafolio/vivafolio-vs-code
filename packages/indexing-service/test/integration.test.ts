@@ -106,7 +106,11 @@ Charlie Brown,25,Engineering,Junior Developer
         }
       });
 
-      expect(entities[0].dslModule).toBeDefined();
+      const registeredModule = service.getDslModuleForEntityType(entities[0].entityTypeId);
+      expect(registeredModule).toBeDefined();
+      if (!registeredModule) {
+        throw new Error('Expected DSL module to be registered for user_profiles');
+      }
 
       // Test updating an entity
       const updateResult = await service.updateEntity('user_profiles-row-0', {
@@ -134,7 +138,7 @@ Charlie Brown,25,Engineering,Junior Developer
         role: 'Marketing Manager'
       }, {
         sourceType: 'vivafolio_data_construct',
-        dslModule: entities[0].dslModule,
+        dslModule: registeredModule,
         sourcePath: notification.sourcePath
       });
 
@@ -325,9 +329,16 @@ Test,123
       }));
 
       // Create entity
+      const existingEntities = service.getAllEntities();
+      const existingModule = service.getDslModuleForEntityType(existingEntities[0].entityTypeId);
+      expect(existingModule).toBeDefined();
+      if (!existingModule) {
+        throw new Error('Expected DSL module to exist for test_data');
+      }
+
       await service.createEntity('test_data-row-1', { name: 'New Item', value: '456' }, {
         sourceType: 'vivafolio_data_construct',
-        dslModule: service.getAllEntities()[0].dslModule,
+        dslModule: existingModule,
         sourcePath: notification.sourcePath
       });
 

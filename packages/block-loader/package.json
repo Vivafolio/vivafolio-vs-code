@@ -39,7 +39,7 @@
   "license": "MIT",
   "dependencies": {
     "@blockprotocol/graph": "^0.3.4",
-    "@vivafolio/block-core": "file:../block-core",
+    "@vivafolio/indexing-service": "file:../indexing-service",
     "@vivafolio/block-resources-cache": "file:../block-resources-cache",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"

@@ -67,6 +67,8 @@ Generates entities:
 - `filename-row-0`: `{ Name: 'Alice', Age: '30', City: 'New York' }`
 - `filename-row-1`: `{ Name: 'Bob', Age: '25', City: 'London' }`
 
+If the CSV does not expose an explicit `entity_id` column, the service derives each `entity_id` from the file name and row index using the `filename-row-<n>` pattern (e.g., `filename-row-0`).
+
 ### Markdown Files with Frontmatter
 Extracts YAML frontmatter as entity properties.
 
@@ -109,6 +111,16 @@ The service uses pluggable editing modules to handle different file types:
 - **DSLModuleExecutor**: Handles `vivafolio_data!()` constructs
 - **CSVEditingModule**: Handles CSV file editing
 - **MarkdownEditingModule**: Handles Markdown frontmatter editing
+
+#### CSVEditingModule internals
+
+The CSV editor now centralizes persistence logic inside `packages/indexing-service/src/FileEditingModule.ts` with [`csv-parse`](https://csv.js.org/parse/) and [`csv-stringify`](https://csv.js.org/stringify/):
+
+- **Parsing**: `readCsvTable()` loads the file with `fs.promises.readFile` and calls `parse()` in synchronous mode using `{ columns: headers, skip_empty_lines: true, relax_column_count: true, trim: true }`, so every row becomes an object keyed by the normalized header names.
+- **Writing**: `writeCsvTable()` pipes the in-memory `headers`/`rows` shape back through `stringify()` with `header: true` and an explicit `columns` map to keep ordering and quoting consistent.
+- **Entity selection**: `findRowIndexForEntity()` first matches against a case-insensitive `entity_id` column; if the file lacks one it falls back to the historical `*-row-N` suffix convention. `ensureEntityIdValue()` backfills the column whenever we update/insert rows so future edits rely on stable IDs.
+- **Property resolution**: `resolvePropertyValue()` accepts literal header keys plus normalized `snake_case` fallbacks and coerces values to strings before writing them.
+- **IndexingService integration**: higher-level `updateEntity`/`createEntity` requests automatically pick this module when the source metadata marks the entity as CSV, so Block Protocol blocks only need to call the graph APIs.
 
 ### Custom Editing Modules
 

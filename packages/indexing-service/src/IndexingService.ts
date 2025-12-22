@@ -3,10 +3,18 @@ import * as path from 'path';
 import chokidar from 'chokidar';
 import fg from 'fast-glob';
 import matter from 'gray-matter';
+import type { Entity } from '@vivafolio/block-core';
 import { EditingModule, DSLModule, EditResult, EditContext } from './EditingModule';
 import { DSLModuleExecutor } from './DSLModuleExecutor';
-import { CSVEditingModule, MarkdownEditingModule } from './FileEditingModule';
+import { CSVEditingModule, MarkdownEditingModule, JSONEditingModule } from './FileEditingModule';
 import { EventEmitter } from './EventEmitter';
+
+const DEFAULT_ENTITY_TYPE_ID = 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2';
+const DEFAULT_EDITION_ID = '1';
+
+function createEditionId(_entityId: string): string {
+  return DEFAULT_EDITION_ID;
+}
 
 // Simple editing module for LSP-sourced entities
 class LSPEditingModule implements EditingModule {
@@ -30,15 +38,111 @@ class LSPEditingModule implements EditingModule {
   }
 }
 
-// Entity metadata stored by the indexing service
-export interface EntityMetadata {
-  entityId: string;
-  sourcePath: string;
-  sourceType: string;
-  dslModule?: DSLModule;
-  properties: Record<string, any>;
-  lastModified: Date;
+const DEFAULT_STATUS_COLOR = '#6b7280';
+const CSV_ROW_ID_REGEX = /-row-(\d+)$/;
+
+const STATUS_SYNONYM_SEEDS: Record<string, string[]> = {
+  'to_do': ['to do', 'todo', 'pending', 'not started', 'not_started', 'backlog'],
+  'in_progress': ['in progress', 'in-progress', 'inprogress', 'in_progress', 'doing', 'work in progress'],
+  'done': ['done', 'completed', 'complete', 'finished'],
+  'blocked': ['blocked', 'cancelled', 'canceled', 'on hold', 'hold'],
+  'review': ['review', 'in review', 'qa', 'quality assurance', 'pending review']
+};
+
+const STATUS_SYNONYM_OVERRIDES: Map<string, string> = (() => {
+  const map = new Map<string, string>();
+  for (const [value, synonyms] of Object.entries(STATUS_SYNONYM_SEEDS)) {
+    for (const alias of synonyms) {
+      const normalized = normalizeStatusValue(alias);
+      if (normalized) {
+        map.set(normalized, value);
+      }
+    }
+  }
+  return map;
+})();
+
+function normalizeStatusValue(value?: string | null): string | undefined {
+  if (!value) return undefined;
+  return value.toLowerCase().replace(/[\s_-]+/g, '').trim();
 }
+
+function buildStatusOptionsInfoFromValues(values: unknown, sourcePath?: string): StatusOptionsInfo {
+  const asArray = Array.isArray(values) ? values : [];
+  const coerced = asArray
+    .map((value) => coerceStatusOption(value))
+    .filter((option): option is StatusConfigOption => Boolean(option));
+  if (!coerced.length) {
+    throw new Error(`[status-pill] no valid status options defined${sourcePath ? ` in ${sourcePath}` : ''}`);
+  }
+  const options = sortStatusOptions(coerced);
+  const byValue = new Map<string, StatusConfigOption>();
+  const byCanonical = new Map<string, StatusConfigOption>();
+  for (const option of options) {
+    byValue.set(option.value, option);
+    const canonicalValue = normalizeStatusValue(option.value);
+    if (canonicalValue && !byCanonical.has(canonicalValue)) {
+      byCanonical.set(canonicalValue, option);
+    }
+    const canonicalLabel = normalizeStatusValue(option.label);
+    if (canonicalLabel && !byCanonical.has(canonicalLabel)) {
+      byCanonical.set(canonicalLabel, option);
+    }
+  }
+  for (const [alias, targetValue] of STATUS_SYNONYM_OVERRIDES.entries()) {
+    if (!byCanonical.has(alias)) {
+      const target = byValue.get(targetValue);
+      if (target) {
+        byCanonical.set(alias, target);
+      }
+    }
+  }
+  return { options, byValue, byCanonical, sourcePath };
+}
+
+function sortStatusOptions(list: StatusConfigOption[]): StatusConfigOption[] {
+  return [...list].sort((a, b) => {
+    const orderA = a.order ?? Number.MAX_SAFE_INTEGER;
+    const orderB = b.order ?? Number.MAX_SAFE_INTEGER;
+    if (orderA !== orderB) {
+      return orderA - orderB;
+    }
+    return a.label.localeCompare(b.label);
+  });
+}
+
+function coerceStatusOption(input: unknown): StatusConfigOption | undefined {
+  if (!input || typeof input !== 'object') {
+    return undefined;
+  }
+  const candidate = input as Record<string, unknown>;
+  const rawValue = typeof candidate.value === 'string' ? candidate.value.trim() : undefined;
+  const rawLabel = typeof candidate.label === 'string' ? candidate.label.trim() : undefined;
+  if (!rawValue || !rawLabel) {
+    return undefined;
+  }
+  return {
+    value: rawValue,
+    label: rawLabel,
+    color: typeof candidate.color === 'string' ? candidate.color : undefined,
+    order: typeof candidate.order === 'number' ? candidate.order : undefined
+  };
+}
+
+function findStatusOption(value: string | undefined, info: StatusOptionsInfo): StatusConfigOption | undefined {
+  const normalized = normalizeStatusValue(value);
+  if (!normalized) {
+    return undefined;
+  }
+  return info.byCanonical.get(normalized);
+}
+
+function extractRowIndex(entityId: string): number {
+  const match = entityId.match(CSV_ROW_ID_REGEX);
+  return match ? Number.parseInt(match[1], 10) : Number.POSITIVE_INFINITY;
+}
+
+
 
 // Configuration for the indexing service
 export interface IndexingServiceConfig {
@@ -49,12 +153,12 @@ export interface IndexingServiceConfig {
     dialect?: { delimiter?: string; quote?: string; escape?: string; header?: boolean };
     schema?: {
       id?: { from: 'column' | 'template'; column?: string; template?: string };
-      columns?: Record<string, { rename?: string; type?: 'string'|'int'|'float'|'bool'|'date'; required?: boolean }>;
-      nullPolicy?: 'strict'|'loose';
+      columns?: Record<string, { rename?: string; type?: 'string' | 'int' | 'float' | 'bool' | 'date'; required?: boolean }>;
+      nullPolicy?: 'strict' | 'loose';
       delimiter?: string; quote?: string; escape?: string; header?: boolean;
     };
     typing?: boolean;
-    nullPolicy?: 'strict'|'loose';
+    nullPolicy?: 'strict' | 'loose';
     headerSanitizer?: (raw: string, i: number) => string;
     onRow?: (row: Record<string, any>, ctx: { filePath: string; rowIndex: number }) => void;
   };
@@ -113,10 +217,52 @@ export interface BatchOperationEvent {
   operationType: 'batch';
 }
 
+interface StatusConfigOption {
+  value: string;
+  label: string;
+  color?: string;
+  order?: number;
+}
+
+interface StatusOptionsInfo {
+  options: StatusConfigOption[];
+  byValue: Map<string, StatusConfigOption>;
+  byCanonical: Map<string, StatusConfigOption>;
+  sourcePath?: string;
+  sourceMetadata?: Entity;
+}
+
+export interface StatusPersistenceResult {
+  option: StatusConfigOption;
+  persistedValue: string;
+  label: string;
+  color: string;
+  options: StatusConfigOption[];
+  sourcePath?: string;
+}
+
+export interface StatusPillGraphParams {
+  tasksCsvBasename: string;
+  statusConfigPath: string;
+  statusConfigBasename?: string;
+  defaultEntityTypeId: string;
+  timeoutMs?: number;
+}
+
+export interface StatusPillGraphResult {
+  graph: {
+    entities: Array<{ entityId: string; entityTypeId: string; properties: Record<string, any> }>;
+    links: Array<Record<string, any>>;
+  };
+  targetEntityId?: string;
+  statusOptions?: StatusOptionsInfo;
+}
+
 export class IndexingService {
   private config: IndexingServiceConfig;
   private editingModules: EditingModule[] = [];
-  private entityMetadata: Map<string, EntityMetadata> = new Map();
+  private entityGraph: Map<string, Entity> = new Map();
+  private dslModuleRegistry: Map<string, DSLModule> = new Map();
   private watcher?: chokidar.FSWatcher;
   private eventEmitter: EventEmitter;
 
@@ -137,7 +283,35 @@ export class IndexingService {
     this.editingModules.push(new DSLModuleExecutor());
     this.editingModules.push(new CSVEditingModule());
     this.editingModules.push(new MarkdownEditingModule());
+    this.editingModules.push(new JSONEditingModule());
     this.editingModules.push(new LSPEditingModule());
+  }
+
+
+  getDslModuleForEntityType(entityTypeId: string): DSLModule | undefined {
+    return this.dslModuleRegistry.get(entityTypeId);
+  }
+
+  registerDslModule(entityTypeId: string, baseEntityId: string, rawModule?: DSLModule | Record<string, any>): DSLModule | undefined {
+    const normalized = this.normalizeDslModule(baseEntityId, rawModule);
+    if (normalized) {
+      this.dslModuleRegistry.set(entityTypeId, normalized);
+    }
+    return normalized;
+  }
+
+  private normalizeDslModule(baseEntityId: string, rawModule?: DSLModule | Record<string, any>): DSLModule | undefined {
+    if (!rawModule) {
+      return undefined;
+    }
+
+    const moduleRecord = rawModule as Record<string, any>;
+    return {
+      version: typeof moduleRecord.version === 'string' ? moduleRecord.version : '1.0',
+      entityId: baseEntityId,
+      operations: moduleRecord.operations || {},
+      source: moduleRecord.source || { type: 'vivafolio_data_construct' }
+    } as DSLModule;
   }
 
   // Get source type from file extension
@@ -145,6 +319,7 @@ export class IndexingService {
     switch (ext) {
       case '.csv': return 'csv';
       case '.md': return 'markdown';
+      case '.json': return 'json';
       case '.rs': case '.js': case '.ts': case '.py': case '.java': return 'vivafolio_data_construct';
       default: return 'unknown';
     }
@@ -196,7 +371,7 @@ export class IndexingService {
       }
     }
 
-    console.log(`IndexingService: Scanned ${this.entityMetadata.size} entities`);
+    console.log(`IndexingService: Scanned ${this.entityGraph.size} entities`);
   }
 
   // Start file watching
@@ -222,11 +397,11 @@ export class IndexingService {
 
     if (eventType === 'unlink') {
       // Remove entities from this file
-      for (const [entityId, metadata] of this.entityMetadata) {
+      for (const [entityId, metadata] of this.entityGraph) {
         if (metadata.sourcePath === filePath) {
           affectedEntities.push(entityId);
           const previousProperties = { ...metadata.properties };
-          this.entityMetadata.delete(entityId);
+          this.entityGraph.delete(entityId);
 
           await this.eventEmitter.emit('entity-deleted', {
             entityId,
@@ -242,7 +417,7 @@ export class IndexingService {
       await this.processFile(filePath, eventType);
 
       // Collect affected entities for this file
-      for (const [entityId, metadata] of this.entityMetadata) {
+      for (const [entityId, metadata] of this.entityGraph) {
         if (metadata.sourcePath === filePath) {
           affectedEntities.push(entityId);
         }
@@ -265,9 +440,11 @@ export class IndexingService {
       const ext = path.extname(filePath).toLowerCase();
 
       if (ext === '.csv') {
-  await this.processCSVFile(filePath);
+        await this.processCSVFile(filePath);
       } else if (ext === '.md') {
         await this.processMarkdownFile(filePath);
+      } else if (ext === '.json') {
+        await this.processJSONFile(filePath);
       }
       // Note: Source files with vivafolio_data!() constructs are handled via LSP notifications
     } catch (error) {
@@ -408,17 +585,19 @@ export class IndexingService {
           .replace('${i}', String(i - 1));
       }
 
-      const metadata: EntityMetadata = {
+      const entityTypeId = DEFAULT_ENTITY_TYPE_ID;
+      const metadata: Entity = {
         entityId,
+        entityTypeId,
+        editionId: createEditionId(entityId),
         sourcePath: filePath,
         sourceType: 'csv',
-        properties,
-        lastModified: new Date()
+        properties
       };
 
-      this.entityMetadata.set(entityId, metadata);
+      this.entityGraph.set(entityId, metadata);
       if (typeof cfg.onRow === 'function') {
-        try { cfg.onRow(properties, { filePath, rowIndex: i - 1 }); } catch {}
+        try { cfg.onRow(properties, { filePath, rowIndex: i - 1 }); } catch { }
       }
     }
   }
@@ -430,15 +609,37 @@ export class IndexingService {
 
     if (Object.keys(parsed.data).length > 0) {
       const entityId = path.basename(filePath, '.md');
-      const metadata: EntityMetadata = {
+      const entityTypeId = DEFAULT_ENTITY_TYPE_ID;
+      const metadata: Entity = {
         entityId,
+        entityTypeId,
+        editionId: createEditionId(entityId),
         sourcePath: filePath,
         sourceType: 'markdown',
-        properties: parsed.data,
-        lastModified: new Date()
+        properties: parsed.data
       };
 
-      this.entityMetadata.set(entityId, metadata);
+      this.entityGraph.set(entityId, metadata);
+    }
+  }
+
+  private async processJSONFile(filePath: string): Promise<void> {
+    try {
+      const content = await fs.readFile(filePath, 'utf-8');
+      const parsed = JSON.parse(content);
+      const entityId = path.basename(filePath, '.json');
+      const entityTypeId = DEFAULT_ENTITY_TYPE_ID;
+      const metadata: Entity = {
+        entityId,
+        entityTypeId,
+        editionId: createEditionId(entityId),
+        sourcePath: filePath,
+        sourceType: 'json',
+        properties: parsed
+      };
+      this.entityGraph.set(entityId, metadata);
+    } catch (error) {
+      console.error(`IndexingService: Error processing JSON file ${filePath}:`, error);
     }
   }
 
@@ -447,39 +648,42 @@ export class IndexingService {
 
   // Handle Block Protocol updateEntity messages
   async updateEntity(entityId: string, properties: Record<string, any>): Promise<boolean> {
-    const metadata = this.entityMetadata.get(entityId);
-    if (!metadata) {
+    const entity = this.entityGraph.get(entityId);
+    if (!entity) {
       console.error(`IndexingService: Entity ${entityId} not found`);
       return false;
     }
 
+    const dslModule = this.getDslModuleForEntityType(entity.entityTypeId);
+    const metadata = dslModule ? { ...entity, dslModule } : entity;
+
     // Find the appropriate editing module
     const editingModule = this.editingModules.find(module =>
-      module.canHandle(metadata.sourceType, metadata)
+      module.canHandle(entity.sourceType, metadata)
     );
 
     if (!editingModule) {
-      console.error(`IndexingService: No editing module found for ${metadata.sourceType}`);
+      console.error(`IndexingService: No editing module found for ${entity.sourceType}`);
       return false;
     }
 
     const success = await editingModule.updateEntity(entityId, properties, metadata);
     if (success) {
       // Store previous properties for event
-      const previousProperties = { ...metadata.properties };
+      const previousProperties = { ...(entity.properties || {}) };
 
       // Update our metadata
-      metadata.properties = { ...metadata.properties, ...properties };
-      metadata.lastModified = new Date();
+      entity.properties = { ...(entity.properties || {}), ...properties };
+      entity.editionId = createEditionId(entityId);
 
       // Emit enhanced entity-updated event
       await this.eventEmitter.emit('entity-updated', {
         entityId,
-        properties: metadata.properties,
+        properties: entity.properties,
         previousProperties,
         timestamp: new Date(),
-        sourcePath: metadata.sourcePath,
-        sourceType: metadata.sourceType,
+        sourcePath: entity.sourcePath,
+        sourceType: entity.sourceType,
         operationType: 'update'
       });
     }
@@ -502,16 +706,21 @@ export class IndexingService {
     const success = await editingModule.createEntity(entityId, properties, sourceMetadata);
     if (success) {
       // Add to our metadata
-      const metadata: EntityMetadata = {
+      const entityTypeId = sourceMetadata.entityTypeId ?? DEFAULT_ENTITY_TYPE_ID;
+      const moduleBaseEntityId = typeof sourceMetadata.dslModule?.entityId === 'string'
+        ? sourceMetadata.dslModule.entityId
+        : entityId;
+      this.registerDslModule(entityTypeId, moduleBaseEntityId, sourceMetadata.dslModule);
+      const metadata: Entity = {
         entityId,
+        entityTypeId,
+        editionId: createEditionId(entityId),
         sourcePath: sourceMetadata.sourcePath,
         sourceType: sourceMetadata.sourceType,
-        dslModule: sourceMetadata.dslModule,
-        properties,
-        lastModified: new Date()
+        properties
       };
 
-      this.entityMetadata.set(entityId, metadata);
+      this.entityGraph.set(entityId, metadata);
 
       // Emit enhanced entity-created event
       await this.eventEmitter.emit('entity-created', {
@@ -529,34 +738,37 @@ export class IndexingService {
 
   // Handle Block Protocol deleteEntity messages
   async deleteEntity(entityId: string): Promise<boolean> {
-    const metadata = this.entityMetadata.get(entityId);
-    if (!metadata) {
+    const entity = this.entityGraph.get(entityId);
+    if (!entity) {
       console.error(`IndexingService: Entity ${entityId} not found`);
       return false;
     }
 
+    const dslModule = this.getDslModuleForEntityType(entity.entityTypeId);
+    const metadata = dslModule ? { ...entity, dslModule } : entity;
+
     // Find the appropriate editing module
     const editingModule = this.editingModules.find(module =>
-      module.canHandle(metadata.sourceType, metadata)
+      module.canHandle(entity.sourceType, metadata)
     );
 
     if (!editingModule) {
-      console.error(`IndexingService: No editing module found for ${metadata.sourceType}`);
+      console.error(`IndexingService: No editing module found for ${entity.sourceType}`);
       return false;
     }
 
     const success = await editingModule.deleteEntity(entityId, metadata);
     if (success) {
-      const previousProperties = { ...metadata.properties };
-      this.entityMetadata.delete(entityId);
+      const previousProperties = { ...(entity.properties || {}) };
+      this.entityGraph.delete(entityId);
 
       // Emit enhanced entity-deleted event
       await this.eventEmitter.emit('entity-deleted', {
         entityId,
         previousProperties,
         timestamp: new Date(),
-        sourcePath: metadata.sourcePath,
-        sourceType: metadata.sourceType,
+        sourcePath: entity.sourcePath,
+        sourceType: entity.sourceType,
         operationType: 'delete'
       });
     }
@@ -568,12 +780,15 @@ export class IndexingService {
   async handleVivafolioBlockNotification(notification: any): Promise<void> {
     console.log(`IndexingService: Received VivafolioBlock notification:`, notification);
 
-    const { entityId, tableData, dslModule, sourcePath } = notification;
+    const { entityId, tableData, dslModule, sourcePath, entityTypeId: rawEntityTypeId } = notification;
 
     if (!tableData || !tableData.headers || !tableData.rows) {
       console.error(`IndexingService: Invalid VivafolioBlock notification - missing tableData`);
       return;
     }
+
+    const entityTypeId = rawEntityTypeId ?? DEFAULT_ENTITY_TYPE_ID;
+    this.registerDslModule(entityTypeId, entityId, dslModule);
 
     const sanitizeHeader = (raw: string, idx: number) => {
       const base = raw.trim().toLowerCase().replace(/\s+/g, '_');
@@ -591,21 +806,16 @@ export class IndexingService {
         properties[key] = row[idx] || '';
       });
 
-      const metadata: EntityMetadata = {
+      const metadata: Entity = {
         entityId: rowEntityId,
+        entityTypeId,
+        editionId: createEditionId(rowEntityId),
         sourcePath: sourcePath || 'lsp-notification',
         sourceType: 'vivafolio_data_construct',
-        dslModule: dslModule ? {
-          version: '1.0',
-          entityId: entityId,
-          operations: dslModule.operations || {},
-          source: dslModule.source || { type: 'vivafolio_data_construct' }
-        } : undefined,
-        properties,
-        lastModified: new Date()
+        properties
       };
 
-      this.entityMetadata.set(rowEntityId, metadata);
+      this.entityGraph.set(rowEntityId, metadata);
 
       // Emit entity-created event
       await this.eventEmitter.emit('entity-created', {
@@ -622,23 +832,25 @@ export class IndexingService {
   }
 
   // Get entity metadata
-  getEntityMetadata(entityId: string): EntityMetadata | undefined {
-    return this.entityMetadata.get(entityId);
+  getEntityMetadata(entityId: string): Entity | undefined {
+    return this.entityGraph.get(entityId);
   }
 
   // Get all entity metadata
-  getAllEntities(): EntityMetadata[] {
-    return Array.from(this.entityMetadata.values());
+  getAllEntities(): Entity[] {
+    return Array.from(this.entityGraph.values());
   }
 
   // Helper: get entities by source type
-  getEntitiesBySourceType(sourceType: string): EntityMetadata[] {
-    return Array.from(this.entityMetadata.values()).filter((m) => m.sourceType === sourceType);
+  getEntitiesBySourceType(sourceType: string): Entity[] {
+    return Array.from(this.entityGraph.values())
+      .filter((entity) => entity.sourceType === sourceType);
   }
 
   // Helper: get entities by CSV basename
-  getEntitiesByBasename(basename: string): EntityMetadata[] {
-    return Array.from(this.entityMetadata.values()).filter((m) => m.sourceType === 'csv' && path.basename(m.sourcePath) === basename);
+  getEntitiesByBasename(basename: string): Entity[] {
+    return Array.from(this.entityGraph.values())
+      .filter((entity) => entity.sourceType === 'csv' && path.basename(entity.sourcePath) === basename);
   }
 
   // Batch operations support
@@ -665,7 +877,7 @@ export class IndexingService {
             if (operation.properties) {
               success = await this.updateEntity(operation.entityId, operation.properties);
               if (success) {
-                const metadata = this.entityMetadata.get(operation.entityId);
+                const metadata = this.entityGraph.get(operation.entityId);
                 if (metadata) {
                   event = {
                     entityId: operation.entityId,
@@ -738,6 +950,133 @@ export class IndexingService {
       success: overallSuccess,
       results
     };
+  }
+
+  async buildStatusPillEntityGraph(params: StatusPillGraphParams): Promise<StatusPillGraphResult | undefined> {
+    const timeoutMs = params.timeoutMs ?? 5000;
+    const taskMetadata = await this.waitForMetadata(() => {
+      const candidates = this.getEntitiesByBasename(params.tasksCsvBasename)
+        .filter((meta) => meta && typeof meta.entityId === 'string')
+        .sort((a, b) => extractRowIndex(a.entityId) - extractRowIndex(b.entityId));
+      return candidates[0];
+    }, timeoutMs);
+
+    if (!taskMetadata) {
+      console.warn('[indexing-service] No CSV entity available for status pill graph');
+      return undefined;
+    }
+
+    let statusOptions: StatusOptionsInfo;
+    try {
+      statusOptions = await this.loadStatusOptionsInfo(params, timeoutMs);
+    } catch (error) {
+      console.error('[indexing-service] Failed to load status options for graph hydration:', error);
+      return undefined;
+    }
+
+    const props = { ...(taskMetadata.properties ?? {}) };
+    const rawStatus = typeof props.status === 'string' ? props.status : undefined;
+    const resolvedOption = findStatusOption(rawStatus, statusOptions) ?? statusOptions.options[0];
+    if (!resolvedOption) {
+      console.error('[indexing-service] Status config is empty; cannot hydrate status pill graph');
+      return undefined;
+    }
+
+    const taskEntityId = taskMetadata.entityId;
+    const enhancedProps: Record<string, any> = {
+      ...props,
+      status: resolvedOption.value,
+      statusLabel: resolvedOption.label,
+      statusColor: resolvedOption.color ?? DEFAULT_STATUS_COLOR,
+      statusSourceValue: rawStatus ?? resolvedOption.label,
+      availableStatuses: statusOptions.options,
+      taskId: props.task_id ?? taskEntityId
+    };
+
+    const entities: Array<{ entityId: string; entityTypeId: string; properties: Record<string, any> }> = [
+      {
+        entityId: taskEntityId,
+        entityTypeId: params.defaultEntityTypeId,
+        properties: enhancedProps
+      }
+    ];
+
+    if (statusOptions.sourceMetadata) {
+      entities.push({
+        entityId: statusOptions.sourceMetadata.entityId,
+        entityTypeId: params.defaultEntityTypeId,
+        properties: statusOptions.sourceMetadata.properties ?? {}
+      });
+    }
+
+    return {
+      graph: { entities, links: [] },
+      targetEntityId: taskEntityId,
+      statusOptions
+    };
+  }
+
+  async resolveStatusPillPersistence(value: string | null | undefined, params: StatusPillGraphParams): Promise<StatusPersistenceResult | undefined> {
+    let statusOptions: StatusOptionsInfo;
+    try {
+      statusOptions = await this.loadStatusOptionsInfo(params, params.timeoutMs ?? 5000);
+    } catch (error) {
+      console.error('[indexing-service] Failed to load status options for persistence:', error);
+      return undefined;
+    }
+
+    const matchedOption = findStatusOption(typeof value === 'string' ? value : undefined, statusOptions)
+      ?? statusOptions.options[0];
+    if (!matchedOption) {
+      return undefined;
+    }
+
+    return {
+      option: matchedOption,
+      persistedValue: matchedOption.label,
+      label: matchedOption.label,
+      color: matchedOption.color ?? DEFAULT_STATUS_COLOR,
+      options: statusOptions.options,
+      sourcePath: statusOptions.sourcePath ?? params.statusConfigPath
+    };
+  }
+
+  private findStatusOptionsMetadata(params: StatusPillGraphParams): Entity | undefined {
+    const absolute = path.resolve(params.statusConfigPath);
+    const fallbackBasename = params.statusConfigBasename ?? path.basename(params.statusConfigPath);
+    for (const metadata of this.entityGraph.values()) {
+      if (!metadata.sourcePath) {
+        continue;
+      }
+      const normalized = path.resolve(metadata.sourcePath);
+      if (normalized === absolute || path.basename(normalized) === fallbackBasename) {
+        return metadata;
+      }
+    }
+    return undefined;
+  }
+
+  private async loadStatusOptionsInfo(params: StatusPillGraphParams, timeoutMs: number): Promise<StatusOptionsInfo> {
+    const metadata = await this.waitForMetadata(() => this.findStatusOptionsMetadata(params), timeoutMs);
+    if (!metadata) {
+      throw new Error('status-pill.json has not been indexed yet');
+    }
+    const info = buildStatusOptionsInfoFromValues(metadata.properties?.availableStatuses, metadata.sourcePath);
+    info.sourcePath = metadata.sourcePath ?? info.sourcePath;
+    info.sourceMetadata = metadata;
+    return info;
+  }
+
+  private async waitForMetadata(resolver: () => Entity | undefined, timeoutMs: number): Promise<Entity | undefined> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const metadata = resolver();
+      if (metadata) {
+        return metadata;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
+    return undefined;
   }
 
   // Enhanced Event System API

@@ -165,15 +165,21 @@ export class SidecarLspClient {
       if (fileEntities.length > 0) {
         // Create VivafolioBlock notifications for entities with DSL modules
         const blocks = fileEntities
-          .filter((entity: any) => entity.dslModule)
-          .map((entity: any) => ({
-            blockType: 'table-view-block',
-            entityId: entity.entityId,
-            properties: entity.properties,
-            dslModule: entity.dslModule,
-            sourcePath: entity.sourcePath,
-            sourceType: entity.sourceType
-          }))
+          .map((entity: any) => {
+            const dslModule = this.indexingService.getDslModuleForEntityType(entity.entityTypeId)
+            if (!dslModule) {
+              return undefined
+            }
+            return {
+              blockType: 'table-view-block',
+              entityId: entity.entityId,
+              properties: entity.properties,
+              dslModule,
+              sourcePath: entity.sourcePath,
+              sourceType: entity.sourceType
+            }
+          })
+          .filter(Boolean)
 
         if (blocks.length > 0) {
           await this.lspServer.notifyBlockDiscovery(blocks)
