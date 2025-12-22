@@ -270,22 +270,20 @@ async function testZig(repoRoot) {
   const fileUri = String(pathToFileURL(filePath))
   const { conn, proc, logPath } = startZls(fixtureDir, repoRoot)
   try {
-  const absZig = resolveBinary('zig')
-  await conn.sendRequest('initialize', {
+    const absZig = resolveBinary('zig')
+    await conn.sendRequest('initialize', {
       processId: null,
       capabilities: {},
       rootUri: String(pathToFileURL(fixtureDir)),
       workspaceFolders: [{ uri: String(pathToFileURL(fixtureDir)), name: 'zig-callsite' }],
       initializationOptions: {
-        enable_build_on_save: false,
-    zig_exe_path: absZig
+        enable_build_on_save: true,
+        zig_exe_path: absZig
       }
     })
     await conn.sendNotification('initialized', {})
-    await wait(300)
     const text = fs.readFileSync(filePath, 'utf8')
-    await conn.sendNotification('textDocument/didOpen', { textDocument: { uri: fileUri, languageId: 'zig', version: 1, text } })
-    const ok = await new Promise((resolve) => {
+    const diagPromise = new Promise((resolve) => {
       const to = setTimeout(() => resolve(false), 60000)
       conn.onNotification('textDocument/publishDiagnostics', (p) => {
         try {
@@ -293,6 +291,10 @@ async function testZig(repoRoot) {
         } catch {}
       })
     })
+    await conn.sendNotification('textDocument/didOpen', { textDocument: { uri: fileUri, languageId: 'zig', version: 1, text } })
+    await conn.sendNotification('textDocument/didChange', { textDocument: { uri: fileUri, version: 2 }, contentChanges: [{ text }] })
+    await conn.sendNotification('textDocument/didSave', { textDocument: { uri: fileUri, version: 2 }, text })
+    const ok = await diagPromise
     return { ok, logPath }
   } catch (err) {
     return { ok: false, logPath, error: err }

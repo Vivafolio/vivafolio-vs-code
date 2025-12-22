@@ -1,4 +1,13 @@
-{}
-
-
+.{
+    .name = .zig_callsite,
+    .version = "0.0.0",
+    .fingerprint = 0x18b7f57544524538,
+    .minimum_zig_version = "0.15.1",
+    .dependencies = .{},
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
 
