@@ -49,7 +49,6 @@ See `docs/Vivafolio-E2E-Runtime-Path-Tests.md` for detailed documentation.
 **Language Servers:**
 - `just build-nimlangserver` - Build vendored Nim language server
 - `just build-zls` - Build vendored Zig language server
-- `just build-crystalline` - Build vendored Crystal language server
 
 ## Project Components
 
@@ -114,4 +113,4 @@ This repository contains several interconnected components that work together to
 - **Justfile** (`Justfile`) - Task runner for common development operations
   - **Build**: `just build` (compile extension) or `just watch` (watch mode)
   - **Package**: `just package` (create .vsix file)
-  - **Language Servers**: `just build-nimlangserver`, `just build-zls`, `just build-crystalline` (build vendored servers)
+  - **Language Servers**: `just build-nimlangserver`, `just build-zls` (build vendored servers)

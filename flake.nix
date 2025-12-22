@@ -44,6 +44,54 @@
         });
     in
       let
+        crystallineBin =
+          if pkgs.stdenv.hostPlatform.system == "x86_64-linux" then
+            pkgs.stdenvNoCC.mkDerivation {
+              pname = "crystalline";
+              version = "0.17.1";
+              src = pkgs.fetchurl {
+                url = "https://github.com/elbywan/crystalline/releases/download/v0.17.1/crystalline_x86_64-unknown-linux-musl.gz";
+                sha256 = "sha256-21G0+fcIx6taXlzslEN4OkP+yrIzNy3VP3q9D+IPPA4=";
+              };
+              dontUnpack = true;
+              nativeBuildInputs = [ pkgs.gzip ];
+              installPhase = ''
+                mkdir -p $out/bin
+                gzip -dc $src > $out/bin/crystalline
+                chmod +x $out/bin/crystalline
+              '';
+              meta = with pkgs.lib; {
+                description = "Binary release of crystalline Crystal language server";
+                platforms = [ "x86_64-linux" ];
+                homepage = "https://github.com/elbywan/crystalline";
+              };
+            }
+          else
+            pkgs.crystalline;
+        dcdBin =
+          if pkgs.stdenv.hostPlatform.system == "x86_64-linux" then
+            pkgs.stdenvNoCC.mkDerivation {
+              pname = "dcd";
+              version = "0.15.2";
+              src = pkgs.fetchurl {
+                url = "https://github.com/dlang-community/DCD/releases/download/v0.15.2/dcd-v0.15.2-linux-x86_64.tar.gz";
+                sha256 = "1xg8irbwblaghgshcmjj1my33y09x3w3y2wilf4y2jq8b380nnfi";
+              };
+              dontUnpack = true;
+              nativeBuildInputs = [ pkgs.gnutar pkgs.gzip ];
+              installPhase = ''
+                mkdir -p $out/bin
+                tar -xzf $src -C $out/bin
+                chmod +x $out/bin/dcd-server $out/bin/dcd-client
+              '';
+              meta = with pkgs.lib; {
+                description = "Prebuilt D Completion Daemon binaries";
+                homepage = "https://github.com/dlang-community/DCD";
+                platforms = [ "x86_64-linux" ];
+              };
+            }
+          else
+            pkgs.dcd;
         playwrightLibs = with pkgs; [
           glib
           gtk3
@@ -86,6 +134,7 @@
             ldc
             dub
             serve-d
+            dcdBin
             # Rust
             rust-analyzer
             cargo
@@ -95,7 +144,8 @@
             zls
             # Crystal
             crystal
-            crystalline
+            crystallineBin
+            shards
             # Python for runtime path testing
             python3
             python3Packages.pip

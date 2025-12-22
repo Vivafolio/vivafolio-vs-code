@@ -107,6 +107,7 @@ async function testLean(repoRoot) {
     })
     return { ok, logPath }
   } catch (err) {
+    try { fs.appendFileSync(logPath, `[error] ${err && err.stack ? err.stack : String(err)}\n`) } catch {}
     return { ok: false, logPath, error: err }
   } finally {
     try { proc.kill() } catch {}
@@ -373,6 +374,3 @@ async function run() {
 }
 
 run().catch(err => { console.error(err); process.exit(1) })
-
-
-
