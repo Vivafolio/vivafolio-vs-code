@@ -1,0 +1,5 @@
+{
+  "name": "d-callsite",
+  "targetType": "executable",
+  "sourcePaths": ["source"]
+}

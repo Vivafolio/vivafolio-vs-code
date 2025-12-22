@@ -33,7 +33,7 @@ Demonstrates diagnostics can be triggered from the call-site of user-defined sym
   - Zig: `test/projects/zig-basic`
   - Crystal: `test/projects/crystal-basic`
 
-**Latest run:** 2025‑12‑12 (`lake 5.0.0 / Lean 4.22.0`). The overall recipe still times out at 120s because Zig and Crystal never emit diagnostics, but each server logs to `test/logs/basic-*.log` for inspection.
+**Latest run:** 2025‑12‑22 (`lake 5.0.0 / Lean 4.22.0`). All language/server pairs now publish diagnostics within the timeout window; see `test/logs/basic-*.log` for per-language traces.
 
 Results:
 
@@ -75,44 +75,39 @@ Results:
 - Next: None.
 
 #### Zig
-- Server: zls (v0.14.0)
-- Status: FAIL (no diagnostics published). zls processes initialization but never emits diagnostics before the 120s timeout (`test/logs/basic-zig-*.log`). It also logs permission issues writing to `~/.cache/zls`.
+- Server: zls (v0.15.0)
+- Status: PASS. After modernizing the fixture’s `build.zig`/`build.zig.zon` and enabling `enable_build_on_save` in the LSP initialize request, zls publishes diagnostics for `src/main.zig` (`test/logs/basic-zig-*.log`).
 - Completed fixes:
   - ✅ Ensured proper project structure with src/main.zig
   - ✅ Moved syntax error into main.zig (build target)
   - ✅ Added didSave after didChange
   - ✅ Added workspaceFolders and proper rootUri
-  - ✅ Disabled build-on-save to avoid build runner errors
   - ✅ Enabled debug logging with `--enable-stderr-logs --log-level debug`
-  - ✅ Added initialization options for zls
+  - ✅ Added initialization options for zls (`enable_build_on_save`, absolute `zig_exe_path`)
   - ✅ Tested various syntax errors (parse errors, type errors)
-  - ✅ Removed build.zig to avoid configuration issues
-  - ✅ Verified zls is processing all notifications correctly
-- Root cause: zls v0.14.0 does not publish diagnostics in this test scenario, despite processing all LSP messages correctly.
+  - ✅ Replaced minimal build scripts with Zig 0.15 templates so the build runner no longer errors
+  - ✅ Verified zls processes notifications correctly via the scenario harness
 - Next:
-  - Try different zls versions (newer or older)
+  - Try different zls versions (newer or older). Vendored builds (`third_party/zls`) currently require Zig `0.16.0-dev`, while the dev shell only ships Zig 0.15.1, so we cannot test newer commits without a toolchain bump or a prebuilt binary.
   - Investigate if zls requires specific project structure or configuration
   - Check upstream zls issues for similar problems
   - Consider alternative Zig LSP servers if available
   - Add init options: set `zig_exe_path`, disable build-on-save, and verify `build.zig` absence is acceptable for AST diagnostics. Try opening `bad.zig` directly if `main.zig` fails.
 
 #### Crystal
-- Server: crystalline (v0.15.0)
-- Status: FAIL (no diagnostics published). crystalline handles initialize/open/change but never publishes diagnostics (`test/logs/basic-crystal-*.log`).
+- Server: crystalline (v0.17.1, prebuilt binary)
+- Status: PASS. Upgrading to crystalline 0.17.1 (compatible with our Crystal 1.16 toolchain) ensures diagnostics are published for `test/projects/crystal-basic/src/bad.cr` (`test/logs/basic-crystal-*.log`).
 - Completed setup:
   - ✅ Added crystalline to Vivafolio flake
   - ✅ Created minimal project with shard.yml
   - ✅ Added syntax error in src/bad.cr
   - ✅ Added proper LSP capabilities for diagnostics
   - ✅ Tested various syntax errors (undefined variables, missing end statements)
-  - ✅ Verified crystalline processes all notifications correctly
-- Root cause: crystalline v0.15.0 does not publish diagnostics in this test scenario, despite responding to all LSP protocol messages.
+  - ✅ Verified crystalline processes all notifications correctly after the 0.17.1 upgrade
+- Root cause (historical): crystalline v0.15.0 bundled with nixpkgs was incompatible with Crystal 1.16 and never emitted diagnostics.
 - Next:
-  - Investigate crystalline configuration requirements
-  - Check if crystalline needs specific initialization options
-  - Try different crystalline versions
-  - Check upstream crystalline issues for similar problems
-  - Explicitly enable diagnostics via configuration if supported; try opening file URIs under the shard workspace root. Confirm `crystal --version` is available.
+  - Monitor crystalline releases and keep the pinned binary aligned with the Crystal compiler shipped in the dev shell.
+  - Confirm `crystal --version` is available and matches the compatibility matrix from the crystalline README.
 
 ### callsite-diagnostics
 - Runner: `npm run test:scenario:callsite-diagnostics` (or `just test-scenario-callsite-diagnostics`)
@@ -124,43 +119,43 @@ Results:
   - Zig: `test/projects/zig-callsite` (`bad_provider.zig` + `use_bad.zig`)
   - Crystal: `test/projects/crystal-callsite` (`bad_provider.cr` + `use_bad.cr`)
 
-**Latest run:** 2025‑12‑12 (same environment as above). The recipe again hit the 120s timeout, but per-language logs show:
+**Latest run:** 2025‑12‑16 (same environment as above). The recipe again hit the 120s timeout, but per-language logs show:
 
 - Lean: PASS (diagnostic published despite the `lake-manifest` syntax warning). See the latest `test/logs/callsite-lean-*.log`.
-- Nim (nimlsp): FAIL. Session exits immediately after `workspace/didChangeConfiguration` and never opens the call-site file, so no diagnostics are published (`test/logs/callsite-nim-nimlsp-*.log`).
-- Nim (nimlangserver): FAIL. nimsuggest repeatedly crashes with “Operation not permitted” and the server never produces diagnostics (`test/logs/callsite-nim-nimlangserver-*.log`).
-- D: FAIL. serve-d halts immediately after initialization with DCD warnings and exits before opening `use_bad.d` (`test/logs/callsite-d-*.log`).
+- Nim (nimlsp): PASS. Restoring `test/projects/nim-callsite/src/use_bad.nim` allows nimlsp to open the call-site file and publish the expected type-mismatch diagnostic (`test/logs/callsite-nim-nimlsp-2025-12-16T14-01-26-743Z.log`).
+- Nim (nimlangserver): PASS with warnings. nimsuggest still logs JSON configuration parse errors, but diagnostics are now emitted once the restored `use_bad.nim` is opened (`test/logs/callsite-nim-nimlangserver-2025-12-16T14-01-27-300Z.log`).
+- D: PASS. Bundling the upstream DCD binaries in the flake and adding a minimal `dub.json`/`use_bad.d` fixture allows serve-d to publish diagnostics (`test/logs/callsite-d-*.log`).
 - Rust: PASS. Publishes the expected diagnostics in `use_bad.rs` (`test/logs/callsite-rust-*.log`).
-- Zig: FAIL. zls initializes but never emits diagnostics before being terminated (`test/logs/callsite-zig-*.log`).
+- Zig: PASS. With `enable_build_on_save` enabled and a proper `build.zig`/`build.zig.zon` added to the fixture, diagnostics publish in `use_bad.zig` (`test/logs/callsite-zig-*.log`).
 - Crystal: FAIL. crystalline processes initialize/didOpen/didChange/didSave but never publishes diagnostics (`test/logs/callsite-crystal-*.log`).
 
 Results:
 - Lean: ✅ PASS - Working correctly
-- Nim (nimlsp): ❌ FAIL - never sends diagnostics at the call-site
-- Nim (nimlangserver): ❌ FAIL - nimsuggest crash
-- D: ❌ FAIL - terminates before diagnostics due to missing DCD
+- Nim (nimlsp): ✅ PASS - Working correctly now that `use_bad.nim` is present
+- Nim (nimlangserver): ⚠️ PASS WITH WARNINGS - Diagnostics publish but nimsuggest continues to log configuration parse issues
+- D: ✅ PASS - Working correctly
 - Rust: ✅ PASS - Working correctly
-- Zig: ❌ FAIL - zls v0.14.0 doesn't publish diagnostics in this scenario
+- Zig: ✅ PASS - Working correctly
 - Crystal: ❌ FAIL - crystalline v0.15.0 doesn't publish diagnostics
 
 #### Summary of Progress
-- basic-comms: Lean ✅, Nim (nimlsp) ✅, D ✅, Rust ✅, Zig ❌, Crystal ❌, Nim (nimlangserver) ❌
-- callsite-diagnostics: Lean ✅, Rust ✅, others currently failing as noted
+- basic-comms: Lean ✅, Nim (nimlsp) ✅, Nim (nimlangserver) ✅, D ✅, Rust ✅, Zig ✅, Crystal ✅
+- callsite-diagnostics: Lean ✅, Nim (nimlsp) ✅, Nim (nimlangserver) ⚠️ (diagnostics publish but nimsuggest logs configuration errors), Rust ✅, D ✅, Zig ✅, Crystal ❌
 
 #### Recommended Next Steps (by language)
 - **Lean**: Stable. Optionally add tests for Warning vs Error levels and relatedInformation.
-- **Nim (nimlsp)**: Ensure the call-site project applies `didOpen/didChange/didSave` (currently the session exits before sending diagnostics); investigate whether the script terminates too early or if nimlsp requires additional delay.
-- **Nim (nimlangserver)**: Reproduce crash with current logs; try disabling nimsuggest; file upstream issue with stack trace; test older/newer versions.
-- **D (serve-d)**: Either provide `dcd-server` in the dev shell or configure serve-d to skip DCD entirely so it proceeds to diagnostics.
+- **Nim (nimlsp)**: ✅ No immediate action required after restoring the call-site fixture.
+- **Nim (nimlangserver)**: Investigate the repeated `Incorrect JSON kind` warnings and ensure nimsuggest no longer dies mid-run; file upstream if warnings persist.
+- **D (serve-d)**: ✅ No immediate action required after bundling DCD binaries and adding the dub project metadata.
 - **Rust (rust-analyzer)**: Ensure both `src/lib.rs` and a `[[bin]]` or `src/main.rs` exist so cargo metadata resolves; if needed, open the lib file then the bin file to force analysis.
-- **Zig (zls)**: Try zls latest/nightly; add `build.zig` with simple exe target to see if diagnostics start flowing; test direct parse errors in `use_bad.zig`; confirm `zig` path via init options.
-- **Crystal (crystalline)**: Set workspace root to shard directory; send init options if available; test older crystalline; confirm `crystal tool format`/`build` locally; try opening both producer and call-site files.
+- **Zig (zls)**: ✅ No immediate action required; both basic and call-site fixtures publish diagnostics after enabling build-on-save and adding the missing build scripts.
+- **Crystal (crystalline)**: Keep the dev-shell binary aligned with the Crystal compiler (currently 0.17.1 for Crystal 1.16). Call-site scenarios still need investigation with this newer binary.
 
 #### Multi-Server/Version Matrix
-- Nim: nimlangserver needs upstream fix for nimsuggest crash; nimlsp requires better handling of the call-site workflow.
-- D: Provide a bundled `dcd-server` or disable DCD so serve-d can reach diagnostics.
-- Zig: Requires investigation of zls diagnostic publishing behavior
-- Crystal: Requires investigation of crystalline diagnostic publishing behavior
+- Nim: nimlsp + nimlangserver both publish diagnostics after restoring the call-site fixture, but nimlangserver still logs configuration warnings that may warrant upstream attention.
+- D: ✅ Stable now that dcd-server/client are bundled via the flake
+- Zig: ✅ Stable with the updated fixtures (basic + callsite)
+- Crystal: ✅ Stable for basic-comms; call-site workflow remains TODO with the upgraded binary
 
 #### Logging
 - All tests record per-session protocol logs in `test/logs`. On failure, the test prints the failing log path and byte size.
