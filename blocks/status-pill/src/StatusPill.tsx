@@ -1,5 +1,5 @@
 import type { Component, Accessor } from 'solid-js'
-import { createMemo, createSignal, Show, onCleanup, onMount } from 'solid-js'
+import { createEffect, createMemo, createSignal, Show, onCleanup, onMount } from 'solid-js'
 import type { BlockProps, Entity, GraphService } from '@vivafolio/block-solidjs'
 
 interface RawStatusOption {
@@ -26,9 +26,13 @@ const FALLBACK_STATUS_SOURCE: RawStatusOption[] = [
   { value: 'done', label: 'Done', color: '#10b981' }
 ]
 
-const FALLBACK_STATUS_OPTIONS: NormalizedStatusOption[] = FALLBACK_STATUS_SOURCE
-  .map((option) => normalizeStatusOption(option))
-  .filter((option): option is NormalizedStatusOption => Boolean(option))
+function normalizeStatusOptions(source: RawStatusOption[]): NormalizedStatusOption[] {
+  return source
+    .map((option) => normalizeStatusOption(option))
+    .filter((option): option is NormalizedStatusOption => Boolean(option))
+}
+
+const FALLBACK_STATUS_OPTIONS: NormalizedStatusOption[] = normalizeStatusOptions(FALLBACK_STATUS_SOURCE)
 
 const FALLBACK_STATUS = FALLBACK_STATUS_OPTIONS[0] ?? {
   value: 'status',
@@ -37,8 +41,13 @@ const FALLBACK_STATUS = FALLBACK_STATUS_OPTIONS[0] ?? {
   background: DEFAULT_STATUS_BACKGROUND
 }
 
-const DEFAULT_STATUS_VALUE = FALLBACK_STATUS.value
-const DEFAULT_STATUS_LABEL = FALLBACK_STATUS.label
+function readStatusOptions(props?: Record<string, unknown>): RawStatusOption[] | undefined {
+  if (!props) {
+    return undefined
+  }
+  const raw = props['availableStatuses']
+  return Array.isArray(raw) ? raw as RawStatusOption[] : undefined
+}
 
 function normalizeStatusOption(option?: RawStatusOption): NormalizedStatusOption | undefined {
   if (!option || typeof option !== 'object') {
@@ -90,7 +99,7 @@ export type StatusPillGraphService = Omit<GraphService, 'blockEntity' | 'readonl
   updateEntity?: (args: { entityId: string; properties: Record<string, unknown> }) => Promise<void>
 }
 
-export interface StatusPillProps extends BlockProps<StatusPillGraphService> {}
+export interface StatusPillProps extends BlockProps<StatusPillGraphService> { }
 
 const StatusPill: Component<StatusPillProps> = (props) => {
   const entity = () => props.graph.blockEntity()
@@ -99,14 +108,46 @@ const StatusPill: Component<StatusPillProps> = (props) => {
   // Optimistic UI: prefer locally chosen status until next server notification arrives
   const [pending, setPending] = createSignal<string | undefined>(undefined)
 
+  createEffect(() => {
+    const optimistic = pending()
+    if (!optimistic) {
+      return
+    }
+    const current = entity().properties?.['status']
+    if (typeof current === 'string' && current === optimistic) {
+      setPending(undefined)
+    }
+  })
+
+  const linkedEntities = () => (props.graph.blockGraph?.linkedEntities ?? []) as Entity[]
+
+  const statusConfigEntity = createMemo<Entity | undefined>(() => {
+    const blockEntity = entity()
+    const targetId = typeof blockEntity.properties?.['statusOptionsEntityId'] === 'string'
+      ? blockEntity.properties?.['statusOptionsEntityId'] as string
+      : undefined
+    const candidates = linkedEntities()
+    if (targetId) {
+      const matched = candidates.find((candidate) => candidate.entityId === targetId)
+      if (matched) {
+        return matched
+      }
+    }
+    return candidates.find((candidate) => {
+      if (candidate.entityId === blockEntity.entityId) {
+        return false
+      }
+      const props = candidate.properties as Record<string, unknown> | undefined
+      return Array.isArray(props?.['availableStatuses'])
+    })
+  })
+
   // Normalize dynamic status metadata while preserving a static fallback for safety
   const statusOptions = createMemo<NormalizedStatusOption[]>(() => {
-    const raw = entity().properties?.['availableStatuses']
-    const normalized = Array.isArray(raw)
-      ? raw
-        .map((item) => normalizeStatusOption(item as RawStatusOption))
-        .filter((option): option is NormalizedStatusOption => Boolean(option))
-      : []
+    const fromConfig = readStatusOptions(statusConfigEntity()?.properties as Record<string, unknown> | undefined)
+    const fallbackEntity = readStatusOptions(entity().properties as Record<string, unknown> | undefined)
+    const source = fromConfig ?? fallbackEntity ?? FALLBACK_STATUS_SOURCE
+    const normalized = normalizeStatusOptions(source)
     return normalized.length ? normalized : FALLBACK_STATUS_OPTIONS
   })
 
@@ -116,31 +157,22 @@ const StatusPill: Component<StatusPillProps> = (props) => {
     if (optimistic) {
       return optimistic
     }
+
+    const options = statusOptions()
     const current = entity().properties?.['status']
     if (typeof current === 'string' && current.length > 0) {
-      return current
+      const matched = options.find((option) => option.value === current)
+      if (matched) {
+        return matched.value
+      }
     }
-    return statusOptions()[0]?.value ?? DEFAULT_STATUS_VALUE
+    return options[0]?.value ?? FALLBACK_STATUS.value
   }
 
   // Final visual configuration: lookup the matching option or synthesize one from label/color hints
   const cfg = () => {
-    const matched = statusOptions().find((option) => option.value === status())
-    if (matched) {
-      return matched
-    }
-    const label = typeof entity().properties?.['statusLabel'] === 'string'
-      ? entity().properties?.['statusLabel'] as string
-      : DEFAULT_STATUS_LABEL
-    const color = typeof entity().properties?.['statusColor'] === 'string'
-      ? entity().properties?.['statusColor'] as string
-      : DEFAULT_STATUS_COLOR
-    return {
-      value: status(),
-      label,
-      color,
-      background: buildStatusBackground(color)
-    }
+    const current = status()
+    return statusOptions().find((option) => option.value === current) ?? FALLBACK_STATUS
   }
 
   function outside(e: MouseEvent) {
@@ -152,13 +184,25 @@ const StatusPill: Component<StatusPillProps> = (props) => {
   onCleanup(() => document.removeEventListener('click', outside))
 
   const commit = async (next: string) => {
-    const id = entity().metadata?.recordId?.entityId ?? entity().entityId
-  try { console.log('[StatusPill] commit called with', next, 'for entity', id) } catch {}
-  // Optimistic update first
-  setPending(next)
-  await props.graph.updateEntity?.({ entityId: id, properties: { ...(entity().properties || {}), status: next } })
-  try { console.log('[StatusPill] updateEntity invoked for', id, 'next status =', next) } catch {}
-    setOpen(false)
+    if (!next || next === status()) {
+      setOpen(false)
+      return
+    }
+    const currentEntity = entity() as Entity & { metadata?: { recordId?: { entityId?: string } } }
+    const id = currentEntity.metadata?.recordId?.entityId ?? currentEntity.entityId
+    setPending(next)
+    if (!props.graph.updateEntity) {
+      setPending(undefined)
+      setOpen(false)
+      return
+    }
+    try {
+      await props.graph.updateEntity({ entityId: id, properties: { status: next } })
+    } catch {
+      setPending(undefined)
+    } finally {
+      setOpen(false)
+    }
   }
 
   return (
@@ -180,7 +224,6 @@ const StatusPill: Component<StatusPillProps> = (props) => {
                 style={{ padding: '8px 12px', cursor: 'pointer', display: 'flex', 'align-items': 'center', 'font-size': '12px' }}
                 onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#f9fafb')}
                 onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); void commit(option.value) }}
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); void commit(option.value) }}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); void commit(option.value) } }}
               >

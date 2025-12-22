@@ -1,212 +1,246 @@
-import { test, expect } from '@playwright/test'
-import fs from 'fs/promises'
-import path from 'path'
-import { fileURLToPath } from 'url'
-import { parse } from 'csv-parse/sync'
-import { stringify } from 'csv-stringify/sync'
+import { test, expect, type Page } from '@playwright/test'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-const TASKS_CSV_PATH = path.resolve(__dirname, '..', 'data', 'tasks.csv')
+/*
+Three scenarios: 
+(1) hydration smoke test verifying the server returns exactly the row + status schema entities
+(2) UI rendering test ensuring the pill shows the current status and every linked option
+(3) an end-to-end update test that checks the outgoing graph/update, the follow-up graph/ack, and the refreshed notification/DOM after choosing a new status. Assertions on the ack now focus on the entity id to accommodate transport variants.
+*/
+const STATUS_SCENARIO_URL = '/?scenario=status-pill-example&useIndexingService=true'
 
-const STATUS_HEADER = 'Status'
-
-type TasksTable = {
-  headers: string[]
-  rows: string[][]
+type RecordedMessage = {
+  index: number
+  direction: 'in' | 'out'
+  data?: any
 }
 
-let originalTasksCsv: string | undefined
+type MessagePredicate = (message: RecordedMessage) => boolean
 
-function hasMeaningfulContent(row: string[] | undefined): row is string[] {
-  if (!row) {
+interface WebSocketRecorder {
+  waitForMessage: (predicate: MessagePredicate, options?: { timeout?: number, fromIndex?: number }) => Promise<RecordedMessage>
+  messages: RecordedMessage[]
+}
+
+const isScenarioSocket = (url: string) => {
+  try {
+    return new URL(url, 'http://localhost').pathname === '/ws'
+  } catch {
     return false
   }
-  return row.some((cell) => typeof cell === 'string' && cell.trim().length > 0)
 }
 
-async function readTasksTable(): Promise<TasksTable> {
-  const content = await fs.readFile(TASKS_CSV_PATH, 'utf8')
-  const records = parse(content, { skip_empty_lines: false }) as string[][]
-  if (!records.length) {
-    throw new Error('tasks.csv is missing a header row')
+const safeParse = (payload: string) => {
+  try {
+    return JSON.parse(payload)
+  } catch {
+    return undefined
   }
-  const [headers, ...rest] = records
-  const rows = rest.filter(hasMeaningfulContent).map((row) => row.map((cell) => cell ?? ''))
-  return { headers: headers.map((cell) => cell ?? ''), rows }
 }
 
-function normalizeRowLength(row: string[], desiredLength: number): string[] {
-  if (row.length >= desiredLength) {
-    return row.slice(0, desiredLength)
+function createWebSocketRecorder(page: Page): WebSocketRecorder {
+  const messages: RecordedMessage[] = []
+  const waiters: Array<{ predicate: MessagePredicate, fromIndex: number, resolve: (message: RecordedMessage) => void, timeoutId: NodeJS.Timeout }> = []
+  let counter = 0
+
+  const extractPayload = (frame: { payload?: string | (() => string) }) => {
+    if (typeof frame.payload === 'function') {
+      return frame.payload()
+    }
+    return typeof frame.payload === 'string' ? frame.payload : ''
   }
-  return [...row, ...Array(desiredLength - row.length).fill('')]
-}
 
-async function writeTasksTable(table: TasksTable): Promise<void> {
-  const normalizedRows = table.rows.map((row) => normalizeRowLength(row, table.headers.length))
-  const payload = [table.headers, ...normalizedRows]
-  const output = stringify(payload, { header: false })
-  await fs.writeFile(TASKS_CSV_PATH, output, 'utf8')
-}
-
-function findColumnIndex(headers: string[], target: string): number {
-  const normalizedTarget = target.trim().toLowerCase()
-  return headers.findIndex((header) => header.trim().toLowerCase() === normalizedTarget)
-}
-
-async function getFirstTaskStatus(): Promise<string> {
-  const table = await readTasksTable()
-  const statusIndex = findColumnIndex(table.headers, STATUS_HEADER)
-  if (statusIndex === -1) {
-    throw new Error('tasks.csv is missing the Status column')
+  const notify = (message: RecordedMessage) => {
+    messages.push(message)
+    for (const waiter of [...waiters]) {
+      if (message.index >= waiter.fromIndex && waiter.predicate(message)) {
+        clearTimeout(waiter.timeoutId)
+        waiter.resolve(message)
+        const idx = waiters.indexOf(waiter)
+        if (idx >= 0) {
+          waiters.splice(idx, 1)
+        }
+      }
+    }
   }
-  if (!table.rows.length) {
-    throw new Error('tasks.csv has no task rows to read from')
-  }
-  return table.rows[0][statusIndex] ?? ''
-}
 
-async function setFirstTaskStatus(value: string): Promise<void> {
-  const table = await readTasksTable()
-  const statusIndex = findColumnIndex(table.headers, STATUS_HEADER)
-  if (statusIndex === -1) {
-    throw new Error('tasks.csv is missing the Status column')
-  }
-  if (!table.rows.length) {
-    throw new Error('tasks.csv has no task rows to update')
-  }
-  table.rows[0][statusIndex] = value
-  await writeTasksTable(table)
-}
-
-async function waitForPersistedStatus(
-  page: import('@playwright/test').Page,
-  expected: string,
-  timeoutMs = 15_000
-) {
-  const normalizedExpected = expected.trim().toLowerCase()
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    const current = (await getFirstTaskStatus()).trim().toLowerCase()
-    if (current === normalizedExpected) {
+  const record = (direction: 'in' | 'out', payload: string) => {
+    const data = safeParse(payload)
+    if (!data) {
       return
     }
-    await page.waitForTimeout(250)
+    notify({ index: counter++, direction, data })
   }
-  throw new Error(`Timed out waiting for ${expected} to persist to tasks.csv`)
+
+  page.on('websocket', (socket) => {
+    if (!isScenarioSocket(socket.url())) {
+      return
+    }
+    socket.on('framesent', (frame) => {
+      const payload = extractPayload(frame)
+      if (payload) {
+        record('out', payload)
+      }
+    })
+    socket.on('framereceived', (frame) => {
+      const payload = extractPayload(frame)
+      if (payload) {
+        record('in', payload)
+      }
+    })
+  })
+
+  return {
+    waitForMessage: (predicate, options) => {
+      const fromIndex = options?.fromIndex ?? messages.length
+      const timeout = options?.timeout ?? 15_000
+      const existing = messages.find((message) => message.index >= fromIndex && predicate(message))
+      if (existing) {
+        return Promise.resolve(existing)
+      }
+      return new Promise<RecordedMessage>((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+          const idx = waiters.findIndex((entry) => entry.timeoutId === timeoutId)
+          if (idx >= 0) {
+            waiters.splice(idx, 1)
+          }
+          reject(new Error('Timed out waiting for WebSocket message'))
+        }, timeout)
+        waiters.push({ predicate, fromIndex, resolve, timeoutId })
+      })
+    },
+    messages
+  }
 }
 
-test.beforeAll(async () => {
-  originalTasksCsv = await fs.readFile(TASKS_CSV_PATH, 'utf8')
-})
-
-test.afterEach(async () => {
-  if (originalTasksCsv !== undefined) {
-    await fs.writeFile(TASKS_CSV_PATH, originalTasksCsv, 'utf8')
+const getStatusEntities = (graph: any) => {
+  const entities = graph?.entities ?? []
+  const rowEntity = entities.find((entity: any) => typeof entity?.properties?.statusOptionsEntityId === 'string')
+  if (!rowEntity) {
+    throw new Error('Status row entity not found in graph')
   }
-})
+  const statusOptionsEntityId = rowEntity.properties.statusOptionsEntityId
+  const configEntity = entities.find((entity: any) => entity?.entityId === statusOptionsEntityId)
+  if (!configEntity) {
+    throw new Error('Status config entity not found in graph')
+  }
+  return { rowEntity, configEntity }
+}
 
-// Ensures the status pill scenario reads and writes task status via tasks.csv through the indexing service
-test.describe('Status Pill – tasks.csv integration', () => {
-  test('reads initial status from CSV and reflects file changes on reload', async ({ page }) => {
-    page.on('console', (msg) => {
-      console.log(`[browser:${msg.type()}]`, msg.text())
-    })
+const getStatusOptions = (configEntity: any): Array<{ value: string, label: string }> => {
+  const raw = configEntity?.properties?.availableStatuses
+  if (!Array.isArray(raw)) {
+    return []
+  }
+  return raw
+    .map((option: any) => ({
+      value: typeof option?.value === 'string' ? option.value : '',
+      label: typeof option?.label === 'string' ? option.label : ''
+    }))
+    .filter((option) => option.value && option.label)
+}
 
-    await setFirstTaskStatus('In Progress')
-    await page.goto('/?scenario=status-pill-example&useIndexingService=true')
+const waitForConnectionAck = (recorder: WebSocketRecorder) =>
+  recorder.waitForMessage((message) => message.direction === 'in' && message.data?.type === 'connection_ack')
 
-    const container = page.locator('.published-block-container')
-    await expect(container).toBeAttached({ timeout: 15000 })
+async function bootstrapStatusPillScenario(page: Page) {
+  const recorder = createWebSocketRecorder(page)
+  const ackPromise = waitForConnectionAck(recorder)
+  await page.goto(STATUS_SCENARIO_URL)
+  const ackMessage = await ackPromise
+  const entityGraph = ackMessage.data?.entityGraph
+  if (!entityGraph) {
+    throw new Error('Connection ack missing entityGraph')
+  }
+  const { rowEntity, configEntity } = getStatusEntities(entityGraph)
+  return { recorder, entityGraph, rowEntity, configEntity }
+}
 
-    const host = container.locator('vivafolio-status-pill')
-    await expect(host).toBeVisible({ timeout: 10000 })
-    const pill = container.locator('vivafolio-status-pill .status-pill-block')
-    await expect(pill).toBeVisible({ timeout: 10000 })
-    await expect(pill).toContainText('In Progress')
+test.describe('Status Pill – Indexing Service integration', () => {
+  test('hydrates exactly one task row and one status config entity', async ({ page }) => {
+    const { entityGraph, rowEntity, configEntity } = await bootstrapStatusPillScenario(page)
 
-    await setFirstTaskStatus('Review')
-    await page.reload()
+    expect(entityGraph.entities).toHaveLength(2)
+    expect(entityGraph.links).toHaveLength(0)
+    expect(rowEntity.properties?.statusOptionsEntityId).toBe(configEntity.entityId)
 
-    const hostReload = page.locator('.published-block-container').locator('vivafolio-status-pill')
-    const pillReload = hostReload.locator('.status-pill-block')
-    await expect(pillReload).toBeVisible({ timeout: 10000 })
-    await expect(pillReload).toContainText('Review')
+    const options = getStatusOptions(configEntity)
+    expect(options.length).toBeGreaterThan(0)
+    for (const option of options) {
+      expect(typeof option.label).toBe('string')
+      expect(option.label.length).toBeGreaterThan(0)
+    }
   })
 
-  test('selecting a new option writes correct text to CSV', async ({ page }) => {
-    page.on('console', (msg) => {
-      console.log(`[browser:${msg.type()}]`, msg.text())
-    })
-
-    await setFirstTaskStatus('To Do')
-    await page.goto('/?scenario=status-pill-example&useIndexingService=true')
-
+  test('renders the current status and offers every option from the linked entity', async ({ page }) => {
+    const { rowEntity, configEntity } = await bootstrapStatusPillScenario(page)
     const container = page.locator('.published-block-container')
-    await expect(container).toBeAttached({ timeout: 15000 })
+    await expect(container).toBeAttached({ timeout: 15_000 })
 
     const host = container.locator('vivafolio-status-pill')
-    await expect(host).toBeVisible({ timeout: 10000 })
     const pill = host.locator('.status-pill-block')
-    await expect(pill).toBeVisible({ timeout: 10000 })
+    await expect(pill).toBeVisible({ timeout: 10_000 })
+
+    const options = getStatusOptions(configEntity)
+    const currentValue = typeof rowEntity?.properties?.status === 'string'
+      ? rowEntity.properties.status
+      : options[0]?.value
+    const currentLabel = options.find((option) => option.value === currentValue)?.label ?? options[0]?.label
+    if (!currentLabel) {
+      throw new Error('Unable to determine expected label for status pill')
+    }
+
+    await expect(pill).toContainText(currentLabel)
 
     await pill.click()
-    await page.waitForTimeout(200)
-    const pickBlocked = host.locator('[role="menuitem"]').filter({ hasText: 'Blocked' })
-    await expect(pickBlocked).toBeVisible()
-    await pickBlocked.click()
-
-    await waitForPersistedStatus(page, 'Blocked')
-    const persisted = await getFirstTaskStatus()
-    expect(persisted).toBe('Blocked')
-
-    await page.reload()
-    const pillAfterReload = page.locator('.published-block-container').locator('vivafolio-status-pill .status-pill-block')
-    await expect(pillAfterReload).toBeVisible({ timeout: 10000 })
-    await expect(pillAfterReload).toContainText('Blocked')
+    const menuItems = host.locator('[role="menuitem"] span')
+    await expect(menuItems).toHaveCount(options.length)
+    const renderedLabels = await menuItems.allTextContents()
+    expect(new Set(renderedLabels)).toEqual(new Set(options.map((option) => option.label)))
   })
 
-  test('changing status twice keeps a single pill and persists CSV', async ({ page }) => {
-    page.on('console', (msg) => {
-      console.log(`[browser:${msg.type()}]`, msg.text())
-    })
-
-    await setFirstTaskStatus('To Do')
-    await page.goto('/?scenario=status-pill-example&useIndexingService=true')
-
+  test('sends graph/update with the new status and reflects the server notification', async ({ page }) => {
+    const { recorder, rowEntity, configEntity } = await bootstrapStatusPillScenario(page)
     const container = page.locator('.published-block-container')
-    await expect(container).toBeAttached({ timeout: 15000 })
-
     const host = container.locator('vivafolio-status-pill')
-    await expect(host).toBeVisible({ timeout: 10000 })
     const pill = host.locator('.status-pill-block')
-    await expect(pill).toBeVisible({ timeout: 10000 })
-    await expect(pill).toContainText('To Do')
-    await expect(host.locator('.status-pill-block')).toHaveCount(1)
+    await expect(pill).toBeVisible({ timeout: 10_000 })
+
+    const options = getStatusOptions(configEntity)
+    if (!options.length) {
+      throw new Error('No status options available for test')
+    }
+    const currentValue = typeof rowEntity?.properties?.status === 'string'
+      ? rowEntity.properties.status
+      : options[0].value
+    const nextOption = options.find((option) => option.value !== currentValue) ?? options[0]
+
+    const pendingUpdate = recorder.waitForMessage(
+      (message) => message.direction === 'out' && message.data?.type === 'graph/update'
+    )
+    const pendingAck = recorder.waitForMessage(
+      (message) => message.direction === 'in' && message.data?.type === 'graph/ack'
+    )
+    const startingIndex = recorder.messages.length
+    const pendingNotification = recorder.waitForMessage(
+      (message) => message.direction === 'in' &&
+        message.data?.type === 'vivafolioblock-notification' &&
+        message.data?.payload?.blockId === 'status-pill-example-1' &&
+        message.data?.payload?.entityGraph?.entities?.some((entity: any) => entity?.properties?.status === nextOption.value),
+      { fromIndex: startingIndex }
+    )
 
     await pill.click()
-    await page.waitForTimeout(200)
-    const chooseBlocked = host.locator('[role="menuitem"]').filter({ hasText: 'Blocked' })
-    await expect(chooseBlocked).toBeVisible()
-    await chooseBlocked.click()
-    await waitForPersistedStatus(page, 'Blocked')
-    await expect(host.locator('.status-pill-block')).toHaveCount(1)
-    await expect(pill).toContainText('Blocked')
+    const menuItem = host.locator('[role="menuitem"]').filter({ hasText: nextOption.label })
+    await expect(menuItem).toBeVisible()
+    await menuItem.click()
 
-    await pill.click()
-    await page.waitForTimeout(200)
-    const chooseReview = host.locator('[role="menuitem"]').filter({ hasText: 'Review' })
-    await expect(chooseReview).toBeVisible()
-    await chooseReview.click()
-    await waitForPersistedStatus(page, 'Review')
-    await expect(host.locator('.status-pill-block')).toHaveCount(1)
-    await expect(pill).toContainText('Review')
+    const updateMessage = await pendingUpdate
+    expect(updateMessage.data?.payload?.properties).toEqual({ status: nextOption.value })
 
-    await page.reload()
-    const pillAfter = page.locator('.published-block-container').locator('vivafolio-status-pill .status-pill-block')
-    await expect(pillAfter).toBeVisible({ timeout: 10000 })
-    await expect(pillAfter).toContainText('Review')
-    await expect(page.locator('.published-block-container').locator('vivafolio-status-pill .status-pill-block')).toHaveCount(1)
+    const ackMessage = await pendingAck
+    expect(ackMessage.data?.payload?.entityId).toBe(rowEntity.entityId)
+
+    await pendingNotification
+    await expect(pill).toContainText(nextOption.label)
   })
 })

@@ -2,10 +2,7 @@
 
 export {
 	IndexingService,
-	IndexingServiceConfig,
-	StatusPillGraphParams,
-	StatusPillGraphResult,
-	StatusPersistenceResult
+	IndexingServiceConfig
 } from './IndexingService';
 export type { Entity } from '@vivafolio/block-core';
 export { EditingModule, DSLModule, EditResult, EditContext } from './EditingModule';

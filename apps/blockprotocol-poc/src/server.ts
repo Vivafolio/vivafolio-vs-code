@@ -55,8 +55,6 @@ interface GraphUpdate {
   properties: Record<string, unknown>
 }
 
-// Alias VivafolioBlockNotification from shared types as VivafolioBlockNotification for server code
-
 interface UpdateContext {
   state: ScenarioState
   update: GraphUpdate
@@ -287,19 +285,26 @@ const HTML_TEMPLATE_BLOCK_CLIENT_SOURCE = [
 ].join('\n')
 
 // --- Status Pill tasks.csv integration helpers --------------------------------
-// We materialize status metadata directly from status-pill.json so the UI reflects
+// We materialize status metadata directly from statusOptionsConfig.json so the UI reflects
 // labels/colors configured by content authors rather than hard-coded enums.
-const TASKS_CSV_PATH = path.resolve(REPO_ROOT, 'apps', 'blockprotocol-poc', 'data', 'tasks.csv')
-const TASKS_CSV_BASENAME = path.basename(TASKS_CSV_PATH)
-const STATUS_PILL_CONFIG_PATH = path.resolve(REPO_ROOT, 'apps', 'blockprotocol-poc', 'data', 'status-pill.json')
-const STATUS_PILL_CONFIG_BASENAME = path.basename(STATUS_PILL_CONFIG_PATH)
-const DEFAULT_ENTITY_TYPE_ID = 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2'
+const TASKS_CSV_BASENAME = 'tasks.csv'
+const STATUS_PILL_CONFIG_BASENAME = 'statusOptionsConfig.json'
+const CSV_ROW_ID_REGEX = /-row-(\d+)$/
 
-const STATUS_PILL_GRAPH_PARAMS: StatusPillGraphParams = {
-  tasksCsvBasename: TASKS_CSV_BASENAME,
-  statusConfigPath: STATUS_PILL_CONFIG_PATH,
-  statusConfigBasename: STATUS_PILL_CONFIG_BASENAME,
-  defaultEntityTypeId: DEFAULT_ENTITY_TYPE_ID
+function cloneEntityMetadata(entity: Entity): Entity {
+  const cloned: Entity = {
+    ...entity,
+    properties: { ...(entity.properties ?? {}) }
+  }
+  if ((entity as any).metadata) {
+    ; (cloned as any).metadata = JSON.parse(JSON.stringify((entity as any).metadata))
+  }
+  return cloned
+}
+
+function extractRowIndex(entityId: string): number {
+  const match = entityId.match(CSV_ROW_ID_REGEX)
+  return match ? Number.parseInt(match[1], 10) : Number.POSITIVE_INFINITY
 }
 
 const liveSockets = new Set<WebSocket>()
@@ -1616,7 +1621,9 @@ export async function startServer(options: StartServerOptions = {}) {
       // vivafolio_data! constructs in .viv files are handled via LSP notifications
       path.join(ROOT_DIR, '..', '..', 'test', 'projects'),
       // Also watch the demo datasets used by scenarios (CSV, etc.)
-      path.join(ROOT_DIR, 'data')
+      path.join(ROOT_DIR, 'data'),
+      // Status pill options config now lives alongside the block
+      path.join(REPO_ROOT, 'blocks', 'status-pill')
     ],
     supportedExtensions: ['csv', 'md', 'json'], // Only direct data files, not source files
     excludePatterns: ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/vivafolio-data-examples/**'],
@@ -1668,8 +1675,6 @@ export async function startServer(options: StartServerOptions = {}) {
   } catch (error) {
     console.error('[sidecar-lsp] Failed to start sidecar LSP client:', error)
   }
-
-  // Status pill graph hydration is now delegated to the indexing service via STATUS_PILL_GRAPH_PARAMS
 
   // Block resources cache middleware with local block priority
   const proxyJson = async (targetUrl: string, res: express.Response, fallbackData: any = {}, okStatus = 200) => {
@@ -1873,13 +1878,28 @@ export async function startServer(options: StartServerOptions = {}) {
     const connectionContext: Record<string, unknown> = {}
 
     if (scenarioId === 'status-pill-example') {
-      const hydrated = await indexingService.buildStatusPillEntityGraph(STATUS_PILL_GRAPH_PARAMS)
-      if (hydrated) {
-        state.graph = hydrated.graph as EntityGraph
+      const sortedTasks = indexingService
+        .getEntitiesByBasename(TASKS_CSV_BASENAME, { sourceType: 'csv' })
+        .filter((meta: any) => meta && typeof meta.entityId === 'string')
+        .sort((a: any, b: any) => extractRowIndex(a.entityId) - extractRowIndex(b.entityId))
+      const taskMetadata = sortedTasks[0]
+      const [statusConfigMetadata] = indexingService.getEntitiesByBasename(STATUS_PILL_CONFIG_BASENAME)
+
+      if (taskMetadata && statusConfigMetadata) {
+        const taskEntity = cloneEntityMetadata(taskMetadata as Entity)
+        const statusConfigEntity = cloneEntityMetadata(statusConfigMetadata as Entity)
+        taskEntity.properties = {
+          ...(taskEntity.properties ?? {}),
+          statusOptionsEntityId: statusConfigEntity.entityId
+        }
+
+        state.graph = {
+          entities: [taskEntity, statusConfigEntity],
+          links: []
+        }
         entityGraph = state.graph
-        connectionContext.statusPill = { targetEntityId: hydrated.targetEntityId }
       } else {
-        console.warn('[status-pill] failed to hydrate state from tasks.csv; leaving graph empty')
+        console.warn('[status-pill] missing task row or status config entity; leaving graph empty')
       }
     }
     if (scenarioId === 'indexing-service') {
@@ -2026,44 +2046,12 @@ export async function startServer(options: StartServerOptions = {}) {
           console.log('[transport] graph/update payload received:', JSON.stringify(payload.payload))
           const upd = payload.payload as GraphUpdate
           try {
-            let persistenceProps: Record<string, unknown> = upd.properties
-            let statusPersistence: StatusPersistenceResult | undefined
-            if (scenario.id === 'status-pill-example') {
-              statusPersistence = await indexingService.resolveStatusPillPersistence(
-                (upd.properties as any)?.status as string,
-                STATUS_PILL_GRAPH_PARAMS
-              )
-              if (!statusPersistence) {
-                console.warn('[status-pill] graph/update missing status field, skipping persistence')
-                socket.send(
-                  JSON.stringify({
-                    type: 'graph/ack',
-                    payload: { entityId: upd.entityId, ok: false }
-                  })
-                )
-                return
-              }
-              persistenceProps = { status: statusPersistence.persistedValue }
-              upd.properties = {
-                ...upd.properties,
-                status: statusPersistence.option.value,
-                statusLabel: statusPersistence.label,
-                statusColor: statusPersistence.color,
-                statusSourceValue: statusPersistence.persistedValue,
-                availableStatuses: statusPersistence.options
-              }
-            }
-
+            const persistenceProps: Record<string, unknown> = upd.properties
             const ok = await indexingService.updateEntity(upd.entityId, persistenceProps)
 
             // Maintain scenario-specific derived state if applyUpdate is provided; otherwise shallow merge
             // This should be removed after all scenarios are migrated to IndexingService-driven updates 
-            if (scenario.id === 'status-pill-example') {
-              const refreshed = await indexingService.buildStatusPillEntityGraph(STATUS_PILL_GRAPH_PARAMS)
-              if (refreshed) {
-                state.graph = refreshed.graph as EntityGraph
-              }
-            } else if (typeof scenario.applyUpdate === 'function') {
+            if (typeof scenario.applyUpdate === 'function') {
               try {
                 scenario.applyUpdate({
                   state,
@@ -2101,23 +2089,6 @@ export async function startServer(options: StartServerOptions = {}) {
                 payload: { entityId: upd.entityId, properties: upd.properties, ok }
               })
             )
-
-            // Domain-specific persisted signal for status-pill demo if status changed
-            if (scenario.id === 'status-pill-example' && statusPersistence) {
-              socket.send(
-                JSON.stringify({
-                  type: 'status/persisted',
-                  payload: {
-                    entityId: upd.entityId,
-                    status: statusPersistence.option.value,
-                    label: statusPersistence.label,
-                    sourceValue: statusPersistence.persistedValue,
-                    color: statusPersistence.color,
-                    sourcePath: path.relative(ROOT_DIR, statusPersistence.sourcePath ?? TASKS_CSV_PATH)
-                  }
-                })
-              )
-            }
           } catch (e) {
             console.error('[transport] updateEntity failed:', e)
             try {
