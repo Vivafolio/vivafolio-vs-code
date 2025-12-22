@@ -310,22 +310,30 @@ async function testRust(repoRoot) {
 }
 
 // ---------- Zig ----------
-// Starts the Zig language server (zls) in the given directory, asserts presence, and returns connection and log info.
-function startZls(cwd, repoRoot) {
-  const zlsBin = process.env.VIVAFOLIO_ZLS_BIN || 'zls'
-  assertCommandExists(repoRoot, 'basic-zig', zlsBin)
-  const env = { ...process.env }
-  const proc = spawn(`${resolveBinary(zlsBin)} --enable-stderr-logs --log-level debug`, { cwd, stdio: 'pipe', env, shell: resolveBinary('bash') })
-  const { conn, logPath } = makeConnectionWithLogging(proc, 'basic-zig', repoRoot)
-  return { conn, proc, logPath }
-}
 // Runs a Zig LSP session: initializes, opens/changes/saves a file, and waits for diagnostics.
 async function testZig(repoRoot) {
   const fixtureDir = path.resolve(repoRoot, 'test', 'projects', 'zig-basic')
   const filePath = path.join(fixtureDir, 'src', 'main.zig')
   const fileUri = String(pathToFileURL(filePath))
-  const started = startZls(fixtureDir, repoRoot)
-  const { conn, proc, logPath } = started
+  const zlsBin = process.env.VIVAFOLIO_ZLS_BIN || 'zls'
+  assertCommandExists(repoRoot, 'basic-zig', zlsBin)
+  const env = { ...process.env }
+  const { logPath, log } = createLogger(repoRoot, 'basic-zig')
+  const proc = spawn(resolveBinary(zlsBin), ['--enable-stderr-logs', '--log-level', 'debug'], { cwd: fixtureDir, stdio: 'pipe', env })
+  proc.stderr.on('data', d => { const s = String(d || '').trim(); if (s) log(`[stderr] ${s}`) })
+  proc.on('exit', (code, sig) => log(`[exit] code=${code} signal=${sig || ''}`))
+  const conn = rpc.createMessageConnection(
+    new rpc.StreamMessageReader(proc.stdout),
+    new rpc.StreamMessageWriter(proc.stdin),
+    { error: (m) => log(`[error] ${m}`), warn: (m) => log(`[warn] ${m}`), info: (m) => log(`[info] ${m}`), log: (m) => log(`[log] ${m}`) }
+  )
+  conn.trace(rpc.Trace.Messages, { log: (m, data) => {
+    try {
+      const extra = data ? (typeof data === 'string' ? data : JSON.stringify(data)) : ''
+      log(`[trace] ${m}${extra ? `\n${extra}` : ''}`)
+    } catch {}
+  } })
+  conn.listen()
   try {
     await waitForProcReady(proc)
     const absZig = resolveBinary('zig')
@@ -334,19 +342,11 @@ async function testZig(repoRoot) {
       capabilities: {},
       rootUri: String(pathToFileURL(fixtureDir)),
       workspaceFolders: [{ uri: String(pathToFileURL(fixtureDir)), name: 'zig-basic' }],
-      initializationOptions: { enable_build_on_save: false, zig_exe_path: absZig }
+      initializationOptions: { enable_build_on_save: true, zig_exe_path: absZig }
     })
     await conn.sendNotification('initialized', {})
-    await wait(300)
     const text = fs.readFileSync(filePath, 'utf8')
-    await conn.sendNotification('textDocument/didOpen', { textDocument: { uri: fileUri, languageId: 'zig', version: 1, text } })
-    const modifiedText = text + '\n// modified for analysis\n'
-    await conn.sendNotification('textDocument/didChange', { textDocument: { uri: fileUri, version: 2 }, contentChanges: [{ text: modifiedText }] })
-    await conn.sendNotification('textDocument/didSave', { textDocument: { uri: fileUri, version: 2 }, text: modifiedText })
-    await wait(1000)
-    await conn.sendNotification('textDocument/didChange', { textDocument: { uri: fileUri, version: 3 }, contentChanges: [{ text }] })
-    await conn.sendNotification('textDocument/didSave', { textDocument: { uri: fileUri, version: 3 }, text })
-    const ok = await new Promise((resolve) => {
+    const diagPromise = new Promise((resolve) => {
       const to = setTimeout(() => resolve(false), 60000)
       conn.onNotification('textDocument/publishDiagnostics', (p) => {
         try {
@@ -354,6 +354,10 @@ async function testZig(repoRoot) {
         } catch {}
       })
     })
+    await conn.sendNotification('textDocument/didOpen', { textDocument: { uri: fileUri, languageId: 'zig', version: 1, text } })
+    await conn.sendNotification('textDocument/didChange', { textDocument: { uri: fileUri, version: 2 }, contentChanges: [{ text }] })
+    await conn.sendNotification('textDocument/didSave', { textDocument: { uri: fileUri, version: 2 }, text })
+    const ok = await diagPromise
     return { ok, logPath }
   } catch (err) {
     try { fs.appendFileSync(logPath, `[error] ${err && err.stack ? err.stack : String(err)}\n`) } catch {}
