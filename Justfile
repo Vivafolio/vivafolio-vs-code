@@ -688,14 +688,6 @@ build-zls:
 test-zls-vendored: build-zls
 	VIVAFOLIO_ZLS_BIN="$PWD/third_party/zls/zig-out/bin/zls" node test/scenarios/basic-comms.js | cat
 
-# Build crystalline from vendored source
-build-crystalline:
-	cd third_party/crystalline && shards build --release
-
-# Run basic-comms with vendored crystalline
-test-crystalline-vendored: build-crystalline
-	VIVAFOLIO_CRYSTALLINE_BIN="$PWD/third_party/crystalline/bin/crystalline" node test/scenarios/basic-comms.js | cat
-
 # Repro nimlangserver crash with core dump and backtrace
 repro-nimlangserver-core: build-nimlangserver
 	set -euo pipefail

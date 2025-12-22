@@ -288,7 +288,6 @@ If vendoring proves helpful, we can extend this pattern to `zls` and `crystallin
 - Build and test:
   - `just build-zls` → builds zls (zig build)
   - `just test-zls-vendored` → runs Basic Communications with vendored zls (`VIVAFOLIO_ZLS_BIN` override)
-  - `just build-crystalline` → builds crystalline via shards
   - `just test-crystalline-vendored` → runs Basic Communications with vendored crystalline (`VIVAFOLIO_CRYSTALLINE_BIN` override)
 - Fixture tweaks (Linux): Updated Zig and Crystal test files to contain trivial parse errors for deterministic diagnostics.
 
