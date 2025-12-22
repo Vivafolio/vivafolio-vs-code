@@ -3,20 +3,33 @@
     "module": "commonjs",
     "target": "es2020",
     "outDir": "out",
-    "lib": ["es2020", "dom"],
+    "lib": [
+      "es2020",
+      "dom"
+    ],
     "sourceMap": true,
     "rootDir": "src",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "baseUrl": ".",
     "paths": {
-      "@vivafolio/block-loader": ["packages/block-loader/dist/index"],
-      "@vivafolio/block-resources-cache": ["packages/block-resources-cache/dist/index"],
-  "@vivafolio/indexing-service": ["packages/indexing-service/dist/index"],
-  "@vivafolio/block-core": ["packages/block-core/src/index"]
+      "@vivafolio/block-loader": [
+        "packages/block-loader/dist/index"
+      ],
+      "@vivafolio/block-resources-cache": [
+        "packages/block-resources-cache/dist/index"
+      ],
+      "@vivafolio/indexing-service": [
+        "packages/indexing-service/dist/index"
+      ]
     }
   },
-  "include": ["src/**/*.ts"]
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.d.ts"
+  ]
 }

@@ -13,22 +13,26 @@ export type {
   Sort as BP_Sort,
 } from "@blockprotocol/graph";
 
-// 2) Minimal internal core types for block frameworks
+
 export interface Entity {
   entityId: string;
-  properties: Record<string, unknown>;
-  // Optional for lightweight entities used in client/loader payloads
-  entityTypeId?: string;
-  metadata?: {
-    recordId: { entityId: string; editionId: string };
-    entityTypeId: string;
-  };
+  entityTypeId: string; // versioned URL of the entity type schema 
+  editionId: string; // specific edition of the entity
+  sourcePath: string;
+  sourceType: string; //e.g. "csv", "markdown", "json", "vivafolio_data_construct"
+  properties?: Record<string, unknown>; //MUST conform to the constraints described by the entity type of the entity
+}
+
+export interface LinkData {
+  leftEntityId: string;
+  rightEntityId: string;
+  leftToRightOrder?: number; //orders this link entity against other link entities of the same type with the same leftEntityId, which MUST be a non-negative integer
+  rightToLeftOrder?: number; //orders this link entity against other link entities of the same type with the same rightEntityId, which MUST be a non-negative integer
 }
 
 // LinkEntity used by apps that model explicit edges between entities
 export interface LinkEntity extends Entity {
-  sourceEntityId?: string;
-  destinationEntityId?: string;
+  linkData: LinkData;
 }
 
 export interface EntityGraph {
@@ -58,15 +62,15 @@ export interface BlockProps<TGraph = GraphService> {
 export type FilterSpec = {
   path: string; // dot-path into properties
   op:
-    | "equals"
-    | "not_equals"
-    | "contains"
-    | "starts_with"
-    | "ends_with"
-    | "greater_than"
-    | "less_than"
-    | "is_empty"
-    | "is_not_empty";
+  | "equals"
+  | "not_equals"
+  | "contains"
+  | "starts_with"
+  | "ends_with"
+  | "greater_than"
+  | "less_than"
+  | "is_empty"
+  | "is_not_empty";
   value?: unknown;
 };
 

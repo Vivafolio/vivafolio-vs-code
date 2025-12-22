@@ -147,7 +147,7 @@ export class VivafolioBlockLoader implements BlockLoader {
   // Mini-host for nested blocks
   private miniHost: MiniHost
   private mountedBlocks = new Map<string, HTMLElement>()
-  
+
   // Spec-style update bridge (window.postMessage handler)
   private _handleBlockProtocolMessage = (event: MessageEvent) => {
     const data = (event && (event as any).data) || undefined
@@ -166,7 +166,7 @@ export class VivafolioBlockLoader implements BlockLoader {
     if (entityId && typeof this.options.onBlockUpdate === 'function') {
       try {
         this.options.onBlockUpdate({ entityId, properties })
-      } catch {}
+      } catch { }
     }
   }
 
@@ -178,12 +178,12 @@ export class VivafolioBlockLoader implements BlockLoader {
       allowedDependencies: options.allowedDependencies || DEFAULT_ALLOWED_DEPENDENCIES,
       enableIntegrityChecking: options.enableIntegrityChecking ?? true,
       enableDiagnostics: options.enableDiagnostics ?? true,
-      onBlockUpdate: options.onBlockUpdate || (() => {}),
+      onBlockUpdate: options.onBlockUpdate || (() => { }),
       resourcesCache: options.resourcesCache
     } as Required<BlockLoaderOptions>
 
     // Initialize block state
-  this.resources = notification.resources || []
+    this.resources = notification.resources || []
     this.blockEntity = this.deriveBlockEntity(notification)
     this.blockGraph = this.deriveBlockGraph(notification)
     this.blockSubgraph = this.buildBlockEntitySubgraph(this.blockEntity, this.blockGraph)
@@ -206,10 +206,10 @@ export class VivafolioBlockLoader implements BlockLoader {
       resourcesCache: this.resourcesCache
     } as Required<BlockLoaderOptions>
 
-  // Begin listening for spec-style messages from block runtime
-  try { window.addEventListener('message', this._handleBlockProtocolMessage) } catch {}
+    // Begin listening for spec-style messages from block runtime
+    try { window.addEventListener('message', this._handleBlockProtocolMessage) } catch { }
 
-  // Extract block state from notification
+    // Extract block state from notification
     this.blockEntity = this.deriveBlockEntity(notification)
     this.blockGraph = this.deriveBlockGraph(notification)
     this.blockSubgraph = this.buildBlockEntitySubgraph(this.blockEntity, this.blockGraph)
@@ -259,7 +259,7 @@ export class VivafolioBlockLoader implements BlockLoader {
           status: (this.blockEntity as any)?.properties?.status
         })
       )
-    } catch {}
+    } catch { }
     if (this.isCustomElement && this.customElementUpdateFn) {
       try {
         console.log(
@@ -268,7 +268,7 @@ export class VivafolioBlockLoader implements BlockLoader {
           'status =',
           (this.blockEntity as any).properties?.status
         )
-      } catch {}
+      } catch { }
       this.customElementUpdateFn(this.blockEntity, false)
       // Attempt to verify DOM text after snapshot application
       try {
@@ -276,7 +276,7 @@ export class VivafolioBlockLoader implements BlockLoader {
         const pill = el?.querySelector('.status-pill-block')
         const text = pill?.textContent?.trim()
         console.log('[BlockLoader] Post-snapshot pill text =', text)
-      } catch {}
+      } catch { }
     }
 
     // Update embedder
@@ -297,8 +297,8 @@ export class VivafolioBlockLoader implements BlockLoader {
     this.embedder?.destroy()
     this.reactRoot?.unmount()
 
-  // Tear down spec bridge listener
-  try { window.removeEventListener('message', this._handleBlockProtocolMessage) } catch {}
+    // Tear down spec bridge listener
+    try { window.removeEventListener('message', this._handleBlockProtocolMessage) } catch { }
 
     if (this.customElementInstance) {
       this.customElementInstance.remove()
@@ -427,10 +427,11 @@ export class VivafolioBlockLoader implements BlockLoader {
   private deriveEntityTypeId(entity: Entity): string {
     // Simplified entity type derivation - in real implementation this would come from schema
     // For now, we'll use a heuristic based on properties
-    if (entity.properties.name && entity.properties.email) {
+    const properties = entity.properties ?? {}
+    if (properties.name && properties.email) {
       return 'https://blockprotocol.org/@alice/types/entity-type/person/v/1'
     }
-    if (entity.properties.title && entity.properties.status) {
+    if (properties.title && properties.status) {
       return 'https://blockprotocol.org/@alice/types/entity-type/task/v/1'
     }
     return 'https://blockprotocol.org/@alice/types/entity-type/generic/v/1'
@@ -450,7 +451,7 @@ export class VivafolioBlockLoader implements BlockLoader {
     return 'html'
   }
 
-  private async  initializeBundleBlock(container: HTMLElement): Promise<void> {
+  private async initializeBundleBlock(container: HTMLElement): Promise<void> {
     const [reactModule, reactDomModule, graphModule] = await Promise.all([
       import('react'),
       import('react-dom/client'),
@@ -475,7 +476,7 @@ export class VivafolioBlockLoader implements BlockLoader {
 
     console.log('[BlockLoader] Bundle URL:', bundleUrl)
 
-  await this.prefetchLocalResources(bundleLogicalName!)
+    await this.prefetchLocalResources(bundleLogicalName!)
 
     console.log('[BlockLoader] Fetching bundle from:', bundleUrl)
     const bundleResponse = await this.fetchResource(bundleUrl, { cache: 'no-store' as RequestCache })
@@ -598,14 +599,14 @@ export class VivafolioBlockLoader implements BlockLoader {
 
           if (typeof (factoryResult as any).init === 'function') {
             const __vf_updateEntity = (properties: Record<string, unknown>) => {
-              try { console.log('[BlockLoader] factory.init updateEntity called with properties', properties) } catch {}
+              try { console.log('[BlockLoader] factory.init updateEntity called with properties', properties) } catch { }
               this.options.onBlockUpdate({
                 entityId: this.blockEntity.entityId,
                 properties
               })
             }
-            try { console.log('[BlockLoader] Calling factory.init; updateEntity typeof =', typeof __vf_updateEntity) } catch {}
-            ;(factoryResult as any).init({
+            try { console.log('[BlockLoader] Calling factory.init; updateEntity typeof =', typeof __vf_updateEntity) } catch { }
+            ; (factoryResult as any).init({
               element: customElement,
               entity: this.blockEntity,
               readonly: false,
@@ -792,14 +793,14 @@ export class VivafolioBlockLoader implements BlockLoader {
             }
           }
 
-          // Store the intercepted handler for later use
-          ;(container as any)._hookHandler = interceptedHandler
+            // Store the intercepted handler for later use
+            ; (container as any)._hookHandler = interceptedHandler
         }
       }
     }
 
-    // Make the hook embedder available to blocks
-    ;(container as any)._hookEmbedder = hookEmbedder
+      // Make the hook embedder available to blocks
+      ; (container as any)._hookEmbedder = hookEmbedder
 
     // Also expose it globally for blocks that need it
     if (!(window as any).__vivafolioHookEmbedder) {
@@ -829,7 +830,7 @@ export class VivafolioBlockLoader implements BlockLoader {
         if (!(container as any)._entitySubscriptions) {
           (container as any)._entitySubscriptions = new Map()
         }
-        ;(container as any)._entitySubscriptions.set(callback, handler)
+        ; (container as any)._entitySubscriptions.set(callback, handler)
 
         // Register with the block loader
         const originalOnBlockUpdate = this.options.onBlockUpdate
@@ -840,7 +841,7 @@ export class VivafolioBlockLoader implements BlockLoader {
 
         // Return unsubscribe function
         return () => {
-          ;(container as any)._entitySubscriptions?.delete(callback)
+          ; (container as any)._entitySubscriptions?.delete(callback)
         }
       },
 
@@ -858,8 +859,8 @@ export class VivafolioBlockLoader implements BlockLoader {
       }
     }
 
-    // Make graph context available to blocks
-    ;(container as any)._graphContext = graphContext
+      // Make graph context available to blocks
+      ; (container as any)._graphContext = graphContext
 
     // Also expose globally for hooks
     if (!(window as any).__vivafolioGraphContext) {
@@ -1179,7 +1180,7 @@ export class VivafolioBlockLoader implements BlockLoader {
         inner: {
           entityId: entity.entityId,
           entityTypeId: 'unknown', // Would be derived from schema
-          properties: entity.properties
+          properties: entity.properties ?? {}
         }
       }))
     }
@@ -1190,7 +1191,7 @@ export class VivafolioBlockLoader implements BlockLoader {
     return {
       entityId: entity.entityId,
       entityTypeId: 'unknown', // Would be derived from schema
-      properties: entity.properties,
+      properties: entity.properties ?? {},
       linkedEntities: []
     }
   }

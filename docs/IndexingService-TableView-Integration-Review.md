@@ -75,6 +75,8 @@ await props.graph.updateEntity({
 4. **Collection Scoping**: Filter by `collectionId` (maps to CSV basename or entity collection)
 5. **Entity Updates**: Commit cell edits back to underlying data source
 
+Column schema edits introduce another dependency on the same APIs: `blocks/table-view-tanstack/src/schema/editor.tsx` triggers `migrateColumnType()` (`blocks/table-view-tanstack/src/schema/migrations.ts`) whenever a user changes a column type. That helper walks the entire dataset in 200-row pages via repeated `graph.aggregateEntities()` calls, coercing values and issuing `graph.updateEntity()` for every affected row. Without a host-side adapter that understands these methods, even purely schema-level operations fail.
+
 ---
 
 ## 2. IndexingService Current Capabilities
@@ -184,6 +186,7 @@ entityMetadata.set("tasks-row-1", {
 2. Sort entities by property values
 3. Paginate results with offset/limit
 4. Return pagination metadata (pageCount, totalCount)
+5. Support the repeated bulk scans that column migrations expect when they page through every row
 
 ### 3.2 Missing: Block Protocol Graph Module API
 

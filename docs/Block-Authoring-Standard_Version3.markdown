@@ -24,6 +24,7 @@ Minimum fields:
 ```json
 {
   "name": "color-picker",
+  "description": "an interactive input block that lets users inspect and edit a color value in real time",
   "version": "0.1.0",
   "protocol": "0.3",
   "blockType": {
@@ -38,12 +39,14 @@ Minimum fields:
     "required": ["value"],
     "additionalProperties": false
   },
-  "source": "dist/app.js"
+  "source": "dist/app.js",
+  "externals": "solidJS",
+  "license": "MIT"
 }
 ```
 
 Notes:
-- **blockType**: Use `"entryPoint": "custom-element"` for Vivafolio blocks, especially those built with SolidJS (wrapped in a Web Component). `tagName` is optional but recommended for clarity. The Host will instantiate the element and pass `graph` (containing `blockEntitySubgraph`, `readonly`, and graph methods) and `blockId` as properties for synchronous initialization.
+- **blockType**: Use `"entryPoint": "custom-element"` for Vivafolio blocks, especially those built with SolidJS (wrapped in a Web Component). `tagName` is a must for custom element blocks. The Host will instantiate the element and pass `graph` (containing `blockEntitySubgraph`, `readonly`, and graph methods) and `blockId` as properties for synchronous initialization.
 - **schema**: Inline JSON schema describing the root entity properties expected by the block; keep strict to ensure compatibility with the Host-provided `blockEntitySubgraph`.
 - **source**: Relative path to the bundled entrypoint that defines the custom element (e.g., `dist/app.js`).
 - **postbuild generation**: Add `\"postbuild\": \"node ../utils/postbuild.js\"` to each block’s scripts so `npm run build` emits `dist/block-metadata.json` from the `blockprotocol` section and normalizes the entrypoint path.

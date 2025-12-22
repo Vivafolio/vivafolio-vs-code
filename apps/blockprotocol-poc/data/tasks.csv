@@ -1,5 +1,5 @@
 Task ID,Title,Description,Assignee,Due Date,Status
-1,Design login screen,Create UI mockups for login and signup,Elitsa,2025-12-01,pending
+1,Design login screen,Create UI mockups for login and signup,Elitsa,2025-12-01,Review
 2,API auth endpoint,Implement JWT-based authentication backend,Ivan,2025-12-03,in_progress
 3,User testing session,Schedule and run usability tests with 5 users,Maria,2025-12-05,blocked
 4,Database migration,Migrate user table to new schema,Petar,2025-11-30,completed
