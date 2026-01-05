@@ -150,10 +150,10 @@ test-ci:
 	@echo "Running Block Protocol and WDIO suites..."
 	just test-blockprotocol-all
 	just test-wdio
-	@echo "Running allowed-to-fail suites..."
-	just test-scenario-basic-comms || true
-	just test-scenario-callsite-diagnostics || true
-	just test-e2e-blockprotocol-integration || true
+	@echo "Running scenario and integration suites..."
+	just test-scenario-basic-comms
+	just test-scenario-callsite-diagnostics
+	just test-e2e-blockprotocol-integration
 
 # Run block-resources-cache package tests
 test-block-resources-cache:

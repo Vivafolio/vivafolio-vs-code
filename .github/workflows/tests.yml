@@ -66,12 +66,8 @@ jobs:
         run: |
           just test-wdio
 
-      - name: Known failing or environment-sensitive suites (allowed to fail)
+      - name: Scenario and integration suites
         run: |
-          # Multi-language LSP scenarios (missing/partial toolchains)
-          just test-scenario-basic-comms || true
-          just test-scenario-callsite-diagnostics || true
-
-          # Block Protocol integration gaps
-          just test-e2e-blockprotocol-integration || true
-
+          just test-scenario-basic-comms
+          just test-scenario-callsite-diagnostics
+          just test-e2e-blockprotocol-integration
