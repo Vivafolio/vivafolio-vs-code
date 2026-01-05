@@ -136,6 +136,25 @@ package:
 test-all:
 	VIVAFOLIO_DEBUG=1 VIVAFOLIO_CAPTURE_WEBVIEW_LOGS=1 node test/run-all-tests.js
 
+# Run the same commands executed by the CI workflow (.github/workflows/tests.yml)
+test-ci:
+	@echo "Running package and block suites..."
+	just test-packages
+	just test-blocks
+	just test-block-integration
+	@echo "Running extension, LSP, and runtime suites..."
+	just test-vscode
+	just test-lsp-standalone
+	just test-runtime-all
+	just test-runtime-vivafolioblock
+	@echo "Running Block Protocol and WDIO suites..."
+	just test-blockprotocol-all
+	just test-wdio
+	@echo "Running allowed-to-fail suites..."
+	just test-scenario-basic-comms || true
+	just test-scenario-callsite-diagnostics || true
+	just test-e2e-blockprotocol-integration || true
+
 # Run block-resources-cache package tests
 test-block-resources-cache:
 	cd packages/block-resources-cache && npm test | cat

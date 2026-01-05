@@ -42,6 +42,7 @@ See `docs/Vivafolio-E2E-Runtime-Path-Tests.md` for detailed documentation.
 
 **Testing:**
 - `just test-all` - Run complete test suite
+- `just test-ci` - Run the CI workflow's test matrix locally (mirrors `.github/workflows/tests.yml` via `Justfile`)
 - `just test-blockprotocol-poc` - Run Block Protocol POC tests
 - `just test-runtime-all` - Run all runtime path tests
 - `just test-vscode` - Run VS Code extension tests
