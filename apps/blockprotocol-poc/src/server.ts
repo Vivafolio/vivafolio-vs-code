@@ -456,11 +456,45 @@ function nextCachingTag() {
   return `v${resourceCounter}`
 }
 
+const SYNTHETIC_SOURCE_TYPE = 'scenario'
+
+function syntheticEntity(args: { entityId: string; entityTypeId: string; properties?: Record<string, unknown> }): Entity {
+  return {
+    entityId: args.entityId,
+    entityTypeId: args.entityTypeId,
+    editionId: `1`,
+    sourcePath: `vivafolio://scenario/${args.entityId}`,
+    sourceType: SYNTHETIC_SOURCE_TYPE,
+    properties: args.properties
+  }
+}
+
+function syntheticLinkEntity(args: {
+  entityId: string
+  entityTypeId: string
+  leftEntityId: string
+  rightEntityId: string
+  properties?: Record<string, unknown>
+}): LinkEntity {
+  return {
+    entityId: args.entityId,
+    entityTypeId: args.entityTypeId,
+    editionId: `1`,
+    sourcePath: `vivafolio://scenario/${args.entityId}`,
+    sourceType: SYNTHETIC_SOURCE_TYPE,
+    properties: args.properties ?? {},
+    linkData: {
+      leftEntityId: args.leftEntityId,
+      rightEntityId: args.rightEntityId
+    }
+  }
+}
+
 // Helper to hydrate a Line Chart subgraph with config + dataset rows
 function buildLineChartSubgraph(params: {
   rows: Array<Record<string, unknown>>
 }): EntityGraph {
-  const configEntity: Entity = {
+  const configEntity = syntheticEntity({
     entityId: 'linechart-config',
     entityTypeId: 'vivafolio:viz:LineChartConfig',
     properties: {
@@ -476,12 +510,12 @@ function buildLineChartSubgraph(params: {
       width: 400,
       height: 400
     }
-  }
-  const datasetEntity: Entity = {
+  })
+  const datasetEntity = syntheticEntity({
     entityId: 'linechart-dataset',
     entityTypeId: 'vivafolio:data:Dataset',
     properties: { rows: params.rows }
-  }
+  })
   return { entities: [configEntity, datasetEntity], links: [] }
 }
 
@@ -580,7 +614,7 @@ function createHelloWorldGraph(): EntityGraph {
   // Creates a simple entity graph for the hello-world scenario
   // Demonstrates basic Block Protocol entity structure with a single person entity
   // Used in Milestone 0 to verify basic Block Protocol wiring
-  const blockEntity: Entity = {
+  const blockEntity = syntheticEntity({
     entityId: 'entity-hello-world',
     entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/person/v1',
     properties: {
@@ -588,7 +622,7 @@ function createHelloWorldGraph(): EntityGraph {
       message: 'Welcome to the Block Protocol POC!',
       timestamp: new Date().toISOString()
     }
-  }
+  })
 
   return { entities: [blockEntity], links: [] }
 }
@@ -598,7 +632,7 @@ function createKanbanGraph(): EntityGraph {
   // Includes tasks, users, and board structure to demonstrate nested block composition
   // Shows how different block types (task, user, board) can work together
   const tasks: Entity[] = [
-    {
+    syntheticEntity({
       entityId: 'task-1',
       entityTypeId: 'https://vivafolio.dev/entity-types/task/v1',
       properties: {
@@ -607,8 +641,8 @@ function createKanbanGraph(): EntityGraph {
         status: 'todo',
         description: 'Sketch how Kanban, task and user profile blocks communicate.'
       }
-    },
-    {
+    }),
+    syntheticEntity({
       entityId: 'task-2',
       entityTypeId: 'https://vivafolio.dev/entity-types/task/v1',
       properties: {
@@ -617,8 +651,8 @@ function createKanbanGraph(): EntityGraph {
         status: 'doing',
         description: 'Serve nested block resources via the simulated host.'
       }
-    },
-    {
+    }),
+    syntheticEntity({
       entityId: 'task-3',
       entityTypeId: 'https://vivafolio.dev/entity-types/task/v1',
       properties: {
@@ -627,11 +661,11 @@ function createKanbanGraph(): EntityGraph {
         status: 'done',
         description: 'Assert that task and user blocks render within the board.'
       }
-    }
+    })
   ]
 
   const users: Entity[] = [
-    {
+    syntheticEntity({
       entityId: 'user-1',
       entityTypeId: 'https://vivafolio.dev/entity-types/user/v1',
       properties: {
@@ -639,8 +673,8 @@ function createKanbanGraph(): EntityGraph {
         role: 'Frontend',
         avatar: '🧪'
       }
-    },
-    {
+    }),
+    syntheticEntity({
       entityId: 'user-2',
       entityTypeId: 'https://vivafolio.dev/entity-types/user/v1',
       properties: {
@@ -648,25 +682,30 @@ function createKanbanGraph(): EntityGraph {
         role: 'Platform',
         avatar: '🧰'
       }
-    }
+    })
   ]
 
-  const board: Entity = {
+  const board = syntheticEntity({
     entityId: 'kanban-board-1',
     entityTypeId: 'https://vivafolio.dev/entity-types/board/v1',
     properties: {
       title: 'Iteration Zero',
       columns: buildBoardColumns(tasks)
     }
-  }
+  })
 
-  const links: LinkEntity[] = tasks.map((task) => ({
-    entityId: `link-${task.entityId}-assignee`,
-    entityTypeId: 'https://vivafolio.dev/link-types/assignee/v1',
-    properties: {},
-    sourceEntityId: task.entityId,
-    destinationEntityId: String(task.properties.assigneeId ?? '')
-  }))
+  const links: LinkEntity[] = tasks.map((task) => {
+    const assigneeId = typeof task.properties?.['assigneeId'] === 'string'
+      ? task.properties?.['assigneeId'] as string
+      : ''
+    return syntheticLinkEntity({
+      entityId: `link-${task.entityId}-assignee`,
+      entityTypeId: 'https://vivafolio.dev/link-types/assignee/v1',
+      leftEntityId: task.entityId,
+      rightEntityId: assigneeId,
+      properties: {}
+    })
+  })
 
   return { entities: [board, ...tasks, ...users] as Entity[], links }
 }
@@ -684,7 +723,12 @@ function buildBoardColumns(tasks: Entity[]) {
     id,
     title,
     taskIds: tasks
-      .filter((task) => (task.properties.status ?? 'todo') === id)
+      .filter((task) => {
+        const status = typeof task.properties?.['status'] === 'string'
+          ? task.properties?.['status'] as string
+          : 'todo'
+        return status === id
+      })
       .map((task) => task.entityId)
   }))
 }
@@ -728,11 +772,11 @@ const scenarios: Record<string, ScenarioDefinition> = {
     description: 'Dynamic block loading for testing local development.',
     createState: () => ({
       graph: {
-        entities: [{
+        entities: [syntheticEntity({
           entityId: 'custom-entity',
           entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
           properties: { name: 'Custom Test Entity' }
-        }],
+        })],
         links: []
       }
     }),
@@ -1067,7 +1111,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
     description: 'Demonstrates the PersonChipBlock - shows assignees with avatars',
     createState: () => ({
       graph: {
-        entities: [{
+        entities: [syntheticEntity({
           entityId: 'person-chip-entity',
           entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
           properties: {
@@ -1075,7 +1119,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
             'https://blockprotocol.org/@blockprotocol/types/property-type/name/v/1': 'Person Chip Example',
             assignees: ['alice', 'bob']
           }
-        }],
+        })],
         links: []
       }
     }),
@@ -1111,16 +1155,16 @@ const scenarios: Record<string, ScenarioDefinition> = {
       graph: {
         entities: [
           // Main table entity
-          {
+          syntheticEntity({
             entityId: 'table-view-entity',
             entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
             properties: {
               'https://blockprotocol.org/@blockprotocol/types/property-type/name/': 'Table View Example',
               'https://blockprotocol.org/@blockprotocol/types/property-type/name/v/1': 'Table View Example'
             }
-          },
+          }),
           // Mock table row entities (simulating what indexing service would provide)
-          {
+          syntheticEntity({
             entityId: 'project_tasks-row-0',
             entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
             properties: {
@@ -1130,8 +1174,8 @@ const scenarios: Record<string, ScenarioDefinition> = {
               'Priority': 'High',
               'Due Date': '2025-09-20'
             }
-          },
-          {
+          }),
+          syntheticEntity({
             entityId: 'project_tasks-row-1',
             entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
             properties: {
@@ -1141,8 +1185,8 @@ const scenarios: Record<string, ScenarioDefinition> = {
               'Priority': 'Medium',
               'Due Date': '2025-09-15'
             }
-          },
-          {
+          }),
+          syntheticEntity({
             entityId: 'project_tasks-row-2',
             entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
             properties: {
@@ -1152,7 +1196,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
               'Priority': 'Low',
               'Due Date': '2025-09-25'
             }
-          }
+          })
         ],
         links: []
       }
@@ -1187,14 +1231,14 @@ const scenarios: Record<string, ScenarioDefinition> = {
     description: 'Demonstrates the BoardViewBlock - Kanban-style task management',
     createState: () => ({
       graph: {
-        entities: [{
+        entities: [syntheticEntity({
           entityId: 'board-view-entity',
           entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
           properties: {
             'https://blockprotocol.org/@blockprotocol/types/property-type/name/': 'Board View Example',
             'https://blockprotocol.org/@blockprotocol/types/property-type/name/v/1': 'Board View Example'
           }
-        }],
+        })],
         links: []
       }
     }),
@@ -1228,13 +1272,13 @@ const scenarios: Record<string, ScenarioDefinition> = {
     description: 'GDP per capita line chart with selectable countries (Eurostat CSV).',
     createState: () => ({
       graph: {
-        entities: [{
+        entities: [syntheticEntity({
           entityId: 'd3-line-graph-entity',
           entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
           properties: {
             'https://blockprotocol.org/@blockprotocol/types/property-type/name/': 'D3 Line Graph – GDP per capita'
           }
-        }],
+        })],
         links: []
       }
     }),
@@ -1262,7 +1306,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
     description: 'Demonstrates hot-reloaded framework blocks with compilation and serving',
     createState: () => ({
       graph: {
-        entities: [{
+        entities: [syntheticEntity({
           entityId: 'framework-demo-entity',
           entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
           properties: {
@@ -1270,7 +1314,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
             'https://blockprotocol.org/@blockprotocol/types/property-type/name/v/1': 'Framework Demo',
             status: 'in-progress'
           }
-        }],
+        })],
         links: []
       }
     }),
@@ -1320,15 +1364,15 @@ const scenarios: Record<string, ScenarioDefinition> = {
     createState: () => ({
       graph: {
         entities: [
-          {
+          syntheticEntity({
             entityId: 'parent-entity',
             entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
             properties: {
               'https://blockprotocol.org/@blockprotocol/types/property-type/name/': 'Cross-Framework Parent',
               'https://blockprotocol.org/@blockprotocol/types/property-type/name/v/1': 'Cross-Framework Parent'
             }
-          },
-          {
+          }),
+          syntheticEntity({
             entityId: 'child-entity-1',
             entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
             properties: {
@@ -1336,8 +1380,8 @@ const scenarios: Record<string, ScenarioDefinition> = {
               'https://blockprotocol.org/@blockprotocol/types/property-type/name/v/1': 'SolidJS Child',
               status: 'todo'
             }
-          },
-          {
+          }),
+          syntheticEntity({
             entityId: 'child-entity-2',
             entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
             properties: {
@@ -1345,7 +1389,7 @@ const scenarios: Record<string, ScenarioDefinition> = {
               'https://blockprotocol.org/@blockprotocol/types/property-type/name/v/1': 'Vue Child',
               status: 'in-progress'
             }
-          }
+          })
         ],
         links: []
       }
@@ -1441,14 +1485,14 @@ async function ensureHtmlTemplateAssets() {
 function createHtmlTemplateGraph(): EntityGraph {
   const namePropertyBase = 'https://blockprotocol.org/@blockprotocol/types/property-type/name/'
   const namePropertyVersioned = `${namePropertyBase}v/1`
-  const entity: Entity = {
+  const entity = syntheticEntity({
     entityId: 'html-template-block-entity',
     entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
     properties: {
       [namePropertyBase]: 'Vivafolio Template Block',
       [namePropertyVersioned]: 'Vivafolio Template Block'
     }
-  }
+  })
 
   return { entities: [entity], links: [] }
 }
@@ -1456,7 +1500,7 @@ function createHtmlTemplateGraph(): EntityGraph {
 function createFeatureShowcaseGraph(): EntityGraph {
   const namePropertyBase = 'https://blockprotocol.org/@blockprotocol/types/property-type/name/'
   const namePropertyVersioned = `${namePropertyBase}v/1`
-  const entity: Entity = {
+  const entity = syntheticEntity({
     entityId: 'feature-showcase-block',
     entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
     properties: {
@@ -1465,7 +1509,7 @@ function createFeatureShowcaseGraph(): EntityGraph {
       version: '0.1.0',
       description: 'Demonstrates the Block Protocol graph module with stdlib integration'
     }
-  }
+  })
 
   return { entities: [entity], links: [] }
 }
@@ -1473,7 +1517,7 @@ function createFeatureShowcaseGraph(): EntityGraph {
 function createCustomElementGraph(): EntityGraph {
   const namePropertyBase = 'https://blockprotocol.org/@blockprotocol/types/property-type/name/'
   const namePropertyVersioned = `${namePropertyBase}v/1`
-  const entity: Entity = {
+  const entity = syntheticEntity({
     entityId: 'custom-element-entity',
     entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
     properties: {
@@ -1483,7 +1527,7 @@ function createCustomElementGraph(): EntityGraph {
       description: 'Demonstrates vanilla WebComponent integration',
       status: 'todo'
     }
-  }
+  })
 
   return { entities: [entity], links: [] }
 }

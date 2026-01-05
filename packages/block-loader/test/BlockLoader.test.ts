@@ -5,6 +5,33 @@
 import { VivafolioBlockLoader, DEFAULT_ALLOWED_DEPENDENCIES, VivafolioBlockNotification } from '../src'
 
 describe('@vivafolio/block-loader', () => {
+  const TEST_ENTITY = {
+    entityId: 'test-entity',
+    entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
+    editionId: 'test-edition',
+    sourcePath: 'file:///test',
+    sourceType: 'test',
+    properties: { title: 'Test' }
+  }
+
+  const PARENT_ENTITY = {
+    entityId: 'parent-entity',
+    entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
+    editionId: 'test-edition',
+    sourcePath: 'file:///test',
+    sourceType: 'test',
+    properties: { title: 'Parent' }
+  }
+
+  const CHILD_ENTITY = {
+    entityId: 'child-entity',
+    entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
+    editionId: 'test-edition',
+    sourcePath: 'file:///test',
+    sourceType: 'test',
+    properties: { name: 'Child', email: 'child@example.com' }
+  }
+
   describe('DEFAULT_ALLOWED_DEPENDENCIES', () => {
     it('should include required Block Protocol dependencies', () => {
       expect(DEFAULT_ALLOWED_DEPENDENCIES.has('react')).toBe(true)
@@ -30,13 +57,10 @@ describe('@vivafolio/block-loader', () => {
         start: { line: 1, character: 0 },
         end: { line: 5, character: 0 }
       },
-      entityId: 'test-entity',
+      entityId: TEST_ENTITY.entityId,
       resources: [],
       entityGraph: {
-        entities: [{
-          entityId: 'test-entity',
-          properties: { title: 'Test' }
-        }],
+        entities: [TEST_ENTITY],
         links: []
       }
     }
@@ -174,16 +198,7 @@ describe('@vivafolio/block-loader', () => {
       entityId: 'parent-entity',
       resources: [],
       entityGraph: {
-        entities: [
-          {
-            entityId: 'parent-entity',
-            properties: { title: 'Parent' }
-          },
-          {
-            entityId: 'child-entity',
-            properties: { name: 'Child', email: 'child@example.com' }
-          }
-        ],
+        entities: [PARENT_ENTITY, CHILD_ENTITY],
         links: []
       }
     }
