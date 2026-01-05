@@ -83,28 +83,15 @@ function startLeanLakeServe(repoRoot) {
 
 async function testLean(repoRoot) {
   const { conn, proc, cwd, logPath } = startLeanLakeServe(repoRoot)
+  const warningPayload = 'vivafolio: { "viewstate": { "value": 7 }, "height": 120, "origin": "warn" }'
+  const errorPayload = 'vivafolio: { "viewstate": { "value": 8 }, "height": 180, "origin": "error" }'
+  const absPath = path.join(cwd, 'TestEmit.lean')
+  const fileUri = String(pathToFileURL(absPath))
+  const content = fs.readFileSync(absPath, 'utf8')
   try {
     await conn.sendRequest('initialize', { processId: null, capabilities: {}, rootUri: null, workspaceFolders: null })
     await conn.sendNotification('initialized', {})
 
-    // Write a Lean file on disk to ensure lake serve picks it up
-    const absPath = path.join(cwd, 'TestEmit.lean')
-    const fileUri = String(pathToFileURL(absPath))
-    const content = (
-      'import Lean\n' +
-      'open Lean Elab Command\n' +
-      'syntax (name := emitErrorCmd) "#emit_error " str : command\n' +
-      ' @[command_elab emitErrorCmd]\n' +
-      ' def elabEmitErrorCmd : CommandElab := fun stx => do\n' +
-      '   match stx with\n' +
-      '   | `(command| #emit_error $s:str) =>\n' +
-      '     throwError (.ofFormat (format s.getString))\n' +
-      '   | _ => throwError "invalid syntax"\n' +
-      '\n' +
-      ' #emit_error "vivafolio: { \\\"viewstate\\\": { \\\"value\\\": 7 }, \\\"height\\\": 120 }"\n'
-    )
-    try { fs.mkdirSync(path.dirname(absPath), { recursive: true }) } catch {}
-    try { fs.writeFileSync(absPath, content, 'utf8') } catch {}
     await conn.sendNotification('textDocument/didOpen', {
       textDocument: { uri: fileUri, languageId: 'lean4', version: 1, text: content }
     })
@@ -115,19 +102,30 @@ async function testLean(repoRoot) {
     })
     await conn.sendNotification('textDocument/didSave', { textDocument: { uri: fileUri } })
 
-    const got = await new Promise((resolve, reject) => {
+    const diagState = await new Promise((resolve, reject) => {
       const to = setTimeout(() => reject(new Error(`Lean: timed out waiting for vivafolio diagnostic. See log: ${logPath}`)), 60000)
+      const state = { warn: null, error: null }
       conn.onNotification('textDocument/publishDiagnostics', (p) => {
         try {
-          // Log all diagnostics for debugging
           try { console.log('[lean diags]', JSON.stringify(p)) } catch {}
           try { fs.appendFileSync(logPath, `[diag] ${JSON.stringify(p)}\n`) } catch {}
+          if (p?.uri !== fileUri) { return }
           const diags = Array.isArray(p?.diagnostics) ? p.diagnostics : []
-          if (diags.some(d => String(d.message || '').includes('vivafolio:'))) { clearTimeout(to); resolve(true) }
+          for (const d of diags) {
+            const msg = String(d?.message || '')
+            if (msg.includes(warningPayload)) state.warn = d
+            if (msg.includes(errorPayload)) state.error = d
+          }
+          if (state.warn && state.error) { clearTimeout(to); resolve(state) }
         } catch {}
       })
     })
-    assert.strictEqual(got, true)
+    assert.ok(diagState.warn, 'expected warning diagnostic containing vivafolio payload')
+    assert.ok(diagState.error, 'expected error diagnostic containing vivafolio payload')
+    assert.strictEqual(diagState.warn.severity, 2, 'warning diagnostic should have severity 2')
+    assert.strictEqual(diagState.error.severity, 1, 'error diagnostic should have severity 1')
+    assert.strictEqual(diagState.warn.source, 'Lean 4', 'warning diagnostic should be sourced from Lean 4')
+    assert.strictEqual(diagState.error.source, 'Lean 4', 'error diagnostic should be sourced from Lean 4')
   } finally {
     try { proc.kill() } catch {}
     conn.dispose()
@@ -181,4 +179,3 @@ async function run() {
 }
 
 run().catch(err => { console.error(err); process.exit(1) })
-

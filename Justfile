@@ -198,6 +198,9 @@ test-scenario-basic-comms:
 test-scenario-callsite-diagnostics:
 	node test/scenarios/callsite-diagnostics.js | cat
 
+test-lean-lsp:
+	npm run test:e2e:lean-nim | cat
+
 test-e2e-blockprotocol-integration:
 	node test/e2e-blockprotocol-integration.js | cat
 
