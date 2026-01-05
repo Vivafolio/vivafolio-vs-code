@@ -8,6 +8,13 @@ const connection = rpc.createMessageConnection(
   new rpc.StreamMessageWriter(process.stdout)
 )
 
+// Ensure stdin stays open so the JSON-RPC listener keeps running even when no data was sent yet
+if (process.stdin.isTTY && typeof process.stdin.setRawMode === 'function') {
+  process.stdin.setRawMode(false)
+}
+process.stdin.resume()
+const keepAlive = setInterval(() => {}, 1000)
+connection.onClose(() => clearInterval(keepAlive))
 let initialized = false
 const uriState = new Map() // uri -> { color: string }
 
