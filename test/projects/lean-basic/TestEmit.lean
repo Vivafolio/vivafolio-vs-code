@@ -1,11 +1,4 @@
-import Lean
-open Lean Elab Command
-syntax (name := emitErrorCmd) "#emit_error " str : command
- @[command_elab emitErrorCmd]
- def elabEmitErrorCmd : CommandElab := fun stx => do
-   match stx with
-   | `(command| #emit_error $s:str) =>
-     throwError (.ofFormat (format s.getString))
-   | _ => throwError "invalid syntax"
+import Basic
 
- #emit_error "vivafolio: { \"viewstate\": { \"value\": 7 }, \"height\": 120 }"
+#emit_viv_warn "vivafolio: { \"viewstate\": { \"value\": 7 }, \"height\": 120, \"origin\": \"warn\" }"
+#emit_viv_error "vivafolio: { \"viewstate\": { \"value\": 8 }, \"height\": 180, \"origin\": \"error\" }"

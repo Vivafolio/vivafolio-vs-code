@@ -39,7 +39,7 @@ Results:
 
 #### Lean
 - Server: lake serve (Lean 4)
-- Status: PASS. Minimal project `test/projects/lean-basic`; a tiny `#emit_warn` command logs a warning (see latest `test/logs/basic-lean-*.log`), even though the watchdog notes that the stream closes immediately after diagnostics are sent.
+- Status: PASS. Minimal project `test/projects/lean-basic`; dedicated `#emit_viv_warn` / `#emit_viv_error` commands log one warning and one error (see latest `test/logs/basic-lean-*.log`). Tests assert Lean’s LSP payloads retain severity + source metadata.
 - Notes: Runs with the standard toolchain in the Vivafolio flake shell.
 - Next: None.
 
