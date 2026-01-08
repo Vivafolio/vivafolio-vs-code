@@ -1,36 +1,10 @@
 import { Component, Input, Output, EventEmitter, OnChanges, SimpleChanges } from '@angular/core'
 
-// Block Protocol types
-export interface Entity {
-  entityId: string
-  entityTypeId: string
-  properties: Record<string, unknown>
-  metadata?: {
-    recordId: {
-      entityId: string
-      editionId: string
-    }
-    entityTypeId: string
-  }
-}
+// Reuse shared core types: import for local use and re-export for consumers
+import type { Entity, BlockGraph, GraphService, BlockProps } from '@vivafolio/block-core'
+export type { Entity, BlockGraph, GraphService, BlockProps } from '@vivafolio/block-core'
 
-export interface BlockGraph {
-  depth: number
-  linkedEntities: Entity[]
-  linkGroups: Array<Record<string, unknown>>
-}
-
-export interface GraphService {
-  blockEntity: Entity
-  blockGraph: BlockGraph
-  entityTypes: Array<Record<string, unknown>>
-  linkedAggregations: Array<Record<string, unknown>>
-  readonly: boolean
-}
-
-export interface BlockProps {
-  graph: GraphService
-}
+type EntityProperties = NonNullable<Entity['properties']>
 
 // Angular component type
 export type AngularComponent = new (...args: any[]) => any
@@ -52,7 +26,7 @@ export function createBlock<T>(
 // Base block component class
 export abstract class BlockComponent implements OnChanges {
   @Input() graph!: GraphService
-  @Output() entityUpdate = new EventEmitter<Partial<Entity['properties']>>()
+  @Output() entityUpdate = new EventEmitter<Partial<EntityProperties>>()
 
   protected get entity(): Entity {
     return this.graph?.blockEntity || {} as Entity
@@ -70,14 +44,14 @@ export abstract class BlockComponent implements OnChanges {
 
   protected abstract onGraphChange(): void
 
-  protected updateEntity(updates: Partial<Entity['properties']>) {
+  protected updateEntity(updates: Partial<EntityProperties>) {
     this.entityUpdate.emit(updates)
   }
 }
 
 // Service for Block Protocol operations
 export class BlockProtocolService {
-  updateEntity(updates: Partial<Entity['properties']>) {
+  updateEntity(updates: Partial<EntityProperties>) {
     // In a real implementation, this would call the Block Protocol updateEntity method
     console.log('Entity update requested:', updates)
   }

@@ -462,7 +462,7 @@ function syntheticEntity(args: { entityId: string; entityTypeId: string; propert
   return {
     entityId: args.entityId,
     entityTypeId: args.entityTypeId,
-    editionId: `1`,
+    editionId: 1,
     sourcePath: `vivafolio://scenario/${args.entityId}`,
     sourceType: SYNTHETIC_SOURCE_TYPE,
     properties: args.properties
@@ -479,7 +479,7 @@ function syntheticLinkEntity(args: {
   return {
     entityId: args.entityId,
     entityTypeId: args.entityTypeId,
-    editionId: `1`,
+    editionId: 1,
     sourcePath: `vivafolio://scenario/${args.entityId}`,
     sourceType: SYNTHETIC_SOURCE_TYPE,
     properties: args.properties ?? {},

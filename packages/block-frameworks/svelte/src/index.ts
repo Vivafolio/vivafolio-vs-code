@@ -1,36 +1,10 @@
 import { writable, readable, derived } from 'svelte/store'
 
-// Block Protocol types
-export interface Entity {
-  entityId: string
-  entityTypeId: string
-  properties: Record<string, unknown>
-  metadata?: {
-    recordId: {
-      entityId: string
-      editionId: string
-    }
-    entityTypeId: string
-  }
-}
+// Reuse shared core types: import for local use and re-export for consumers
+import type { Entity, BlockGraph, GraphService, BlockProps } from '@vivafolio/block-core'
+export type { Entity, BlockGraph, GraphService, BlockProps } from '@vivafolio/block-core'
 
-export interface BlockGraph {
-  depth: number
-  linkedEntities: Entity[]
-  linkGroups: Array<Record<string, unknown>>
-}
-
-export interface GraphService {
-  blockEntity: Entity
-  blockGraph: BlockGraph
-  entityTypes: Array<Record<string, unknown>>
-  linkedAggregations: Array<Record<string, unknown>>
-  readonly: boolean
-}
-
-export interface BlockProps {
-  graph: GraphService
-}
+type EntityProperties = NonNullable<Entity['properties']>
 
 // Svelte component type (simplified for TypeScript)
 export type SvelteComponent = any
@@ -66,7 +40,7 @@ export function useEntity(graph: GraphService) {
 
 // Store for updating entity properties
 export function useEntityUpdater(graph: GraphService) {
-  return (updates: Partial<Entity['properties']>) => {
+  return (updates: Partial<EntityProperties>) => {
     // In a real implementation, this would call the Block Protocol updateEntity method
     console.log('Entity update requested:', updates)
   }

@@ -8,7 +8,7 @@ describe('@vivafolio/block-loader', () => {
   const TEST_ENTITY = {
     entityId: 'test-entity',
     entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
-    editionId: 'test-edition',
+    editionId: 1,
     sourcePath: 'file:///test',
     sourceType: 'test',
     properties: { title: 'Test' }
@@ -17,7 +17,7 @@ describe('@vivafolio/block-loader', () => {
   const PARENT_ENTITY = {
     entityId: 'parent-entity',
     entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
-    editionId: 'test-edition',
+    editionId: 1,
     sourcePath: 'file:///test',
     sourceType: 'test',
     properties: { title: 'Parent' }
@@ -26,7 +26,7 @@ describe('@vivafolio/block-loader', () => {
   const CHILD_ENTITY = {
     entityId: 'child-entity',
     entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
-    editionId: 'test-edition',
+    editionId: 1,
     sourcePath: 'file:///test',
     sourceType: 'test',
     properties: { name: 'Child', email: 'child@example.com' }
