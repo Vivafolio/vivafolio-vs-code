@@ -149,12 +149,20 @@ interface BlockGraphState {
 
 const DEFAULT_ENTITY_TYPE_ID =
   'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2'
-const DEFAULT_ENTITY_EDITION_ID = 'initial'
+const DEFAULT_ENTITY_EDITION_ID = 1
+
+type BlockProtocolEntityMetadata = {
+  recordId: {
+    entityId: string
+    editionId: number
+  }
+  entityTypeId: string
+}
 
 interface BlockEntitySubgraphVertex {
   kind: 'entity'
   inner: {
-  metadata: NonNullable<Entity['metadata']>
+  metadata: BlockProtocolEntityMetadata
     properties: Record<string, unknown>
   }
 }
@@ -190,19 +198,15 @@ function createDefaultDepths(): BlockEntitySubgraph['depths'] {
 
 function normalizeEntity(entity: Entity): Entity {
   const entityId = entity.entityId
-  const entityTypeId = entity.entityTypeId ?? entity.metadata?.entityTypeId ?? DEFAULT_ENTITY_TYPE_ID
-  const editionId = entity.metadata?.recordId.editionId ?? DEFAULT_ENTITY_EDITION_ID
+  const entityTypeId = entity.entityTypeId ?? DEFAULT_ENTITY_TYPE_ID
+  const editionId = entity.editionId ?? DEFAULT_ENTITY_EDITION_ID
   return {
     entityId,
     entityTypeId,
+    editionId,
+    sourcePath: entity.sourcePath ?? `vivafolio://client/${entityId}`,
+    sourceType: entity.sourceType ?? 'client',
     properties: { ...(entity.properties ?? {}) },
-    metadata: {
-      recordId: {
-        entityId,
-        editionId
-      },
-      entityTypeId
-    }
   }
 }
 
@@ -211,13 +215,16 @@ function buildBlockEntitySubgraph(blockEntity: Entity, graph: BlockGraphState): 
   const vertices: BlockEntitySubgraph['vertices'] = {}
   const collect = (candidate: Entity) => {
     const normalized = normalizeEntity(candidate)
-    const revisionId = normalized.metadata?.recordId.editionId ?? DEFAULT_ENTITY_EDITION_ID
+    const revisionId = String(normalized.editionId ?? DEFAULT_ENTITY_EDITION_ID)
     const baseId = normalized.entityId
     vertices[baseId] ??= {}
     vertices[baseId][revisionId] = {
       kind: 'entity',
       inner: {
-        metadata: normalized.metadata!,
+        metadata: {
+          recordId: { entityId: baseId, editionId: normalized.editionId ?? DEFAULT_ENTITY_EDITION_ID },
+          entityTypeId: normalized.entityTypeId
+        },
         properties: { ...normalized.properties }
       }
     }
@@ -231,7 +238,7 @@ function buildBlockEntitySubgraph(blockEntity: Entity, graph: BlockGraphState): 
   const roots: BlockEntitySubgraph['roots'] = [
     {
       baseId: normalizedRoot.entityId,
-      revisionId: normalizedRoot.metadata?.recordId.editionId ?? DEFAULT_ENTITY_EDITION_ID
+      revisionId: String(normalizedRoot.editionId ?? DEFAULT_ENTITY_EDITION_ID)
     }
   ]
 
@@ -249,6 +256,9 @@ function deriveBlockEntity(notification: VivafolioBlockNotification): Entity {
     notification.entityGraph.entities[0] ?? {
       entityId: notification.entityId,
       entityTypeId: DEFAULT_ENTITY_TYPE_ID,
+      editionId: DEFAULT_ENTITY_EDITION_ID,
+      sourcePath: `vivafolio://client/${notification.entityId}`,
+      sourceType: 'client',
       properties: {}
     }
 
@@ -544,11 +554,11 @@ function renderTaskList(notification: VivafolioBlockNotification): HTMLElement {
     const item = createElement('li', 'task-list__item')
     item.dataset.entityId = task.entityId
 
-    const title = createElement('span', 'task-list__title', String(task.properties.title ?? 'Untitled task'))
-    const status = createElement('span', 'task-list__status', String(task.properties.status ?? 'todo'))
+    const title = createElement('span', 'task-list__title', String(task.properties?.title ?? 'Untitled task'))
+    const status = createElement('span', 'task-list__status', String(task.properties?.status ?? 'todo'))
 
     const actions = createElement('div', 'task-list__actions')
-    const nextStatus = getNextStatus(String(task.properties.status ?? 'todo'))
+    const nextStatus = getNextStatus(String(task.properties?.status ?? 'todo'))
     if (nextStatus) {
       const advanceButton = createElement(
         'button',
@@ -617,15 +627,15 @@ function createTaskCard(taskEntity: Entity, entityMap: Map<string, Entity>): HTM
     container.classList.remove('task-card--dragging')
   })
 
-  const title = String(taskEntity.properties.title ?? 'Untitled task')
+  const title = String(taskEntity.properties?.title ?? 'Untitled task')
   container.appendChild(createElement('h4', 'task-card__title', title))
 
-  const description = String(taskEntity.properties.description ?? '')
+  const description = String(taskEntity.properties?.description ?? '')
   if (description) {
     container.appendChild(createElement('p', 'task-card__description', description))
   }
 
-  const assigneeId = String(taskEntity.properties.assigneeId ?? '')
+  const assigneeId = String(taskEntity.properties?.assigneeId ?? '')
   if (assigneeId && entityMap.has(assigneeId)) {
     const profile = createUserProfile(entityMap.get(assigneeId) as Entity)
     container.appendChild(profile)
@@ -638,12 +648,12 @@ function createUserProfile(userEntity: Entity): HTMLElement {
   const container = createElement('div', 'user-profile')
   container.dataset.entityId = userEntity.entityId
 
-  const avatar = String(userEntity.properties.avatar ?? '🙂')
+  const avatar = String(userEntity.properties?.avatar ?? '🙂')
   container.appendChild(createElement('span', 'user-profile__avatar', avatar))
 
   const info = createElement('div', 'user-profile__info')
-  info.appendChild(createElement('strong', undefined, String(userEntity.properties.name ?? 'Unnamed User')))
-  const role = String(userEntity.properties.role ?? '')
+  info.appendChild(createElement('strong', undefined, String(userEntity.properties?.name ?? 'Unnamed User')))
+  const role = String(userEntity.properties?.role ?? '')
   if (role) {
     info.appendChild(createElement('span', 'user-profile__role', role))
   }

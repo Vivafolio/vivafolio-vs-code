@@ -10,9 +10,9 @@ import { CSVEditingModule, MarkdownEditingModule, JSONEditingModule } from './Fi
 import { EventEmitter } from './EventEmitter';
 
 const DEFAULT_ENTITY_TYPE_ID = 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2';
-const DEFAULT_EDITION_ID = '1';
+const DEFAULT_EDITION_ID = 1;
 
-function createEditionId(_entityId: string): string {
+function createEditionId(_entityId: string): number {
   return DEFAULT_EDITION_ID;
 }
 

@@ -10,30 +10,26 @@
 /**
  * Core Block Protocol Entity Types
  */
-export interface Entity {
-  entityId: string
-  entityTypeId: string
-  properties: Record<string, unknown>
-  metadata?: {
-    recordId?: {
-      entityId: string
-      editionId: string
-    }
-    entityTypeId?: string
-    temporalVersioning?: {
-      transactionTime?: {
-        start: {
-          kind: 'inclusive'
-          limit: string
-        }
-        end: {
-          kind: 'unbounded' | 'inclusive' | 'exclusive'
-          limit?: string
-        }
-      }
-    }
-  }
+import type {
+  Entity,
+  EntityGraph,
+  LinkEntity,
+  BlockGraph,
+  GraphService,
+  BlockProps as CoreBlockProps,
+  VivafolioBlockNotification as CoreVivafolioBlockNotification
+} from '@vivafolio/block-core'
+
+export type {
+  Entity,
+  EntityGraph,
+  LinkEntity,
+  BlockGraph,
+  GraphService,
+  CoreVivafolioBlockNotification
 }
+
+type EntityProperties = NonNullable<Entity['properties']>
 
 export interface EntityType {
   entityTypeId: string
@@ -49,23 +45,6 @@ export interface PropertyType {
   description?: string
   dataTypeId: string
   propertyTypes?: string[]
-}
-
-/**
- * Graph Service Types
- */
-export interface BlockGraph {
-  depth: number
-  linkedEntities: Entity[]
-  linkGroups: Array<Record<string, unknown>>
-}
-
-export interface GraphService {
-  blockEntity: Entity
-  blockGraph: BlockGraph
-  entityTypes: EntityType[]
-  linkedAggregations: Array<Record<string, unknown>>
-  readonly: boolean
 }
 
 /**
@@ -86,41 +65,19 @@ export interface GraphAckMessage {
   receivedAt: string
 }
 
-export interface VivafolioBlockNotification {
+// Canonical notification payload shape lives in @vivafolio/block-core
+export type VivafolioBlockNotification = CoreVivafolioBlockNotification
+
+// Optional envelope shape used by some transports
+export interface VivafolioBlockNotificationMessage {
   type: 'vivafolioblock-notification'
-  payload: {
-    blockId: string
-    blockType: string
-    entityId: string
-    displayMode: 'multi-line' | 'inline'
-    entityGraph: EntityGraph
-    supportsHotReload?: boolean
-    initialHeight?: number
-    resources?: Array<{
-      logicalName: string
-      physicalPath: string
-      cachingTag?: string
-    }>
-  }
-}
-
-export interface EntityGraph {
-  entities: Entity[]
-  links: LinkEntity[]
-}
-
-export interface LinkEntity extends Entity {
-  sourceEntityId?: string
-  destinationEntityId?: string
+  payload: VivafolioBlockNotification
 }
 
 /**
  * Framework-agnostic Block Component Types
  */
-export interface BlockProps<T = {}> {
-  graph: GraphService
-  config?: T
-}
+export type BlockProps<T = {}> = CoreBlockProps<GraphService> & { config?: T }
 
 export interface BlockMetadata {
   name: string
@@ -326,7 +283,7 @@ export interface FrameworkAPI {
 
   // Entity hooks
   useEntity: (graph: GraphService) => Entity
-  useEntityUpdater: (graph: GraphService) => (updates: Partial<Entity['properties']>) => void
+  useEntityUpdater: (graph: GraphService) => (updates: Partial<EntityProperties>) => void
 
   // UI components
   BlockContainer: (props: BlockContainerProps) => unknown

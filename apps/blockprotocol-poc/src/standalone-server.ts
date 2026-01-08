@@ -34,7 +34,7 @@ export interface Entity {
   metadata?: {
     recordId?: {
       entityId: string
-      editionId: string
+      editionId: number
     }
     entityTypeId?: string
   }

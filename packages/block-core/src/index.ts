@@ -1,6 +1,7 @@
 // @vivafolio/block-core
 // Single entry for shared types, utils, and message shapes to avoid drift.
 
+
 // 1) Re-export stable subsets from Block Protocol to avoid schema drift
 export type {
   Entity as BP_Entity,
@@ -17,7 +18,7 @@ export type {
 export interface Entity {
   entityId: string;
   entityTypeId: string; // versioned URL of the entity type schema 
-  editionId: string; // specific edition of the entity
+  editionId: number; // specific edition of the entity
   sourcePath: string;
   sourceType: string; //e.g. "csv", "markdown", "json", "vivafolio_data_construct"
   properties?: Record<string, unknown>; //MUST conform to the constraints described by the entity type of the entity
