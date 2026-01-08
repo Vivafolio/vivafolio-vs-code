@@ -31,6 +31,7 @@ apps/blockprotocol-poc/libs/block-frameworks/*/*.tsbuildinfo
 
 # Editor and IDE files
 .vscode/
+.vscode-lean-demo/
 .idea/
 *.swp
 *.swo

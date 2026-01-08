@@ -260,6 +260,14 @@ Remedies applied in the repo
 - Serve‑D: simplified `workspace/configuration` and `didChangeConfiguration` payloads to a minimal, recognized shape.
 - VS Code harness: force using the Nix‑provided `code-insiders`; start Xvfb automatically if needed.
 
+### Lean DSL Fixture (2025-12-22)
+
+- Added `test/projects/lean-dsl`, a Lean package that mirrors the mocklang-style DSL using real Lean macros (`vivafolio_picker!() gui_state!`, `vivafolio_square!() gui_state!`).
+- `LeanDsl/VivDsl.lean` parses each gui_state payload and emits Vivafolio diagnostics (warnings on valid JSON, `gui_state_syntax_error` errors on malformed JSON).
+- `LeanDsl/PickerDemo.lean` is the happy-path sample; `LeanDsl/BrokenGuiState.lean` intentionally fails validation to cover error surfaces.
+- `npm run test:e2e:lean-nim` (and `just test-lean-lsp`) now open these fixtures alongside the original `lean-basic` project to ensure both the synthetic warn/error sample and the DSL macros stay green.
+- The VS Code extension now considers any diagnostic containing a `vivafolio:` payload (not just `DiagnosticSeverity.Hint`), so Lean warning diagnostics render real blocks.
+
 Next steps (Linux)
 - Zig/Crystal: adjust samples to produce deterministic diagnostics; re‑evaluate timeouts. If needed, vendor zls/crystalline for quick local instrumentation.
 - Nim/nimlangserver: test with alternate `nimsuggest` versions; if SIGSEGV persists, vendor nimlangserver to experiment with a local fix (see proposal below).

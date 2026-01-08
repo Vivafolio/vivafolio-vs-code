@@ -35,6 +35,7 @@ See `docs/Vivafolio-E2E-Runtime-Path-Tests.md` for detailed documentation.
 
 **Development & Launch:**
 - `just vscode-e2e` - Launch VS Code with both extensions for E2E testing
+- `just run-lean-demo` - Launch VS Code against the Lean DSL sample to see real Lean diagnostics render blocks (uses a persistent profile inside `.vscode-lean-demo/` and automatically installs the Lean4 extension; set `LEAN_DEMO_FRESH=1` for a one-off clean profile)
 - `just dev-blockprotocol-poc-frameworks` - Launch Block Protocol POC with framework hot-reload
 - `just dev-blockprotocol-poc-once` - Launch Block Protocol POC once (with timeout, for testing)
 - `just build` - Build the main extension
