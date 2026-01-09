@@ -335,10 +335,17 @@ async function handleBlockProtocolMessage(message: any, webview: vscode.Webview)
           }
           broadcastToWebviews(updatedMessage, webview)
 
+          const syncLean = shouldSyncLeanSource(entityId)
+          const syncMock = shouldSyncMockSource(entityId)
+          const payloadForSource = syncLean || syncMock ? normalizedProperties : {}
           // Update the source code for Lean entities even if the indexing service update failed
-          if (shouldSyncLeanSource(entityId) && Object.keys(normalizedProperties).length > 0) {
+          if (syncLean && Object.keys(payloadForSource).length > 0) {
             logLine('info', `Updating Lean source for ${entityId} with properties: ${JSON.stringify(normalizedProperties)}`)
             await applyColorMarker(JSON.stringify(normalizedProperties), entityId)
+          }
+          if (syncMock && Object.keys(payloadForSource).length > 0) {
+            logLine('info', `Updating mock source for ${entityId} with properties: ${JSON.stringify(payloadForSource)}`)
+            await applyColorMarker(JSON.stringify(payloadForSource), entityId)
           }
         }
         break
@@ -451,6 +458,11 @@ function broadcastToWebviews(message: any, excludeWebview?: vscode.Webview): voi
 
 function shouldSyncLeanSource(entityId?: string): boolean {
   return typeof entityId === 'string' && entityId.startsWith('lean/')
+}
+
+function shouldSyncMockSource(entityId?: string): boolean {
+  if (typeof entityId !== 'string') return false
+  return entityId === 'color-picker' || entityId.startsWith('mocklang/')
 }
 
 function normalizeEntityProperties(properties: any): Record<string, any> {
@@ -968,19 +980,8 @@ async function applyColorMarker(completeJsonString: string, entityId?: string): 
 
     // Check if there are unmatched quotes/hashes that indicate corruption
     const quoteCount = (lineText.match(/"/g) || []).length
-    const hashCount = (lineText.match(/#/g) || []).length
     const rHashCount = (lineText.match(/r#/g) || []).length
-
-    // Clean gui_state syntax analysis:
-    // vivafolio_picker!() gui_state! r#"{"color":"#ff0000"}"#
-    // - Quotes: r#", {"color":", "#ff0000", "}, "#
-    // - Hashes: r#, #ff0000, #
-    // - r#: r#
-    // Clean should have: quotes >= 4, hashes >= 3, r# = 1
-    // Corrupted has significantly more due to concatenated blocks
-    const hasUnmatchedSyntax = quoteCount > 6 || hashCount > 4 || rHashCount > 1
-
-    const hasCorruptedContent = hasUnmatchedSyntax
+    const hasCorruptedContent = rHashCount > 2
 
     if (hasMultipleGuiState || hasCorruptedContent) {
       console.log('applyColorMarker: detected corrupted gui_state, cleaning up...')
@@ -994,21 +995,12 @@ async function applyColorMarker(completeJsonString: string, entityId?: string): 
 
     // Simple find and replace: replace entire gui_state! block with new JSON string.
     // Support raw string delimiters with arbitrary amounts of hashes (r#"..."#, r##"..."##, etc.)
-    const guiStatePattern = /gui_state!\s*r#+\"[\s\S]*?\"#+/
-    const replacement = `gui_state! r##"${completeJsonString}"##`
-    let newText = lineText
-    if (guiStatePattern.test(lineText)) {
-      newText = lineText.replace(guiStatePattern, replacement)
-    } else {
-      // fallback: try classic single-hash pattern
-      newText = lineText.replace(/gui_state!\s*r#".*"#/, replacement)
-    }
-
-    // If no gui_state found, append it
-    if (!newText.includes('gui_state!')) {
-      newText = lineText + ' ' + replacement
-      console.log('applyColorMarker: appended new gui_state')
-    }
+    const hashMatch = lineText.match(/gui_state!\s*r(#+)"/)
+    const rawHashCount = hashMatch ? hashMatch[1].length : 1
+    const openRaw = `r${'#'.repeat(rawHashCount)}"`
+    const closeRaw = `"${'#'.repeat(rawHashCount)}`
+    const beforeGuiState = lineText.split('gui_state!')[0]
+    let newText = `${beforeGuiState}gui_state! ${openRaw}${completeJsonString}${closeRaw}`
 
     console.log('applyColorMarker: replacing line with:', newText)
 
