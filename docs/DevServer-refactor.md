@@ -56,8 +56,44 @@ Purpose: map the current `apps/blockprotocol-poc/src/server.ts` to the target sp
 - Express only serves the demo UI, healthz, and the proxy endpoints strictly needed to reach the Block Builder & Server.
 
 ## Quick Implementation Order
-1) Delete framework compilation/watch code + related routes and scenarios; wire in `startBlockServer` consumption.  
-2) Remove CSV/status and other ad-hoc persistence paths; rely on IndexingService editing modules.  
-3) Prune legacy scenarios and rebuild remaining ones around IndexingService snapshots.  
-4) Simplify WebSocket handlers to use IndexingService transports only, then drop scenario-local state.  
+1) Delete framework compilation/watch code + related routes and scenarios; wire in `startBlockServer` consumption.
+   - Status: **Partial**
+   - Done:
+     - Demo server starts a sibling block server via `startBlockServer` with `enableFrameworkBuilder: false` (`apps/blockprotocol-poc/src/server.ts`).
+     - Block resources for `status-pill` / `d3-line-graph-example` are emitted as block-server URLs via `buildBlockResources()`.
+   - Still present:
+     - Framework-related scenarios remain (e.g. `framework-compilation-demo`, `cross-framework-nesting`).
+     - Framework bundle routes still exist (now proxied to the block server): `/api/frameworks/*` and `/frameworks/manifest.json`.
+     - Some framework/example static mounts remain under `/examples/blocks/*`.
+
+2) Remove CSV/status and other ad-hoc persistence paths; rely on IndexingService editing modules.
+   - Status: **Partial**
+   - Done:
+     - WS `graph/update` delegates persistence to `indexingService.updateEntity(entityId, properties)` (`apps/blockprotocol-poc/src/server.ts`).
+     - `status-pill-example` graph is built from IndexingService-discovered entities (`tasks.csv` row + `statusOptionsConfig.json`).
+   - Still present:
+     - Server keeps scenario-local “fallback” state mutation after updates (direct merge and/or `scenario.applyUpdate`).
+
+3) Prune legacy scenarios and rebuild remaining ones around IndexingService snapshots.
+   - Status: **Not done**
+   - Current reality:
+     - Many legacy / synthetic-graph scenarios still exist (e.g. `solidjs-task-baseline`, `person-chip-example`, `table-view-example`, `board-view-example`, etc.).
+     - Only a subset of scenarios are IndexingService-driven today (notably `indexing-service`, `d3-line-graph-example`, `status-pill-example`).
+
+4) Simplify WebSocket handlers to use IndexingService transports only, then drop scenario-local state.
+   - Status: **Partial**
+   - Done:
+     - The `graph/update` path is IndexingService-first for persistence (`indexingService.updateEntity`).
+     - A transport layer is registered per socket (`IndexingServiceTransportLayer`) for Block Protocol operations.
+   - Still present:
+     - After `graph/update`, the server still refreshes the UI by re-dispatching scenario notifications from scenario state.
+     - Scenario-local state is retained in `socketStates` and via optional `scenario.applyUpdate`.
+
 5) Trim Express routes to UI + proxy; remove cache middleware duplication.
+   - Status: **Partial**
+   - Done:
+     - Block metadata APIs are proxied to the block server (`/api/blocks`, `/api/blocks/:blockName`).
+     - Block-server `cache:invalidate` is bridged into the demo server and broadcast to connected clients.
+   - Still present:
+     - Multiple non-UI static mounts remain (`/external/*`, `/examples/*`, `/templates`, plus some block-specific mounts).
+     - The demo server still owns a `BlockResourcesCache` + local cache hydration/eviction logic.
