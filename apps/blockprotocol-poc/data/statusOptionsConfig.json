@@ -1,0 +1,11 @@
+{
+  "id": "task-statuses-default",
+  "name": "Default task statuses",
+  "availableStatuses": [
+    { "value": "to_do", "label": "To Do", "color": "#9CA3AF", "order": 1 },
+    { "value": "in_progress", "label": "In Progress", "color": "#3B82F6", "order": 2 },
+    { "value": "blocked", "label": "Blocked", "color": "#EF4444", "order": 3 },
+    { "value": "review", "label": "Review", "color": "#8B5CF6", "order": 4 },
+    { "value": "done", "label": "Done", "color": "#22C55E", "order": 5 }
+  ]
+}

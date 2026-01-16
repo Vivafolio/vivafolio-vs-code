@@ -1,7 +1,7 @@
 // renderHtmlBlock is no longer exported from @blockprotocol/core, implementing a simple replacement
 import { GraphEmbedderHandler } from '@blockprotocol/graph'
-import { VivafolioBlockLoader, BlockLoader, DEFAULT_ALLOWED_DEPENDENCIES, type VivafolioBlockNotification as LoaderBlockNotification } from '@vivafolio/block-loader'
-import type { Entity, EntityGraph, VivafolioBlockNotification } from '@vivafolio/block-loader'
+import { VivafolioBlockLoader, BlockLoader, DEFAULT_ALLOWED_DEPENDENCIES } from '@vivafolio/block-loader'
+import type { AggregateArgs, AggregateResult, Entity, EntityGraph, VivafolioBlockNotification } from '@vivafolio/block-core'
 
 // For now, provide a minimal stdlib stub so published blocks can load
 const stdlib = {
@@ -25,7 +25,7 @@ async function renderHtmlBlock(mount: HTMLElement, options: { url: string }) {
 
   // Set up BlockProtocol globals if not already done
   if (!(window as any).blockprotocol) {
-    ;(window as any).blockprotocol = {
+    ; (window as any).blockprotocol = {
       getBlockContainer: (ref?: any) => {
         // For HTML blocks, we can extract blockId from various sources
         let containerBlockId = blockId // fallback to current blockId
@@ -108,7 +108,7 @@ function handleBlockUpdate(payload: { entityId: string; properties: Record<strin
       entityId: payload.entityId,
       properties: payload.properties
     })
-  } catch {}
+  } catch { }
   sendGraphUpdateMessage({
     blockId,
     entityId: payload.entityId,
@@ -116,7 +116,7 @@ function handleBlockUpdate(payload: { entityId: string; properties: Record<strin
   })
 }
 
-function adaptBlockNotification(notification: VivafolioBlockNotification): LoaderBlockNotification {
+function adaptBlockNotification(notification: VivafolioBlockNotification): VivafolioBlockNotification {
   return {
     blockId: notification.blockId,
     blockType: notification.blockType,
@@ -162,7 +162,7 @@ type BlockProtocolEntityMetadata = {
 interface BlockEntitySubgraphVertex {
   kind: 'entity'
   inner: {
-  metadata: BlockProtocolEntityMetadata
+    metadata: BlockProtocolEntityMetadata
     properties: Record<string, unknown>
   }
 }
@@ -361,15 +361,49 @@ declare global {
 
 type ServerEnvelope =
   | {
-      type: 'connection_ack'
-      timestamp: string
-      entityGraph: EntityGraph
-      scenario?: { id: string; title: string; description?: string }
-    }
+    type: 'connection_ack'
+    timestamp: string
+    entityGraph: EntityGraph
+    scenario?: { id: string; title: string; description?: string }
+  }
   | { type: 'vivafolioblock-notification'; payload: VivafolioBlockNotification }
   | { type: 'graph/ack'; receivedAt: string; payload?: { entityId: string; properties: Record<string, unknown> } }
+  | { type: 'graph/aggregate:result'; receivedAt: string; payload: { requestId: number; result: AggregateResult<Entity> } }
+  | { type: 'graph/aggregate:error'; receivedAt: string; payload: { requestId: number; error: string } }
   | { type: 'status/persisted'; payload: { entityId: string; status: string; label?: string } }
   | { type: 'cache:invalidate'; payload: { blockId: string } }
+
+type AggregatePending = {
+  resolve: (result: AggregateResult<Entity>) => void
+  reject: (err: Error) => void
+}
+
+let nextAggregateRequestId = 1
+const pendingAggregates = new Map<number, AggregatePending>()
+
+function sendGraphAggregateMessage(blockId: string, args: AggregateArgs): Promise<AggregateResult<Entity>> {
+  if (!liveSocket || liveSocket.readyState !== WebSocket.OPEN) {
+    return Promise.reject(new Error('WebSocket not connected'))
+  }
+
+  const requestId = nextAggregateRequestId++
+  const promise = new Promise<AggregateResult<Entity>>((resolve, reject) => {
+    pendingAggregates.set(requestId, { resolve, reject })
+  })
+
+  liveSocket.send(
+    JSON.stringify({
+      type: 'graph/aggregate',
+      payload: {
+        requestId,
+        blockId,
+        args
+      }
+    })
+  )
+
+  return promise
+}
 
 const PLACEHOLDER_CLASS = 'block-region__placeholder'
 
@@ -403,10 +437,10 @@ function createElement<K extends keyof HTMLElementTagNameMap>(
 function sendGraphUpdateMessage(update: GraphUpdatePayload) {
   if (!liveSocket || liveSocket.readyState !== WebSocket.OPEN) {
     pendingGraphUpdates.push(update)
-    try { console.warn('[Client] sendGraphUpdateMessage: socket not open, queued update', update) } catch {}
+    try { console.warn('[Client] sendGraphUpdateMessage: socket not open, queued update', update) } catch { }
     return
   }
-  try { console.log('[Client] sendGraphUpdateMessage: sending graph/update', update) } catch {}
+  try { console.log('[Client] sendGraphUpdateMessage: sending graph/update', update) } catch { }
   liveSocket.send(
     JSON.stringify({
       type: 'graph/update',
@@ -448,6 +482,8 @@ const renderers: Record<string, BlockRenderer> = {
   'https://vivafolio.dev/blocks/status-pill/v1': renderPublishedBlock,
   'https://vivafolio.dev/blocks/person-chip/v1': renderPublishedBlock,
   'https://vivafolio.dev/blocks/table-view/v1': renderPublishedBlock,
+  'https://vivafolio.org/blocks/table-view': renderPublishedBlock,
+  'https://vivafolio.org/blocks/table-view-vanilla': renderPublishedBlock,
   'https://vivafolio.dev/blocks/board-view/v1': renderPublishedBlock,
   'https://vivafolio.dev/blocks/d3-line-graph/v1': renderPublishedBlock
 }
@@ -676,7 +712,7 @@ function renderIframeBlock(
     iframe = controller.iframe
     if (resourcePath) {
       const nextSrc = buildFrameSrc(resourcePath, notification.blockId, resource?.cachingTag)
-  //console.log('[Client] (iframe reuse) setting src for', notification.blockId, 'to', nextSrc)
+      //console.log('[Client] (iframe reuse) setting src for', notification.blockId, 'to', nextSrc)
       if (iframe.src !== window.location.origin + nextSrc) {
         iframe.src = nextSrc
         controller.ready = false
@@ -689,7 +725,7 @@ function renderIframeBlock(
     iframeControllers.set(notification.blockId, { iframe, ready: false })
     if (resourcePath) {
       iframe.src = buildFrameSrc(resourcePath, notification.blockId, resource?.cachingTag)
-  //console.log('[Client] (iframe create) initial src for', notification.blockId, 'is', iframe.src)
+      //console.log('[Client] (iframe create) initial src for', notification.blockId, 'is', iframe.src)
     }
   }
 
@@ -745,10 +781,13 @@ function renderPublishedBlock(notification: VivafolioBlockNotification): HTMLEle
   if (!loader) {
     console.log('[POC] Creating new VivafolioBlockLoader for:', notification.blockId)
     console.log('[POC] Adapted notification:', JSON.stringify(adaptedNotification, null, 2))
+    const allowedDependencies = new Set(DEFAULT_ALLOWED_DEPENDENCIES)
+    allowedDependencies.add('solid-js/jsx-runtime')
     loader = new VivafolioBlockLoader(adaptedNotification, {
-      allowedDependencies: DEFAULT_ALLOWED_DEPENDENCIES,
+      allowedDependencies,
       enableIntegrityChecking: true,
       enableDiagnostics: true,
+      onAggregateEntities: (args) => sendGraphAggregateMessage(notification.blockId, args),
       onBlockUpdate: (payload) => {
         console.log('[POC] Block update received:', payload)
         handleBlockUpdate({ ...payload, blockId: notification.blockId })
@@ -801,12 +840,12 @@ function renderPublishedBlock(notification: VivafolioBlockNotification): HTMLEle
     try {
       const before = existing.querySelector('.status-pill-block')?.textContent?.trim()
       console.log('[POC] Reuse path before updateBlock pill text =', before)
-    } catch {}
+    } catch { }
     loader.updateBlock(adaptedNotification)
     try {
       const after = existing.querySelector('.status-pill-block')?.textContent?.trim()
       console.log('[POC] Reuse path after updateBlock pill text =', after)
-    } catch {}
+    } catch { }
     return existing
   }
 
@@ -918,75 +957,75 @@ function handleEnvelope(data: ServerEnvelope) {
       const scenarioTitle = data.scenario?.title ?? 'Unknown Scenario'
       scenarioLabel.textContent = scenarioTitle
       scenarioDescription.textContent = data.scenario?.description ?? ''
-      
+
       // Set up global graph context for blocks that need direct access to entity data
       if (data.entityGraph) {
-        ;(window as any).__vivafolioGraphContext = { graph: data.entityGraph }
+        ; (window as any).__vivafolioGraphContext = { graph: data.entityGraph }
         console.log('[Client] Set up global graph context with', data.entityGraph.entities?.length || 0, 'entities')
       } else {
         console.log('[Client] No entityGraph in connection_ack')
       }
-      
+
       ensurePlaceholder(`Awaiting VivafolioBlock notifications for ${scenarioTitle}…`)
       break
     }
-  case 'cache:invalidate': {
-    console.log('[Client] Received cache:invalidate for blockId:', data.payload.blockId)
-    const blockId = data.payload.blockId
-    if (blockId) {
-      // Reload the block by re-rendering with the latest payload
-      const payload = latestPayloads.get(blockId)
-      if (payload) {
-        console.log('[Client] Reloading block:', blockId, '- forcing iframe reload')
-        const existing = blockRegion.querySelector<HTMLElement>(
-          `[data-block-id="${blockId}"]`
-        )
-        if (existing) {
-          // For iframe-based blocks, force a full reload by recreating the iframe
-          const iframe = existing.querySelector('iframe')
-          if (iframe) {
-            const src = iframe.src
-            console.log('[Client] Reloading iframe with cache-busting:', src)
-            // Add cache-busting parameter to force reload
-            const cacheBuster = `_reload=${Date.now()}`
-            const newSrc = src.includes('?') ? `${src}&${cacheBuster}` : `${src}?${cacheBuster}`
-            iframe.src = newSrc
-          } else {
-            // Non-iframe block: re-render from scratch
-            const renderer = renderers[payload.blockType] ?? renderFallback
-            const element = renderer(payload)
-            existing.replaceWith(element)
-            requestFrameInit(blockId)
+    case 'cache:invalidate': {
+      console.log('[Client] Received cache:invalidate for blockId:', data.payload.blockId)
+      const blockId = data.payload.blockId
+      if (blockId) {
+        // Reload the block by re-rendering with the latest payload
+        const payload = latestPayloads.get(blockId)
+        if (payload) {
+          console.log('[Client] Reloading block:', blockId, '- forcing iframe reload')
+          const existing = blockRegion.querySelector<HTMLElement>(
+            `[data-block-id="${blockId}"]`
+          )
+          if (existing) {
+            // For iframe-based blocks, force a full reload by recreating the iframe
+            const iframe = existing.querySelector('iframe')
+            if (iframe) {
+              const src = iframe.src
+              console.log('[Client] Reloading iframe with cache-busting:', src)
+              // Add cache-busting parameter to force reload
+              const cacheBuster = `_reload=${Date.now()}`
+              const newSrc = src.includes('?') ? `${src}&${cacheBuster}` : `${src}?${cacheBuster}`
+              iframe.src = newSrc
+            } else {
+              // Non-iframe block: re-render from scratch
+              const renderer = renderers[payload.blockType] ?? renderFallback
+              const element = renderer(payload)
+              existing.replaceWith(element)
+              requestFrameInit(blockId)
+            }
           }
+        } else {
+          console.warn('[Client] No cached payload found for blockId:', blockId, '- block may need full reload')
         }
-      } else {
-        console.warn('[Client] No cached payload found for blockId:', blockId, '- block may need full reload')
       }
+      break
     }
-    break
-  }
-  case 'vivafolioblock-notification': {
-    console.log('[Client] Received vivafolioblock-notification:', {
-      blockId: data.payload.blockId,
-      blockType: data.payload.blockType,
-      entityId: data.payload.entityId
-    })
-    // Ensure global graph context is available for blocks that read directly from window
-    if (data.payload.entityGraph) {
-      ;(window as any).__vivafolioGraphContext = { graph: data.payload.entityGraph }
-      console.log('[Client] Updated global graph context from notification with', data.payload.entityGraph.entities?.length || 0, 'entities')
-    }
-    clearPlaceholder()
-    latestPayloads.set(data.payload.blockId, data.payload)
-    const renderer = renderers[data.payload.blockType] ?? renderFallback
-    console.log('[Client] Using renderer:', renderer.name || 'renderFallback')
-    if (!renderers[data.payload.blockType]) {
-      console.warn('[blockprotocol-poc] missing renderer for', data.payload.blockType)
-      console.warn('[blockprotocol-poc] available renderers', Object.keys(renderers))
-    }
-    console.log('[Client] Calling renderer for block:', data.payload.blockId)
-    const element = renderer(data.payload)
-    console.log('[Client] Renderer returned element:', element)
+    case 'vivafolioblock-notification': {
+      console.log('[Client] Received vivafolioblock-notification:', {
+        blockId: data.payload.blockId,
+        blockType: data.payload.blockType,
+        entityId: data.payload.entityId
+      })
+      // Ensure global graph context is available for blocks that read directly from window
+      if (data.payload.entityGraph) {
+        ; (window as any).__vivafolioGraphContext = { graph: data.payload.entityGraph }
+        console.log('[Client] Updated global graph context from notification with', data.payload.entityGraph.entities?.length || 0, 'entities')
+      }
+      clearPlaceholder()
+      latestPayloads.set(data.payload.blockId, data.payload)
+      const renderer = renderers[data.payload.blockType] ?? renderFallback
+      console.log('[Client] Using renderer:', renderer.name || 'renderFallback')
+      if (!renderers[data.payload.blockType]) {
+        console.warn('[blockprotocol-poc] missing renderer for', data.payload.blockType)
+        console.warn('[blockprotocol-poc] available renderers', Object.keys(renderers))
+      }
+      console.log('[Client] Calling renderer for block:', data.payload.blockId)
+      const element = renderer(data.payload)
+      console.log('[Client] Renderer returned element:', element)
       const existing = blockRegion.querySelector<HTMLElement>(
         `[data-block-id="${data.payload.blockId}"]`
       )
@@ -1002,8 +1041,24 @@ function handleEnvelope(data: ServerEnvelope) {
       try {
         // Lightweight visibility for test debugging
         console.log('[Client] graph/ack received:', JSON.stringify(data.payload))
-      } catch {}
+      } catch { }
       break
+    case 'graph/aggregate:result': {
+      const pending = pendingAggregates.get(data.payload.requestId)
+      if (pending) {
+        pendingAggregates.delete(data.payload.requestId)
+        pending.resolve(data.payload.result)
+      }
+      break
+    }
+    case 'graph/aggregate:error': {
+      const pending = pendingAggregates.get(data.payload.requestId)
+      if (pending) {
+        pendingAggregates.delete(data.payload.requestId)
+        pending.reject(new Error(data.payload.error))
+      }
+      break
+    }
     case 'status/persisted': {
       console.log('[Client] Status persisted:', data.payload)
       break
@@ -1064,7 +1119,7 @@ function bootstrap() {
 
     // Flush any pending graph/update messages
     if (pendingGraphUpdates.length) {
-      try { console.log('[Client] Flushing pending graph updates:', pendingGraphUpdates.length) } catch {}
+      try { console.log('[Client] Flushing pending graph updates:', pendingGraphUpdates.length) } catch { }
       for (const upd of pendingGraphUpdates.splice(0)) {
         sendGraphUpdateMessage(upd)
       }

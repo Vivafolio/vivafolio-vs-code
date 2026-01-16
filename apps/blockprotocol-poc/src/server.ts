@@ -39,7 +39,7 @@ import crypto from 'crypto'
 import { BlockResourcesCache, type BlockIdentifier, type BlockResource, type CacheEntry } from '@vivafolio/block-resources-cache'
 
 import type { ViteDevServer } from 'vite'
-import type { Entity, LinkEntity, EntityGraph, VivafolioBlockNotification } from '@vivafolio/block-loader'
+import type { AggregateArgs, AggregateResult, Entity, LinkEntity, EntityGraph, VivafolioBlockNotification } from '@vivafolio/block-core'
 
 
 // Using shared Entity, LinkEntity, and EntityGraph from block-core via block-loader
@@ -1204,19 +1204,13 @@ const scenarios: Record<string, ScenarioDefinition> = {
     buildNotifications: (state, request) => [
       {
         blockId: 'table-view-example-1',
-        blockType: 'https://vivafolio.dev/blocks/table-view/v1',
+        blockType: 'https://vivafolio.org/blocks/table-view-vanilla',
         entityId: state.graph.entities[0]?.entityId ?? 'table-view-entity',
         displayMode: 'multi-line',
         entityGraph: state.graph,
         supportsHotReload: true,
         initialHeight: 400,
-        resources: [
-          {
-            logicalName: 'main.js',
-            physicalPath: '/examples/blocks/table-view/general-block.umd.js',
-            cachingTag: nextCachingTag()
-          }
-        ]
+        resources: buildBlockResources('table-view')
       }
     ],
     applyUpdate: ({ state, update }) => {
@@ -1224,6 +1218,49 @@ const scenarios: Record<string, ScenarioDefinition> = {
       if (!entity) return
       entity.properties = { ...entity.properties, ...update.properties }
     }
+  },
+  'table-view-tanstack-example': {
+    id: 'table-view-tanstack-example',
+    title: 'Table View (TanStack) – tasks.csv',
+    description: 'TanStack table backed by IndexingService pagination over apps/blockprotocol-poc/data/tasks.csv.',
+    createState: () => ({
+      graph: {
+        entities: [syntheticEntity({
+          entityId: 'table-view-tanstack-config',
+          entityTypeId: 'https://blockprotocol.org/@blockprotocol/types/entity-type/thing/v/2',
+          properties: {
+            collectionId: TASKS_CSV_BASENAME,
+            pageSize: 50,
+            columns: [
+              { id: 'task_id', title: 'Task ID', path: 'task_id', type: 'number', width: 90 },
+              { id: 'title', title: 'Title', path: 'title', type: 'text', width: 260 },
+              { id: 'assignee', title: 'Assignee', path: 'assignee', type: 'text', width: 140 },
+              { id: 'due_date', title: 'Due Date', path: 'due_date', type: 'date', width: 130 },
+              { id: 'status', title: 'Status', path: 'status', type: 'text', width: 140 },
+              { id: 'progress', title: 'Progress', path: 'progress', type: 'text', width: 110 }
+            ]
+          }
+        })],
+        links: []
+      }
+    }),
+    buildNotifications: (state, request) => [
+      {
+        blockId: 'table-view-tanstack-example-1',
+        blockType: 'https://vivafolio.org/blocks/table-view',
+        entityId: state.graph.entities[0]?.entityId ?? 'table-view-tanstack-config',
+        displayMode: 'multi-line',
+        entityGraph: state.graph,
+        supportsHotReload: true,
+        initialHeight: 520,
+        resources: [
+          // This block keeps metadata at the package root, while built assets live in dist/
+          buildBlockStaticResource('table-view-tanstack', 'block-metadata.json'),
+          buildBlockResource('table-view-tanstack', 'main.cjs'),
+          buildBlockResource('table-view-tanstack', 'styles.css')
+        ]
+      }
+    ]
   },
   'board-view-example': {
     id: 'board-view-example',
@@ -1659,15 +1696,11 @@ export async function startServer(options: StartServerOptions = {}) {
   startBlockServerInvalidationBridge(`ws://${printableBlockHost}:${blockServerPort}`)
 
   // Initialize indexing service
+  const pocDataDir = path.resolve(REPO_ROOT, 'apps', 'blockprotocol-poc', 'data')
   const indexingService = new IndexingService({
     watchPaths: [
-      // Only scan for direct data files - CSV and Markdown files
-      // vivafolio_data! constructs in .viv files are handled via LSP notifications
-      path.join(ROOT_DIR, '..', '..', 'test', 'projects'),
-      // Also watch the demo datasets used by scenarios (CSV, etc.)
-      path.join(ROOT_DIR, 'data'),
-      // Status pill options config now lives alongside the block
-      path.join(REPO_ROOT, 'blocks', 'status-pill')
+      // Scan/index the demo data tree up-front (CSV/JSON/Markdown)
+      pocDataDir
     ],
     supportedExtensions: ['csv', 'md', 'json'], // Only direct data files, not source files
     excludePatterns: ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/vivafolio-data-examples/**'],
@@ -1704,13 +1737,10 @@ export async function startServer(options: StartServerOptions = {}) {
   const lspServer = new MockLspServerImpl()
   const sidecarLspClient = new SidecarLspClient(indexingService, lspServer, broadcastLspNotification)
 
-  // Start indexing service
-  try {
-    await indexingService.start()
-    console.log('[indexing-service] Indexing service started')
-  } catch (error) {
-    console.error('[indexing-service] Failed to start indexing service:', error)
-  }
+  // Start indexing service (performs an upfront scan before serving WebSockets/scenarios)
+  console.log('[indexing-service] Starting indexing service (initial scan)...')
+  await indexingService.start()
+  console.log('[indexing-service] Indexing service started')
 
   // Start sidecar LSP client
   try {
@@ -2137,6 +2167,33 @@ export async function startServer(options: StartServerOptions = {}) {
             console.error('[transport] updateEntity failed:', e)
             try {
               socket.send(JSON.stringify({ type: 'graph/ack', payload: { entityId: upd.entityId, ok: false } }))
+            } catch { }
+          }
+        }
+
+        if (payload?.type === 'graph/aggregate') {
+          const receivedAt = new Date().toISOString()
+          const requestId = Number(payload?.payload?.requestId)
+          const args = payload?.payload?.args as AggregateArgs
+          try {
+            const result = await indexingService.aggregateEntities(args)
+            socket.send(
+              JSON.stringify({
+                type: 'graph/aggregate:result',
+                receivedAt,
+                payload: { requestId, result } as { requestId: number; result: AggregateResult<Entity> }
+              })
+            )
+          } catch (e) {
+            const error = e instanceof Error ? e.message : String(e)
+            try {
+              socket.send(
+                JSON.stringify({
+                  type: 'graph/aggregate:error',
+                  receivedAt,
+                  payload: { requestId, error }
+                })
+              )
             } catch { }
           }
         }

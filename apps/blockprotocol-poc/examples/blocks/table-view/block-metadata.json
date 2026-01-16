@@ -1,9 +1,0 @@
-{
-  "name": "table-view-block",
-  "version": "0.1.0",
-  "description": "Table view container block - displays entities in a spreadsheet-like table format",
-  "protocol": "0.3",
-  "blockType": {
-    "entryPoint": "bundle"
-  }
-}

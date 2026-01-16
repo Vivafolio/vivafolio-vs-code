@@ -27,6 +27,7 @@ export default defineConfig(({ mode }) => ({
     strictPort: false
   },
   optimizeDeps: {
-    include: ['solid-js', 'vue', 'svelte', 'lit', '@angular/core', '@vivafolio/block-loader']
+    include: ['solid-js', 'vue', 'svelte', 'lit', '@angular/core'],
+    exclude: ['@vivafolio/block-loader']
   }
 }))
