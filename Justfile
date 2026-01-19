@@ -187,6 +187,9 @@ vscode-e2e:
     # Open the vivafolioblock test project with mock + production extensions (Insiders)
     bash ./scripts/vscode-e2e.sh
 
+run-lean-demo:
+	bash ./scripts/vscode-lean-demo.sh
+
 # Run VS Code extension test harness
 test-vscode:
 	VIVAFOLIO_DEBUG=1 VIVAFOLIO_CAPTURE_WEBVIEW_LOGS=1 node test/run-vscode-tests.js | cat
@@ -197,6 +200,9 @@ test-scenario-basic-comms:
 
 test-scenario-callsite-diagnostics:
 	node test/scenarios/callsite-diagnostics.js | cat
+
+test-lean-lsp:
+	npm run test:e2e:lean-nim | cat
 
 test-e2e-blockprotocol-integration:
 	node test/e2e-blockprotocol-integration.js | cat

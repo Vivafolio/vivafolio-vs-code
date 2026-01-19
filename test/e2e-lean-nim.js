@@ -14,7 +14,7 @@ function wait(ms) { return new Promise(r => setTimeout(r, ms)) }
 
 // ---------- Logging helpers ----------
 function ensureLogsDir(repoRoot) {
-  const dir = path.resolve(repoRoot, 'vivafolio', 'test', 'logs')
+  const dir = path.resolve(repoRoot, 'test', 'logs')
   try { fs.mkdirSync(dir, { recursive: true }) } catch {}
   return dir
 }
@@ -49,11 +49,44 @@ function makeConnectionWithLogging(proc, label, repoRoot) {
   return { conn, logPath }
 }
 
+function waitForDiagnostics(conn, targetUri, matcher, logPath, timeoutMs = 60000) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      disposable.dispose()
+      reject(new Error(`Lean: timed out waiting for diagnostics for ${targetUri}. See log: ${logPath}`))
+    }, timeoutMs)
+    const handler = (p) => {
+      try { console.log('[lean diags]', JSON.stringify(p)) } catch {}
+      try { fs.appendFileSync(logPath, `[diag] ${JSON.stringify(p)}\n`) } catch {}
+      if (p?.uri !== targetUri) { return }
+      const diags = Array.isArray(p?.diagnostics) ? p.diagnostics : []
+      const result = matcher(diags, p)
+      if (result) {
+        clearTimeout(timer)
+        disposable.dispose()
+        resolve(result)
+      }
+    }
+    const disposable = conn.onNotification('textDocument/publishDiagnostics', handler)
+  })
+}
+
+async function openLeanDocument(conn, fileUri, text) {
+  await conn.sendNotification('textDocument/didOpen', {
+    textDocument: { uri: fileUri, languageId: 'lean4', version: 1, text }
+  })
+  await conn.sendNotification('textDocument/didChange', {
+    textDocument: { uri: fileUri, version: 2 },
+    contentChanges: [{ text }]
+  })
+  await conn.sendNotification('textDocument/didSave', { textDocument: { uri: fileUri } })
+}
+
 // --------- Lean ---------
 function findLakeBinary(_repoRoot) { return 'lake' }
 
-function startLeanLakeServe(repoRoot) {
-  const cwd = path.resolve(repoRoot, 'widgetLibrary')
+function startLeanLakeServe(repoRoot, projectRelPath = path.join('test', 'projects', 'lean-basic')) {
+  const cwd = path.resolve(repoRoot, projectRelPath)
   const lakeBin = findLakeBinary(repoRoot)
   const binDir = path.dirname(lakeBin)
   const env = { ...process.env, PATH: `${binDir}:${process.env.PATH || ''}`, LEAN_SERVER_LOG_DIR: path.join(repoRoot, '.lake', 'lsp-logs-vivafolio') }
@@ -81,53 +114,65 @@ function startLeanLakeServe(repoRoot) {
   return { conn, proc, cwd, logPath }
 }
 
-async function testLean(repoRoot) {
+async function testLeanBasic(repoRoot) {
   const { conn, proc, cwd, logPath } = startLeanLakeServe(repoRoot)
+  const warningPayload = 'vivafolio: { "viewstate": { "value": 7 }, "height": 120, "origin": "warn" }'
+  const errorPayload = 'vivafolio: { "viewstate": { "value": 8 }, "height": 180, "origin": "error" }'
+  const absPath = path.join(cwd, 'TestEmit.lean')
+  const fileUri = String(pathToFileURL(absPath))
+  const content = fs.readFileSync(absPath, 'utf8')
   try {
     await conn.sendRequest('initialize', { processId: null, capabilities: {}, rootUri: null, workspaceFolders: null })
     await conn.sendNotification('initialized', {})
 
-    // Write a Lean file on disk to ensure lake serve picks it up
-    const absPath = path.join(cwd, 'WidgetLibrary', 'TestEmit.lean')
-    const fileUri = String(pathToFileURL(absPath))
-    const content = (
-      'import Lean\n' +
-      'open Lean Elab Command\n' +
-      'syntax (name := emitErrorCmd) "#emit_error " str : command\n' +
-      ' @[command_elab emitErrorCmd]\n' +
-      ' def elabEmitErrorCmd : CommandElab := fun stx => do\n' +
-      '   match stx with\n' +
-      '   | `(command| #emit_error $s:str) =>\n' +
-      '     throwError (.ofFormat (format s.getString))\n' +
-      '   | _ => throwError "invalid syntax"\n' +
-      '\n' +
-      ' #emit_error "vivafolio: { \\\"viewstate\\\": { \\\"value\\\": 7 }, \\\"height\\\": 120 }"\n'
-    )
-    try { fs.mkdirSync(path.dirname(absPath), { recursive: true }) } catch {}
-    try { fs.writeFileSync(absPath, content, 'utf8') } catch {}
-    await conn.sendNotification('textDocument/didOpen', {
-      textDocument: { uri: fileUri, languageId: 'lean4', version: 1, text: content }
-    })
-    // Trigger analysis with explicit change/save for reliability across servers
-    await conn.sendNotification('textDocument/didChange', {
-      textDocument: { uri: fileUri, version: 2 },
-      contentChanges: [{ text: content }]
-    })
-    await conn.sendNotification('textDocument/didSave', { textDocument: { uri: fileUri } })
+    await openLeanDocument(conn, fileUri, content)
 
-    const got = await new Promise((resolve, reject) => {
-      const to = setTimeout(() => reject(new Error(`Lean: timed out waiting for vivafolio diagnostic. See log: ${logPath}`)), 60000)
-      conn.onNotification('textDocument/publishDiagnostics', (p) => {
-        try {
-          // Log all diagnostics for debugging
-          try { console.log('[lean diags]', JSON.stringify(p)) } catch {}
-          try { fs.appendFileSync(logPath, `[diag] ${JSON.stringify(p)}\n`) } catch {}
-          const diags = Array.isArray(p?.diagnostics) ? p.diagnostics : []
-          if (diags.some(d => String(d.message || '').includes('vivafolio:'))) { clearTimeout(to); resolve(true) }
-        } catch {}
-      })
-    })
-    assert.strictEqual(got, true)
+    const state = { warn: null, error: null }
+    const diagState = await waitForDiagnostics(conn, fileUri, (diags) => {
+      for (const d of diags) {
+        const msg = String(d?.message || '')
+        if (msg.includes(warningPayload)) state.warn = d
+        if (msg.includes(errorPayload)) state.error = d
+      }
+      return state.warn && state.error ? { warn: state.warn, error: state.error } : null
+    }, logPath)
+    assert.ok(diagState.warn, 'expected warning diagnostic containing vivafolio payload')
+    assert.ok(diagState.error, 'expected error diagnostic containing vivafolio payload')
+    assert.strictEqual(diagState.warn.severity, 2, 'warning diagnostic should have severity 2')
+    assert.strictEqual(diagState.error.severity, 1, 'error diagnostic should have severity 1')
+    assert.strictEqual(diagState.warn.source, 'Lean 4', 'warning diagnostic should be sourced from Lean 4')
+    assert.strictEqual(diagState.error.source, 'Lean 4', 'error diagnostic should be sourced from Lean 4')
+  } finally {
+    try { proc.kill() } catch {}
+    conn.dispose()
+  }
+}
+
+async function testLeanDsl(repoRoot) {
+  const projectPath = path.join('test', 'projects', 'lean-dsl')
+  const { conn, proc, cwd, logPath } = startLeanLakeServe(repoRoot, projectPath)
+  try {
+    await conn.sendRequest('initialize', { processId: null, capabilities: {}, rootUri: null, workspaceFolders: null })
+    await conn.sendNotification('initialized', {})
+
+    const pickerAbs = path.join(cwd, 'LeanDsl', 'PickerDemo.lean')
+    const pickerUri = String(pathToFileURL(pickerAbs))
+    const pickerContent = fs.readFileSync(pickerAbs, 'utf8')
+    await openLeanDocument(conn, pickerUri, pickerContent)
+    const pickerDiag = await waitForDiagnostics(conn, pickerUri, (diags) =>
+      diags.find(d => String(d?.message || '').includes('"blockType":"picker"')), logPath)
+    assert.ok(pickerDiag, 'expected picker diagnostic from Lean DSL sample')
+    assert.strictEqual(pickerDiag.severity, 2, 'picker diagnostic should be a warning')
+    assert.ok(String(pickerDiag.message || '').includes('#884411'), 'picker diagnostic should carry gui_state color')
+
+    const brokenAbs = path.join(cwd, 'LeanDsl', 'BrokenGuiState.lean')
+    const brokenUri = String(pathToFileURL(brokenAbs))
+    const brokenContent = fs.readFileSync(brokenAbs, 'utf8')
+    await openLeanDocument(conn, brokenUri, brokenContent)
+    const brokenDiag = await waitForDiagnostics(conn, brokenUri, (diags) =>
+      diags.find(d => String(d?.message || '').includes('gui_state_syntax_error')), logPath)
+    assert.ok(brokenDiag, 'expected syntax error diagnostic for malformed gui_state')
+    assert.strictEqual(brokenDiag.severity, 1, 'malformed gui_state should surface as error')
   } finally {
     try { proc.kill() } catch {}
     conn.dispose()
@@ -142,7 +187,7 @@ function startNimLangServer(cwd, repoRoot) {
 }
 
 async function testNim(repoRoot) {
-  const fixtureDir = path.resolve(repoRoot, 'vivafolio', 'test', 'fixtures', 'nim')
+  const fixtureDir = path.resolve(repoRoot, 'test', 'fixtures', 'nim')
   const filePath = path.join(fixtureDir, 'sample.nim')
   const fileUri = String(pathToFileURL(filePath))
   const { conn, proc, logPath } = startNimLangServer(fixtureDir, repoRoot)
@@ -175,11 +220,10 @@ async function testNim(repoRoot) {
 }
 
 async function run() {
-  const repoRoot = path.resolve(__dirname, '..', '..')
-  await testLean(repoRoot)
+  const repoRoot = path.resolve(__dirname, '..')
+  await testLeanBasic(repoRoot)
+  await testLeanDsl(repoRoot)
   await testNim(repoRoot)
 }
 
 run().catch(err => { console.error(err); process.exit(1) })
-
-
