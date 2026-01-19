@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Block commits in vivafolio-vs-code if the docs repo has tracked changes.
+# Untracked files in docs are allowed; tracked unstaged/staged changes block.
+
+repo_dir="$(git rev-parse --show-toplevel)"
+workspace_root="$(cd "${repo_dir}/.." && pwd)"
+docs_dir="${workspace_root}/vivafolio-docs"
+
+if [ ! -d "${docs_dir}/.git" ]; then
+  echo "Docs repo missing at ${docs_dir}; repo sync both code and docs before committing." >&2
+  exit 1
+fi
+
+dirty_docs="$(git -C "${docs_dir}" status --porcelain --untracked-files=no)"
+if [ -n "${dirty_docs}" ]; then
+  echo "Docs repo has tracked changes; clean or stash docs before committing to vivafolio-vs-code." >&2
+  exit 1
+fi
