@@ -7,6 +7,7 @@
 const fs = require('fs')
 const path = require('path')
 const { spawn } = require('child_process')
+const rpc = require('vscode-jsonrpc/node')
 
 // Test file content
 const testContent = `// Vivafolio test file
@@ -23,122 +24,76 @@ console.log('=========================================')
 fs.writeFileSync(testFile, testContent, 'utf8')
 console.log('✅ Created test file:', testFile)
 
-// Create a minimal LSP client to test the server
-const testLspClient = () => {
+function startServer() {
+  const proc = spawn('node', [mockLspServer], { stdio: 'pipe' })
+  const connection = rpc.createMessageConnection(
+    new rpc.StreamMessageReader(proc.stdout),
+    new rpc.StreamMessageWriter(proc.stdin)
+  )
+  connection.listen()
+  return { proc, connection }
+}
+
+async function waitForDiagnostics(connection, uri, timeoutMs = 5000) {
   return new Promise((resolve, reject) => {
-    console.log('🚀 Starting LSP server...')
-
-    const server = spawn('node', [mockLspServer], {
-      stdio: ['pipe', 'pipe', 'pipe']
-    })
-
-    let output = ''
-    let errorOutput = ''
-
-    server.stdout.on('data', (data) => {
-      output += data.toString()
-    })
-
-    server.stderr.on('data', (data) => {
-      errorOutput += data.toString()
-      console.log('LSP Server:', data.toString().trim())
-    })
-
-    server.on('error', (err) => {
-      console.error('Server error:', err)
-      reject(err)
-    })
-
-    // Send initialize request
-    setTimeout(() => {
-      const initializeRequest = {
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'initialize',
-        params: {
-          processId: process.pid,
-          rootUri: `file://${__dirname}`,
-          capabilities: {}
-        }
+    const timer = setTimeout(() => reject(new Error('Timeout waiting for diagnostics')), timeoutMs)
+    connection.onNotification('textDocument/publishDiagnostics', (params) => {
+      if (params.uri === uri) {
+        clearTimeout(timer)
+        resolve(params)
       }
-
-      console.log('📤 Sending initialize request...')
-      const message = JSON.stringify(initializeRequest) + '\r\n'
-      console.log('📤 Raw message:', message)
-      server.stdin.write(message)
-
-      // Wait for initialize response
-      setTimeout(() => {
-        // Send initialized notification
-        const initializedNotification = {
-          jsonrpc: '2.0',
-          method: 'initialized',
-          params: {}
-        }
-
-        console.log('📤 Sending initialized notification...')
-        server.stdin.write(JSON.stringify(initializedNotification) + '\r\n')
-
-        // Wait and then send didOpen
-        setTimeout(() => {
-          const didOpenNotification = {
-            jsonrpc: '2.0',
-            method: 'textDocument/didOpen',
-            params: {
-              textDocument: {
-                uri: `file://${testFile}`,
-                languageId: 'mocklang',
-                version: 1,
-                text: testContent
-              }
-            }
-          }
-
-          console.log('📤 Sending didOpen notification...')
-          server.stdin.write(JSON.stringify(didOpenNotification) + '\r\n')
-
-          // Wait for response
-          setTimeout(() => {
-            console.log('\n📋 LSP Server Output Analysis:')
-            console.log('================================')
-
-            // Check if we received diagnostics
-            const hasDiagnostics = errorOutput.includes('LSP didOpen: publishing') ||
-                                   errorOutput.includes('publishDiagnostics')
-
-            const hasBlocksFound = errorOutput.includes('found 2 blocks')
-
-            const hasColorExtraction = errorOutput.includes('extracted color = #ff0000')
-
-            console.log('✅ Initialize received:', errorOutput.includes('LSP initialize: received initialize request'))
-            console.log('✅ Initialized notification received:', errorOutput.includes('LSP initialized: received initialized notification'))
-            console.log('✅ didOpen received:', errorOutput.includes('LSP didOpen uri='))
-            console.log('✅ Color extracted:', hasColorExtraction)
-            console.log('✅ Blocks found:', hasBlocksFound)
-            console.log('✅ Diagnostics sent:', hasDiagnostics)
-
-            if (hasDiagnostics && hasBlocksFound && hasColorExtraction) {
-              console.log('\n🎉 SUCCESS: LSP server is working correctly!')
-              console.log('   - Server initializes properly')
-              console.log('   - Color is extracted from gui_state')
-              console.log('   - Vivafolio blocks are found')
-              console.log('   - Diagnostics are sent on didOpen')
-            } else {
-              console.log('\n❌ ISSUES FOUND:')
-              if (!hasColorExtraction) console.log('   - Color extraction failed')
-              if (!hasBlocksFound) console.log('   - Block detection failed')
-              if (!hasDiagnostics) console.log('   - Diagnostics not sent')
-            }
-
-            // Clean up
-            server.kill()
-            fs.unlinkSync(testFile)
-            resolve()
-          }, 2000)
-        }, 500)
-      }, 500)
-    }, 500)
+    })
   })
 }
 
-testLspClient().catch(console.error)
+async function run() {
+  const { proc, connection } = startServer()
+  try {
+    console.log('🚀 Starting LSP server...')
+
+    const initResult = await connection.sendRequest('initialize', {
+      processId: process.pid,
+      rootUri: `file://${__dirname}`,
+      capabilities: {}
+    })
+    if (!initResult || !initResult.serverInfo) {
+      throw new Error('Initialize response missing serverInfo')
+    }
+    console.log('✅ Initialize response received from', initResult.serverInfo.name)
+
+    await connection.sendNotification('initialized', {})
+    console.log('✅ Initialized notification sent')
+
+    const uri = `file://${testFile}`
+    await connection.sendNotification('textDocument/didOpen', {
+      textDocument: {
+        uri,
+        languageId: 'mocklang',
+        version: 1,
+        text: testContent
+      }
+    })
+    console.log('📤 didOpen notification sent')
+
+    const diagnostics = await waitForDiagnostics(connection, uri)
+    if (!diagnostics || !Array.isArray(diagnostics.diagnostics) || diagnostics.diagnostics.length === 0) {
+      throw new Error('No diagnostics received for test file')
+    }
+
+    console.log(`✅ Received ${diagnostics.diagnostics.length} diagnostics for ${uri}`)
+    diagnostics.diagnostics.forEach((diag, idx) => {
+      console.log(`   Diagnostic #${idx + 1}: severity=${diag.severity} source=${diag.source}`)
+    })
+
+    console.log('\n🎉 SUCCESS: didOpen diagnostics flow verified end-to-end')
+  } finally {
+    try { connection.dispose() } catch {}
+    try { proc.kill() } catch {}
+    try { fs.unlinkSync(testFile) } catch {}
+  }
+}
+
+run().catch((err) => {
+  console.error('❌ LSP didOpen test failed:', err && err.stack ? err.stack : String(err))
+  process.exitCode = 1
+})

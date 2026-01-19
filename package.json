@@ -90,6 +90,8 @@
     "test:runtime:vivafolioblock": "node test/validate-runtime-vivafolioblock.js",
     "test:e2e:mock-lsp-client": "node test/e2e-mock-lsp-client.js",
     "test:e2e:lsp-syntax-error": "node test/e2e-lsp-syntax-error.test.js",
+    "test:headless:mocklang": "node test/headless/mocklang-diagnostics.test.js",
+    "test:headless:lean": "node test/headless/lean-diagnostics.test.js",
     "test:vscode:inset-management": "node ./test/suite/index.js",
     "test:wdio": "npx wdio run wdio.conf.ts",
     "test:wdio:hello": "npx wdio run wdio.conf.ts --spec test/wdio/specs/hello-vscode.e2e.ts",
