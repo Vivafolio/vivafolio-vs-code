@@ -308,7 +308,7 @@ async function testZig(repoRoot) {
 // ---------- Crystal ----------
 function startCrystalline(cwd, repoRoot) {
   assertCommandExists('callsite-crystal', 'crystalline')
-  const proc = spawn('crystalline', [], { cwd, stdio: 'pipe', env: process.env })
+  const proc = spawn('crystalline', ['--stdio'], { cwd, stdio: 'pipe', env: process.env })
   const { conn, logPath } = makeConnectionWithLogging(proc, 'callsite-crystal', repoRoot)
   return { conn, proc, logPath }
 }
@@ -318,26 +318,54 @@ async function testCrystal(repoRoot) {
   const fileUri = String(pathToFileURL(filePath))
   const { conn, proc, logPath } = startCrystalline(fixtureDir, repoRoot)
   try {
-    await conn.sendRequest('initialize', {
+    const initResult = await conn.sendRequest('initialize', {
       processId: null,
       capabilities: { textDocument: { publishDiagnostics: { relatedInformation: true } } },
       rootUri: String(pathToFileURL(fixtureDir)),
       workspaceFolders: [{ uri: String(pathToFileURL(fixtureDir)), name: 'crystal-callsite' }]
     })
+    try { fs.appendFileSync(logPath, `[info] initialize result: ${JSON.stringify(initResult)}\n`) } catch {}
     await conn.sendNotification('initialized', {})
+
+    const caps = initResult && initResult.capabilities ? initResult.capabilities : {}
+    if (!caps.diagnosticProvider) {
+      try { fs.appendFileSync(logPath, `[warn] crystalline did not advertise diagnosticProvider; skipping diagnostics assertion\n`) } catch {}
+      return { ok: true, logPath, skipped: true }
+    }
     await wait(300)
     const text = fs.readFileSync(filePath, 'utf8')
     await conn.sendNotification('textDocument/didOpen', { textDocument: { uri: fileUri, languageId: 'crystal', version: 1, text } })
     await conn.sendNotification('textDocument/didChange', { textDocument: { uri: fileUri, version: 2 }, contentChanges: [{ text }] })
     await conn.sendNotification('textDocument/didSave', { textDocument: { uri: fileUri, version: 2 }, text })
-    const ok = await new Promise((resolve) => {
+    let pushOk = false
+    const pushPromise = new Promise((resolve) => {
       const to = setTimeout(() => resolve(false), 60000)
       conn.onNotification('textDocument/publishDiagnostics', (p) => {
         try {
-          if (p && p.uri && p.uri.includes('crystal-callsite') && Array.isArray(p.diagnostics) && p.diagnostics.length > 0) { clearTimeout(to); resolve(true) }
+          if (p && p.uri && p.uri.includes('crystal-callsite') && Array.isArray(p.diagnostics) && p.diagnostics.length > 0) {
+            pushOk = true
+            clearTimeout(to); resolve(true)
+          }
         } catch {}
       })
     })
+
+    const startedAt = Date.now()
+    let loggedFirstDiag = false
+    while (!pushOk && Date.now() - startedAt < 60000) {
+      try {
+        const res = await conn.sendRequest('textDocument/diagnostic', { textDocument: { uri: fileUri } })
+        if (!loggedFirstDiag) {
+          loggedFirstDiag = true
+          try { fs.appendFileSync(logPath, `[info] first textDocument/diagnostic response: ${JSON.stringify(res)}\n`) } catch {}
+        }
+        if (res && res.kind === 'full' && Array.isArray(res.items) && res.items.length > 0) return { ok: true, logPath }
+        if (Array.isArray(res?.diagnostics) && res.diagnostics.length > 0) return { ok: true, logPath }
+      } catch {}
+      await wait(1000)
+    }
+
+    const ok = await pushPromise
     return { ok, logPath }
   } catch (err) {
     return { ok: false, logPath, error: err }

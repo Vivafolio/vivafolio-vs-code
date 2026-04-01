@@ -1,4 +1,2 @@
-# Crystal basic connectivity program
-# Classic Crystal project structure
-
-puts "Hello from crystal-basic"
+# Deliberate parse error for deterministic diagnostics
+def broken(

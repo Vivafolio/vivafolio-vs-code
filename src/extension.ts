@@ -38,6 +38,7 @@ let blockBuilder: BlockBuilder | undefined
 let localBlockWatchers: Map<string, { watcher: any, dispose: () => void }> = new Map()
 let localBlockDirs: string[] = []
 let localDevelopmentEnabled: boolean = false
+const fallbackBlockResourceUris: Map<string, string> = new Map()
 
 // Logging infra: OutputChannel + optional file logging (enable with VIVAFOLIO_DEBUG=1 or VIVAFOLIO_LOG_TO_FILE=1)
 let outputChannel: vscode.OutputChannel | undefined
@@ -301,19 +302,50 @@ async function handleBlockProtocolMessage(message: any, webview: vscode.Webview)
       case 'graph:update':
         if (message.payload?.entities?.[0]) {
           const entity = message.payload.entities[0]
-          const success = await indexingService?.updateEntity(entity.entityId, entity) ?? false
-          if (success) {
-            logLine('info', `Entity ${entity.entityId} updated successfully`)
-            // Broadcast the update to other webviews
-            broadcastToWebviews(message, webview)
+          const entityId = entity.entityId
+          const incomingProperties = entity.properties ?? {}
+          const existingMetadata = typeof entityId === 'string' ? indexingService?.getEntityMetadata(entityId) : undefined
+          const mergedProperties = existingMetadata?.properties
+            ? { ...existingMetadata.properties, ...incomingProperties }
+            : incomingProperties
 
-            // Update the source code if this is a color change
-            if (entity.properties?.color && entity.entityId === 'color-picker') {
-              logLine('info', `Updating source code with new color: ${entity.properties.color}`)
-              await applyColorMarker(JSON.stringify(entity.properties), entity.entityId)
+          const normalizedProperties = normalizeEntityProperties(mergedProperties)
+          const updatedEntity = {
+            ...entity,
+            properties: normalizedProperties
+          }
+
+          let updateSucceeded = false
+          if (entityId) {
+            updateSucceeded = await indexingService?.updateEntity(entityId, normalizedProperties) ?? false
+            if (updateSucceeded) {
+              logLine('info', `Entity ${entityId} updated successfully`)
+            } else {
+              logLine('warn', `Failed to update entity ${entityId} via indexing service; proceeding with direct sync`)
             }
-          } else {
-            logLine('error', `Failed to update entity ${entity.entityId}`)
+          }
+
+          // Broadcast the update to other webviews with merged properties
+          const updatedMessage = {
+            ...message,
+            payload: {
+              ...message.payload,
+              entities: [updatedEntity]
+            }
+          }
+          broadcastToWebviews(updatedMessage, webview)
+
+          const syncLean = shouldSyncLeanSource(entityId)
+          const syncMock = shouldSyncMockSource(entityId)
+          const payloadForSource = syncLean || syncMock ? normalizedProperties : {}
+          // Update the source code for Lean entities even if the indexing service update failed
+          if (syncLean && Object.keys(payloadForSource).length > 0) {
+            logLine('info', `Updating Lean source for ${entityId} with properties: ${JSON.stringify(normalizedProperties)}`)
+            await applyColorMarker(JSON.stringify(normalizedProperties), entityId)
+          }
+          if (syncMock && Object.keys(payloadForSource).length > 0) {
+            logLine('info', `Updating mock source for ${entityId} with properties: ${JSON.stringify(payloadForSource)}`)
+            await applyColorMarker(JSON.stringify(payloadForSource), entityId)
           }
         }
         break
@@ -424,13 +456,45 @@ function broadcastToWebviews(message: any, excludeWebview?: vscode.Webview): voi
   }
 }
 
+function shouldSyncLeanSource(entityId?: string): boolean {
+  return typeof entityId === 'string' && entityId.startsWith('lean/')
+}
+
+function shouldSyncMockSource(entityId?: string): boolean {
+  if (typeof entityId !== 'string') return false
+  return entityId === 'color-picker' || entityId.startsWith('mocklang/')
+}
+
+function normalizeEntityProperties(properties: any): Record<string, any> {
+  if (!properties || typeof properties !== 'object') return {}
+  if (properties.properties && typeof properties.properties === 'object' && !Array.isArray(properties.properties)) {
+    return normalizeEntityProperties(properties.properties)
+  }
+  const clone: Record<string, any> = {}
+  for (const [key, value] of Object.entries(properties)) {
+    if (key === 'entityId' || key === 'blockId' || key === 'blockType' || key === 'languageId' || key === 'viewstate' || key === 'entityGraph') {
+      continue
+    }
+    clone[key] = value
+  }
+  return clone
+}
+
 // Convert diagnostic payload to VivafolioBlock notification format
+function normalizeEntityGraph(payload: any): { entities: any[], links: any[] } {
+  const entities = Array.isArray(payload?.entityGraph?.entities) ? payload.entityGraph.entities : []
+  const links = Array.isArray(payload?.entityGraph?.links) ? payload.entityGraph.links : []
+  return { entities, links }
+}
+
 function createVivafolioBlockNotification(payload: any, document: vscode.TextDocument, diagnostic: vscode.Diagnostic): any {
   try {
+    const entityGraph = normalizeEntityGraph(payload)
     // The payload from the LSP server should already be a complete VivafolioBlock notification
     // We just need to ensure it has the correct sourceUri and range from the diagnostic
     const notification = {
       ...payload,
+      entityGraph,
       sourceUri: document.uri.toString(),
       range: {
         start: {
@@ -441,6 +505,21 @@ function createVivafolioBlockNotification(payload: any, document: vscode.TextDoc
           line: diagnostic.range.end.line,
           character: diagnostic.range.end.character
         }
+      }
+    }
+
+    if (!notification.resources || notification.resources.length === 0) {
+      const normalizedBlockType = (notification.blockType ?? '').toLowerCase()
+      const fallbackUri = fallbackBlockResourceUris.get(normalizedBlockType) ?? fallbackBlockResourceUris.get('*')
+      if (fallbackUri) {
+        notification.resources = [{
+          logicalName: 'index.html',
+          physicalPath: fallbackUri,
+          cachingTag: `lean-demo-${normalizedBlockType || 'default'}`
+        }]
+        logLine('info', `Injected fallback block resource for ${notification.blockId ?? 'unknown block'} (type: ${normalizedBlockType || 'default'})`)
+      } else {
+        logLine('warn', `No fallback block resource registered for blockType=${normalizedBlockType || 'unknown'}`)
       }
     }
 
@@ -467,10 +546,18 @@ async function renderBlockProtocolBlock(notification: any, line: number, contain
     })
 
     // Add block entities to indexing service so webview can query them
+    const sourcePath = typeof notification.sourceUri === 'string'
+      ? vscode.Uri.parse(notification.sourceUri).fsPath
+      : undefined
     if (notification.entityGraph?.entities) {
       logLine('info', `Adding ${notification.entityGraph.entities.length} entities to indexing service`)
       for (const entity of notification.entityGraph.entities) {
-        await indexingService?.createEntity(entity.entityId, entity, { sourceType: 'lsp' })
+        const entityProperties = normalizeEntityProperties(entity.properties ?? {})
+        await indexingService?.createEntity(entity.entityId, entityProperties, {
+          sourceType: 'lsp',
+          sourcePath,
+          dslModule: { entityId: entity.entityId }
+        })
         logLine('info', `Added entity ${entity.entityId} to indexing service`)
       }
     }
@@ -849,22 +936,31 @@ async function applyColorMarker(completeJsonString: string, entityId?: string): 
     const doc = editor.document
 
     // Check if this is a supported file (language-specific syntax)
-    // Accept vivafolio (production) and mocklang (test) languages
-    if (doc.languageId !== 'vivafolio' && doc.languageId !== 'vivafolio-mock' && doc.languageId !== 'mocklang') {
+    const isLeanDoc = doc.languageId === 'lean4' || doc.fileName.endsWith('.lean')
+    const isVivafolioDoc = doc.languageId === 'vivafolio' || doc.languageId === 'vivafolio-mock' || doc.languageId === 'mocklang'
+    if (!isVivafolioDoc && !isLeanDoc) {
       console.log('applyColorMarker: skipping - not a supported file (language:', doc.languageId + ')')
       return
     }
 
     let targetLineIdx = -1
+    let parsedState: any = undefined
+    try { parsedState = JSON.parse(completeJsonString) } catch { parsedState = undefined }
 
     // Find the line with the vivafolio block that should be updated
-    // For now, we look for the picker line, but this could be made more generic
+    const macroIdentifier = (() => {
+      if (!entityId) return 'vivafolio_picker!'
+      if (entityId.includes('square')) return 'vivafolio_square!'
+      if (entityId.includes('picker')) return 'vivafolio_picker!'
+      return 'vivafolio_picker!'
+    })()
+
     const lineCount = doc.lineCount
     for (let i = 0; i < lineCount; i++) {
       const lineText = doc.lineAt(i).text
-      if (lineText.includes('vivafolio_picker!')) {
+      if (lineText.includes(macroIdentifier)) {
         targetLineIdx = i;
-        console.log('applyColorMarker: found picker at line', i)
+        console.log(`applyColorMarker: found ${macroIdentifier} at line`, i)
         break
       }
     }
@@ -884,19 +980,8 @@ async function applyColorMarker(completeJsonString: string, entityId?: string): 
 
     // Check if there are unmatched quotes/hashes that indicate corruption
     const quoteCount = (lineText.match(/"/g) || []).length
-    const hashCount = (lineText.match(/#/g) || []).length
     const rHashCount = (lineText.match(/r#/g) || []).length
-
-    // Clean gui_state syntax analysis:
-    // vivafolio_picker!() gui_state! r#"{"color":"#ff0000"}"#
-    // - Quotes: r#", {"color":", "#ff0000", "}, "#
-    // - Hashes: r#, #ff0000, #
-    // - r#: r#
-    // Clean should have: quotes >= 4, hashes >= 3, r# = 1
-    // Corrupted has significantly more due to concatenated blocks
-    const hasUnmatchedSyntax = quoteCount > 6 || hashCount > 4 || rHashCount > 1
-
-    const hasCorruptedContent = hasUnmatchedSyntax
+    const hasCorruptedContent = rHashCount > 2
 
     if (hasMultipleGuiState || hasCorruptedContent) {
       console.log('applyColorMarker: detected corrupted gui_state, cleaning up...')
@@ -908,16 +993,14 @@ async function applyColorMarker(completeJsonString: string, entityId?: string): 
       console.log('applyColorMarker: cleaned line:', lineText)
     }
 
-    // Simple find and replace: replace entire gui_state! block with new JSON string
-    // Use a more robust regex that handles the viv language syntax: gui_state! r#"..."#
-    // Make it greedy to match to the last "# on the line (handles any remaining corruption)
-    let newText = lineText.replace(/gui_state!\s*r#".*"#/, `gui_state! r#"${completeJsonString}"#`)
-
-    // If no gui_state found, append it
-    if (!newText.includes('gui_state!')) {
-      newText = lineText + ' ' + `gui_state! r#"${completeJsonString}"#`
-      console.log('applyColorMarker: appended new gui_state')
-    }
+    // Simple find and replace: replace entire gui_state! block with new JSON string.
+    // Support raw string delimiters with arbitrary amounts of hashes (r#"..."#, r##"..."##, etc.)
+    const hashMatch = lineText.match(/gui_state!\s*r(#+)"/)
+    const rawHashCount = hashMatch ? hashMatch[1].length : 1
+    const openRaw = `r${'#'.repeat(rawHashCount)}"`
+    const closeRaw = `"${'#'.repeat(rawHashCount)}`
+    const beforeGuiState = lineText.split('gui_state!')[0]
+    let newText = `${beforeGuiState}gui_state! ${openRaw}${completeJsonString}${closeRaw}`
 
     console.log('applyColorMarker: replacing line with:', newText)
 
@@ -928,11 +1011,65 @@ async function applyColorMarker(completeJsonString: string, entityId?: string): 
       console.log('applyColorMarker: edit applied, saving...')
       await doc.save()
       console.log('applyColorMarker: document saved')
+
+      // Keep linked Lean macros (e.g., picker + square) in sync on color changes
+      await syncLinkedLeanMacros(doc, entityId, parsedState)
     } else {
       console.log('applyColorMarker: edit failed')
     }
   } catch (e) {
     console.log('applyColorMarker: error:', e)
+  }
+}
+
+async function syncLinkedLeanMacros(doc: vscode.TextDocument, sourceEntityId: string | undefined, state: any): Promise<void> {
+  if (!sourceEntityId) return
+  const color = extractColorFromState(state)
+  if (!color) return
+
+  const targetMacro = resolveLinkedMacroIdentifier(sourceEntityId)
+  if (!targetMacro) return
+
+  await updateMacroColor(doc, targetMacro, color)
+}
+
+function extractColorFromState(state: any): string | undefined {
+  if (!state || typeof state !== 'object') return undefined
+  if (typeof state.color === 'string') return state.color
+  if (state.value && typeof state.value.color === 'string') return state.value.color
+  return undefined
+}
+
+function resolveLinkedMacroIdentifier(entityId: string): string | undefined {
+  if (entityId.includes('picker')) return 'vivafolio_square!'
+  if (entityId.includes('square')) return 'vivafolio_picker!'
+  return undefined
+}
+
+async function updateMacroColor(doc: vscode.TextDocument, macroIdentifier: string, color: string): Promise<void> {
+  try {
+    const lineCount = doc.lineCount
+    for (let i = 0; i < lineCount; i++) {
+      const lineText = doc.lineAt(i).text
+      if (!lineText.includes(macroIdentifier)) continue
+
+      const colorRegex = /("color"\s*:\s*")([^"]+)(")/
+      if (!colorRegex.test(lineText)) return
+
+      const newLine = lineText.replace(colorRegex, `$1${color}$3`)
+      if (newLine === lineText) return
+
+      const edit = new vscode.WorkspaceEdit()
+      edit.replace(doc.uri, doc.lineAt(i).range, newLine)
+      const applied = await vscode.workspace.applyEdit(edit)
+      if (applied) {
+        await doc.save()
+        console.log(`updateMacroColor: synced ${macroIdentifier} to ${color}`)
+      }
+      return
+    }
+  } catch (error) {
+    console.log('updateMacroColor error:', error)
   }
 }
 
@@ -1116,6 +1253,21 @@ export function activate(context: vscode.ExtensionContext) {
   hiddenDecoration = vscode.window.createTextEditorDecorationType({ textDecoration: 'none; opacity: 0;' })
   context.subscriptions.push(hiddenDecoration)
 
+  const registerFallbackResource = (key: string, relativePath: string, description: string) => {
+    const absolutePath = path.join(context.extensionPath, relativePath)
+    if (fs.existsSync(absolutePath)) {
+      const uri = vscode.Uri.file(absolutePath).toString()
+      fallbackBlockResourceUris.set(key.toLowerCase(), uri)
+      logLine('info', `Registered fallback block resource "${key}" (${description}) at ${absolutePath}`)
+    } else {
+      logLine('warn', `Missing fallback block resource "${key}" (${description}) at ${absolutePath}`)
+    }
+  }
+
+  registerFallbackResource('*', path.join('test', 'resources', 'index.html'), 'default test block')
+  registerFallbackResource('picker', path.join('blocks', 'color-picker', 'dist', 'index.html'), 'Lean color picker block')
+  registerFallbackResource('square', path.join('blocks', 'color-square', 'dist', 'index.html'), 'Lean color square block')
+
   // Initialize Block Protocol infrastructure
   initializeBlockProtocolInfrastructure(context)
 
@@ -1146,19 +1298,18 @@ export function activate(context: vscode.ExtensionContext) {
       }
       const uri = active.document.uri
       const all = vscode.languages.getDiagnostics(uri)
-      const hints = all.filter(d => d.severity === vscode.DiagnosticSeverity.Hint)
+      const vivafolioDiagnostics = all.map(d => ({ diag: d, payload: parseVivafolioPayload(d) })).filter(entry => !!entry.payload) as { diag: vscode.Diagnostic, payload: any }[]
 
-      console.log(`[Vivafolio] processCurrentDiagnostics: Found ${all.length} total diagnostics, ${hints.length} hints for ${uri.toString()}`)
+      console.log(`[Vivafolio] processCurrentDiagnostics: Found ${all.length} total diagnostics, ${vivafolioDiagnostics.length} vivafolio diagnostics for ${uri.toString()}`)
 
       // Collect all blockIds present in current diagnostics (complete state)
       const currentBlockIds = new Set<string>()
-      for (const d of hints) {
-        const payload = parseVivafolioPayload(d)
+      for (const { payload } of vivafolioDiagnostics) {
         if (payload?.blockId) currentBlockIds.add(String(payload.blockId))
       }
 
-      // If no hints at all, clear all webviews for this document
-      if (hints.length === 0) {
+      // If no Vivafolio diagnostics at all, clear all webviews for this document
+      if (vivafolioDiagnostics.length === 0) {
         for (const [blockId, webviewInfo] of webviewsByBlockId.entries()) {
           try { webviewInfo.dispose() } catch { }
         }
@@ -1174,12 +1325,9 @@ export function activate(context: vscode.ExtensionContext) {
       }
 
       // Process current diagnostics: update existing or create new insets
-      for (const d of hints) {
-        const payload = parseVivafolioPayload(d)
-        if (!payload) continue
-        const line = Math.max(0, Math.min((d.range?.start?.line ?? 0), active.document.lineCount - 1))
+      for (const { diag, payload } of vivafolioDiagnostics) {
+        const line = Math.max(0, Math.min((diag.range?.start?.line ?? 0), active.document.lineCount - 1))
         lastPayload = payload
-        const viewstate = payload?.viewstate ?? payload?.state ?? undefined
         void (async () => {
           try {
             if (payload?.error) {
@@ -1187,14 +1335,14 @@ export function activate(context: vscode.ExtensionContext) {
               const existing = payload?.blockId ? webviewsByBlockId.get(String(payload.blockId)) : undefined
               try { if (existing) existing.post(lastPosted); else lastPost?.post(lastPosted) } catch { }
             } else {
-              const prePayload = { entities: payload?.entityGraph?.entities ?? [], links: payload?.entityGraph?.links ?? [] }
+              const prePayload = normalizeEntityGraph(payload)
               lastPosted = { type: 'graph:update', payload: prePayload }
               const existing = payload?.blockId ? webviewsByBlockId.get(String(payload.blockId)) : undefined
               try { if (existing) existing.post(lastPosted); else lastPost?.post(lastPosted) } catch { }
             }
           } catch { }
           // Create VivafolioBlock notification from diagnostic payload
-          const notification = createVivafolioBlockNotification(payload, active.document, d)
+          const notification = createVivafolioBlockNotification(payload, active.document, diag)
           if (!notification) {
             logLine('error', 'Failed to create VivafolioBlock notification')
             return
@@ -1226,21 +1374,18 @@ export function activate(context: vscode.ExtensionContext) {
     const uri = active.document.uri
     console.log('[Vivafolio] Active document URI:', uri.toString())
     const all = vscode.languages.getDiagnostics(uri)
-    const hints = all.filter(d => d.severity === vscode.DiagnosticSeverity.Hint)
-    try { console.log('[Vivafolio] onDidChangeDiagnostics: total=', all.length, 'hints=', hints.length) } catch { }
+    const vivafolioDiagnostics = all.map(d => ({ diag: d, payload: parseVivafolioPayload(d) })).filter(entry => !!entry.payload) as { diag: vscode.Diagnostic, payload: any }[]
+    try { console.log('[Vivafolio] onDidChangeDiagnostics: total=', all.length, 'vivafolio=', vivafolioDiagnostics.length) } catch { }
 
     // Collect all blockIds present in current diagnostics (complete state)
     const currentBlockIds = new Set<string>()
-    for (const d of hints) {
-      const payload = parseVivafolioPayload(d)
-      if (payload?.blockId) {
-        currentBlockIds.add(String(payload.blockId))
-      }
+    for (const { payload } of vivafolioDiagnostics) {
+      if (payload?.blockId) currentBlockIds.add(String(payload.blockId))
     }
 
-    // If no hints at all, clear all webviews for this document
-    if (hints.length === 0) {
-      console.log('[Vivafolio] no hints found, clearing all webviews for document')
+    // If no vivafolio diagnostics at all, clear all webviews for this document
+    if (vivafolioDiagnostics.length === 0) {
+      console.log('[Vivafolio] no vivafolio diagnostics found, clearing all webviews for document')
       for (const [blockId, webviewInfo] of webviewsByBlockId.entries()) {
         try {
           console.log('[Vivafolio] clearing webview for blockId:', blockId)
@@ -1267,16 +1412,13 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     // Process current diagnostics: update existing or create new insets
-    for (const d of hints) {
-      const payload = parseVivafolioPayload(d)
-      if (!payload) { try { console.log('[Vivafolio] hint without vivafolio payload at line', d.range?.start?.line) } catch { }; continue }
-      const line = Math.max(0, Math.min((d.range?.start?.line ?? 0), active.document.lineCount - 1))
+    for (const { diag, payload } of vivafolioDiagnostics) {
+      const line = Math.max(0, Math.min((diag.range?.start?.line ?? 0), active.document.lineCount - 1))
       lastPayload = payload
-      const viewstate = payload?.viewstate ?? payload?.state ?? undefined
       void (async () => {
         // Precompute initial graph payload; store for tests and post to existing webview if any
         try {
-          const prePayload = { entities: payload?.entityGraph?.entities ?? [], links: payload?.entityGraph?.links ?? [] }
+          const prePayload = normalizeEntityGraph(payload)
           lastPosted = { type: 'graph:update', payload: prePayload }
           // Update existing webview for this blockId if present, else fall back to lastPost
           const existing = payload?.blockId ? webviewsByBlockId.get(String(payload.blockId)) : undefined
@@ -1296,7 +1438,7 @@ export function activate(context: vscode.ExtensionContext) {
           }
         } catch { }
         // Create VivafolioBlock notification from diagnostic payload
-        const notification = createVivafolioBlockNotification(payload, active.document, d)
+        const notification = createVivafolioBlockNotification(payload, active.document, diag)
         if (!notification) {
           logLine('error', 'Failed to create VivafolioBlock notification')
           return
