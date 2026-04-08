@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# After each code commit, attempt to generate a lock in the manifest repo.
+# This is best-effort: failures are logged but do not undo the commit.
+
+repo_dir="$(git rev-parse --show-toplevel)"
+workspace_root="$(cd "${repo_dir}/.." && pwd)"
+# Manifest lives under .repo/manifests (not cloned as a top-level project)
+manifest_dir="${workspace_root}/.repo/manifests"
+generator="${manifest_dir}/tools/gen-lock.sh"
+color_red="$(tput setaf 1 2>/dev/null || echo "")"
+color_green="$(tput setaf 2 2>/dev/null || echo "")"
+color_yellow="$(tput setaf 3 2>/dev/null || echo "")"
+color_reset="$(tput sgr0 2>/dev/null || echo "")"
+
+# Only run if manifest repo and generator exist.
+if [ ! -x "${generator}" ]; then
+  printf "%spost-commit: gen-lock.sh not found; skipping auto-pin.%s\n" "${color_yellow}" "${color_reset}" >&2
+  exit 0
+fi
+
+ROOT="${workspace_root}" "${generator}" || {
+  status=$?
+  printf "%spost-commit: auto-pin failed (exit %s); run gen-lock.sh manually.%s\n" "${color_red}" "${status}" "${color_reset}" >&2
+  exit "${status}"
+}
+
+printf "%spost-commit: auto-pin succeeded.%s\n" "${color_green}" "${color_reset}"
+exit 0
