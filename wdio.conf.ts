@@ -4,6 +4,10 @@ import { execSync } from 'child_process'
 // Use require for chromedriver since it doesn't have TypeScript definitions
 const chromedriver = require('chromedriver')
 
+// On NixOS the npm chromedriver binary is dynamically linked and won't run.
+// The Nix flake provides a patched chromedriver via CHROMEDRIVER_FILEPATH.
+const chromedriverPath = process.env.CHROMEDRIVER_FILEPATH || chromedriver.path
+
 function resolveVSCodeInsidersBinary(): string | undefined {
   const fromEnv = process.env.VSCODE_INSIDERS_PATH
   if (fromEnv && fromEnv.trim().length > 0) return fromEnv
@@ -78,7 +82,7 @@ export const config: Options.Testrunner = {
     browserVersion: 'insiders', // VS Code version, not Chrome version
     'wdio:enforceWebDriverClassic': true,
     'wdio:chromedriverOptions': {
-      binary: chromedriver.path // Use ChromeDriver 138 to match bundled Chromium 138
+      binary: chromedriverPath // Use ChromeDriver 138 to match bundled Chromium 138
     },
     'wdio:vscodeOptions': ({
       ...(vscodeInsidersBinary ? { binary: vscodeInsidersBinary } : {}),

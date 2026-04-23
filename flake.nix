@@ -92,6 +92,39 @@
             }
           else
             pkgs.dcd;
+        # Chromedriver pinned to match the Chromium version embedded in VS Code
+        # Insiders' Electron (currently Electron 37 → Chrome 138). The npm
+        # chromedriver package ships a dynamically-linked binary that doesn't
+        # run on NixOS, so we fetch the same version and patch it here.
+        chromedriverBin =
+          if pkgs.stdenv.hostPlatform.system == "x86_64-linux" then
+            pkgs.stdenvNoCC.mkDerivation {
+              pname = "chromedriver";
+              version = "138.0.7204.183";
+              src = pkgs.fetchzip {
+                url = "https://storage.googleapis.com/chrome-for-testing-public/138.0.7204.183/linux64/chromedriver-linux64.zip";
+                sha256 = "sha256-cZBsO6UQxE3dV7XBLTkT2MqrcFxTmgNTg9qNXq7yofU=";
+              };
+              nativeBuildInputs = [ pkgs.autoPatchelfHook ];
+              buildInputs = [
+                pkgs.glib
+                pkgs.nspr
+                pkgs.nss
+                pkgs.xorg.libX11
+                pkgs.libxcb
+              ];
+              installPhase = ''
+                mkdir -p $out/bin
+                cp chromedriver $out/bin/chromedriver
+                chmod +x $out/bin/chromedriver
+              '';
+              meta = with pkgs.lib; {
+                description = "ChromeDriver 138 for VS Code Insiders WDIO testing";
+                homepage = "https://chromedriver.chromium.org/";
+                platforms = [ "x86_64-linux" ];
+              };
+            }
+          else null;
         playwrightLibs = with pkgs; [
           glib
           gtk3
@@ -161,13 +194,13 @@
             # WebdriverIO testing dependencies
             chromium
             xorg.xorgserver # provides Xvfb for headless VS Code on Linux
-            # Virtual framebuffer for headless GUI testing in CI (Linux only)
-            # xvfb-run  # Not available on macOS
+            xvfb-run        # wrapper script for headless GUI testing
             # VS Code Insiders is used only for manual testing
             # @vscode/test-electron downloads VS Code for the automated tests.
             vscodeInsiders
             yarn
-          ]) ++ playwrightLibs;
+          ] ++ lib.optionals (chromedriverBin != null) [ chromedriverBin ]
+          ) ++ playwrightLibs;
           shellHook = ''
             echo "Vivafolio dev shell: Node $(node -v)"
             # Agents note: This shell is intentionally minimal and self-contained for Vivafolio tests.
@@ -176,6 +209,10 @@
             export LD_LIBRARY_PATH=${pkgs.lib.makeLibraryPath playwrightLibs}:$LD_LIBRARY_PATH
             export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=${pkgs.chromium}/bin/chromium
             export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+            ${lib.optionalString (chromedriverBin != null) ''
+            export CHROMEDRIVER_FILEPATH=${chromedriverBin}/bin/chromedriver
+            ''}
+            export CHROMEDRIVER_SKIP_DOWNLOAD=true
           '';
       };
     });
